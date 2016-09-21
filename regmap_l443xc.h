@@ -1,0 +1,279 @@
+#ifndef REGMAP_L433_H
+#define REGMAP_L433_H
+
+#define MCU_L_SERIES 1
+
+#define RTC_BASE_ADDR (0x40002800)
+#define CRS_BASE_ADDR (0x40006000)
+#define USB_BASE_ADDR (0x40006800)
+#define USB_PMA_ADDR (0x40006C00)
+#define PWR_BASE_ADDR (0x40007000)
+#define EXTI_BASE_ADDR (0x40010400)
+#define SDMMC_BASE_ADDR (0x40012800)
+#define RCC_BASE_ADDR (0x40021000)
+#define FLASH_BASE_ADDR (0x40022000)
+#define RNG_BASE_ADDR (0x50060800)
+#define SYSCFG_BASE_ADDR (0x40010000)
+
+#define SYSCFG_EXTICR(N) REGISTER(SYSCFG_BASE_ADDR + 0x8 + (4 * (N)))
+
+#define PWR_CR2 REGISTER(PWR_BASE_ADDR + 0x4)
+#define PWR_CR2_USV (1<<10)
+
+#define FLASH_MEM_BASE_ADDR 0x8000000
+#define FLASH_MEM_SIZE (1<<18)
+#define FLASH_MEM_END_ADDR (FLASH_MEM_BASE_ADDR + FLASH_MEM_SIZE - 1)
+#define FLASH_PAGE_SIZE (2048)
+
+#define RTC_EXTI_LINE (20)
+#define USB_EXTI_LINE (17)
+
+#define RCC_CR REGISTER(RCC_BASE_ADDR + 0x0)
+#define RCC_CR_MSION (1<<0)
+#define RCC_CR_MSIRDY (1<<1)
+#define RCC_CR_MSIPLLEN (1<<2)
+#define RCC_CR_MSIRGSEL (1<<3)
+#define RCC_CR_MSIRANGE_FACTOR (1<<4)
+#define RCC_CR_MSIRANGE_MASK (0xf << 4)
+#define RCC_CR_HSION (1<<8)
+#define RCC_CR_HSIKERON (1<<9)
+#define RCC_CR_HSIRDY (1<<10)
+#define RCC_CR_HSIASFS (1<<11)
+#define RCC_CR_HSEON (1<<16)
+#define RCC_CR_HSERDY (1<<17)
+#define RCC_CR_HSEBYP (1<<18)
+#define RCC_CR_CSSON (1<<19)
+#define RCC_CR_PLLON (1<<24)
+#define RCC_CR_PLLRDY (1<<25)
+#define RCC_CR_PLLSA1ON (1<<26)
+#define RCC_CR_PLLSAIRDY (1<<17)
+
+#define RCC_CFGR REGISTER(RCC_BASE_ADDR + 0x8)
+#define RCC_CFGR_SW_FACTOR (1<<0)
+#define RCC_CFGR_SW_MASK (3<<0)
+#define RCC_CFGR_SW_MSI (0)
+#define RCC_CFGR_SW_HSI16 (1)
+#define RCC_CFGR_SW_HSE (2)
+#define RCC_CFGR_SW_PLL (3)
+#define RCC_CFGR_SWS_FACTOR (1<<2)
+#define RCC_CFGR_SWS_MASK (3<<2)
+#define RCC_CFGR_SWS_MSI (0<<2)
+#define RCC_CFGR_SWS_HSI16 (1<<2)
+#define RCC_CFGR_SWS_HSE (2<<2)
+#define RCC_CFGR_SWS_PLL (3<<2)
+#define RCC_CFGR_HPRE_MASK (0xf << 4)
+#define RCC_CFGR_HPRE_FACTOR (1 << 4)
+#define RCC_CFGR_PPRE1_MASK (7 << 8)
+#define RCC_CFGR_PPRE1_FACTOR (1 << 8)
+#define RCC_CFGR_PPRE2_MASK (7 << 11)
+#define RCC_CFGR_PPRE2_FACTOR (1 << 11)
+#define RCC_CFGR_STOPWUCK (1 << 15)
+#define RCC_CFGR_MCOSEL_FACTOR (1 << 24)
+#define RCC_CFGR_MCOSEL_MASK (0xf << 24)
+#define RCC_CFGR_MCOPRE_FACTOR (1 << 28)
+#define RCC_CFGR_MCOPRE_MASK (7 << 24)
+
+#define RCC_PLLCFGR REGISTER(RCC_BASE_ADDR + 0xC)
+#define RCC_PLLCFGR_PLLSRC_MASK (0<<0)
+#define RCC_PLLCFGR_PLLSRC_NOCLK (0<<0)
+#define RCC_PLLCFGR_PLLSRC_MSI (1<<0)
+#define RCC_PLLCFGR_PLLSRC_HSI16 (2<<0)
+#define RCC_PLLCFGR_PLLSRC_HSE (3<<0)
+
+#define RCC_AHB1ENR REGISTER(RCC_BASE_ADDR + 0x48)
+#define RCC_AHB2ENR REGISTER(RCC_BASE_ADDR + 0x4C)
+#define RCC_AHB2ENR_IOP_AEN (1<<0)
+#define RCC_AHB2ENR_IOP_BEN (1<<1)
+#define RCC_AHB2ENR_IOP_CEN (1<<2)
+#define RCC_AHB2ENR_IOP_DEN (1<<3)
+#define RCC_AHB2ENR_IOP_EEN (1<<5)
+#define RCC_AHB2ENR_IOP_HEN (1<<7)
+#define RCC_AHB2ENR_ADCEN (1<<13)
+#define RCC_AHB2ENR_RNGEN (1<<18)
+
+#define RCC_AHB3ENR REGISTER(RCC_BASE_ADDR + 0x50)
+#define RCC_AHB3ENR_QSPIEN (1<<8)
+
+#define RCC_APB1ENR1 REGISTER(RCC_BASE_ADDR + 0x58)
+#define RCC_APB1ENR1_CRSEN (1<<24)
+#define RCC_APB1ENR1_USART2EN (1<<17)
+#define RCC_APB1ENR1_USART3EN (1<<18)
+#define RCC_APB1ENR1_USBFSEN (1<<26)
+#define RCC_APB1ENR1_PWREN (1<<28)
+
+#define RCC_APB1ENR2 REGISTER(RCC_BASE_ADDR + 0x5C)
+#define RCC_APB1ENR2_LPUART1EN (1<<0)
+
+#define RCC_APB2ENR REGISTER(RCC_BASE_ADDR + 0x60)
+#define RCC_APB2ENR_SYSCFGEN (1<<0)
+#define RCC_APB2ENR_SDMMCEN (1<<10)
+#define RCC_APB2ENR_USART1EN (1<<14)
+
+#define RCC_CCIPR REGISTER(RCC_BASE_ADDR + 0x88)
+#define RCC_CCIPR_CLK48SEL_FACTOR (1<<26)
+#define RCC_CCIPR_CLK48SEL_MASK (3<<26)
+#define RCC_CCIPR_CLK48SEL_HSI48 (0)
+#define RCC_CCIPR_CLK48SEL_PLLSAI1 (1)
+#define RCC_CCIPR_CLK48SEL_PLL (2)
+#define RCC_CCIPR_CLK48SEL_MSI (2)
+
+#define RCC_BDCR REGISTER(RCC_BASE_ADDR + 0x90)
+#define RCC_BDCR_RTCEN (1<<15)
+#define RCC_BDCR_RTCSEL_MASK (3<<8)
+#define RCC_BDCR_RTCSEL_NONE (0<<8)
+#define RCC_BDCR_RTCSEL_LSE (1<<8)
+#define RCC_BDCR_RTCSEL_LSI (2<<8)
+#define RCC_BDCR_RTCSEL_HSE (3<<8)
+
+#define RCC_CSR REGISTER(RCC_BASE_ADDR + 0x94)
+#define RCC_CSR_LSION (1<<0)
+#define RCC_CSR_LSIRDY (1<<1)
+
+#define RCC_CRRCR REGISTER(RCC_BASE_ADDR + 0x98)
+#define RCC_CRRCR_HSI48ON (1<<0)
+#define RCC_CRRCR_HSI48RDY (1<<1)
+
+#define CRS_CR REGISTER(CRS_BASE_ADDR + 0)
+#define CRS_CR_AUTOTRIMEN (1<<6)
+
+#define RTC_WKUP_IRQ 3
+#define FLASH_IRQ 4
+#define EXT3_IRQ 9
+#define EXT4_IRQ 10
+#define EXT_9_5_IRQ 23
+#define I2C1_EV_IRQ 31
+#define I2C1_ERR_IRQ 32
+#define I2C2_EV_IRQ 33
+#define I2C2_ERR_IRQ 34
+#define SPI1_IRQ 35
+#define SPI2_IRQ 36
+#define USART1_IRQ 37
+#define USART2_IRQ 38
+#define USART3_IRQ 39
+#define EXT_15_10_IRQ 40
+#define RTC_ALARM_IRQ 41
+#define SDMMC_IRQ 49
+#define USB_FS_IRQ 67 //EXTI 17
+#define RNG_IRQ 80
+
+typedef u16 usbw_t;
+#define USB_EP(N) (*((volatile struct usb_ep *)(USB_PMA_ADDR + 8 * N)))
+
+#define USB_BCDR REGISTER(USB_BASE_ADDR + 0x58)
+#define USB_BCDR_DPPU (1<<15)
+
+struct gpio_port;
+#define PORTA ((volatile struct gpio_port *)(0x48000000))
+#define PORTB ((volatile struct gpio_port *)(0x48000400))
+#define PORTC ((volatile struct gpio_port *)(0x48000800))
+#define PORTD ((volatile struct gpio_port *)(0x48000C00))
+#define PORTE ((volatile struct gpio_port *)(0x48001000))
+#define PORTH ((volatile struct gpio_port *)(0x48001C00))
+
+struct usart_port;
+#define USART1 ((volatile struct usart_port *)(0x40013800))
+#define USART2 ((volatile struct usart_port *)(0x40004400))
+#define USART3 ((volatile struct usart_port *)(0x40004800))
+
+#define FLASH_ACR REGISTER(FLASH_BASE_ADDR + 0x0)
+#define FLASH_KEYR REGISTER(FLASH_BASE_ADDR + 0x8)
+#define FLASH_OPTKEYR REGISTER(FLASH_BASE_ADDR + 0xC)
+#define FLASH_SR REGISTER(FLASH_BASE_ADDR + 0x10)
+#define FLASH_SR_EOP (1<<0)
+#define FLASH_SR_BUSY (1<<16)
+#define FLASH_CR REGISTER(FLASH_BASE_ADDR + 0x14)
+#define FLASH_CR_PG (1<<0)
+#define FLASH_CR_PER (1<<1)
+#define FLASH_CR_PNB_FACTOR (1<<3)
+#define FLASH_CR_PNB_MASK (0xff<<3)
+#define FLASH_CR_STRT (1<<16)
+#define FLASH_CR_EOPIE (1<<24)
+#define FLASH_CR_ERRIE (1<<26)
+#define FLASH_CR_LOCK (1<<31)
+
+#define FLASH_KEYR_KEY1 0x45670123
+#define FLASH_KEYR_KEY2 0xCDEF89AB
+
+#define EXTI_BASE_ADDR (0x40010400)
+
+struct i2c_port;
+
+#define I2C1 ((volatile struct i2c_port *)(0x40005400))
+#define I2C2 ((volatile struct i2c_port *)(0x40005800))
+#define I2C3 ((volatile struct i2c_port *)(0x40005C00))
+
+#define RNG_CR REGISTER(RNG_BASE_ADDR + 0x0)
+#define RNG_CR_RNGEN (1<<2)
+#define RNG_CR_IE (1<<3)
+
+#define RNG_SR REGISTER(RNG_BASE_ADDR + 0x4)
+#define RNG_SR_DRDY (1<<0)
+#define RNG_SR_CECS (1<<1)
+#define RNG_SR_SECS (1<<2)
+#define RNG_SR_CEIS (1<<5)
+#define RNG_SR_SEIS (1<<6)
+
+#define RNG_DR REGISTER(RNG_BASE_ADDR + 0x8)
+
+#define SDMMC_POWER REGISTER(SDMMC_BASE_ADDR + 0x0)
+#define SDMMC_POWER_PWRCTRL_MASK 3
+#define SDMMC_POWER_PWRCTRL_OFF 0
+#define SDMMC_POWER_PWRCTRL_ON 3
+
+#define SDMMC_CLKCR REGISTER(SDMMC_BASE_ADDR + 0x4)
+#define SDMMC_CLKCR_CLKDIV_MASK 0xff
+#define SDMMC_CLKCR_CLKDIV_FACTOR 1
+#define SDMMC_CLKCR_CLKEN (1<<8)
+#define SDMMC_CLKCR_PWRSAV (1<<9)
+#define SDMMC_CLKCR_BYPASS (1<<10)
+#define SDMMC_CLKCR_WIDBUS_MASK (3<<11)
+#define SDMMC_CLKCR_WIDBUS_1BIT (0<<11)
+#define SDMMC_CLKCR_WIDBUS_4BIT (1<<11)
+#define SDMMC_CLKCR_WIDBUS_8BIT (2<<11)
+#define SDMMC_CLKCR_NEGEDGE (1<<13)
+#define SDMMC_CLKCR_HWFC_EN (1<<14)
+
+#define SDMMC_ARG REGISTER(SDMMC_BASE_ADDR + 0x8)
+
+#define SDMMC_CMD REGISTER(SDMMC_BASE_ADDR + 0xC)
+#define SDMMC_CMD_CMDINDEX_MASK (0x3f)
+#define SDMMC_CMD_WAITRESP_CMDSENT (1<<6)
+#define SDMMC_CMD_WAITRESP_LONG_RESP (1<<7)
+#define SDMMC_CMD_WAITINT (1<<8)
+#define SDMMC_CMD_WAITPEND (1<<9)
+#define SDMMC_CMD_CPSMEN (1<<10)
+#define SDMMC_CMD_SDIO_SUSPEND (1<<11)
+
+#define SDMMC_RESPCMD REGISTER(SDMMC_BASE_ADDR + 0x10)
+#define SDMMC_RESPx(N) REGISTER(SDMMC_BASE_ADDR + 0x10 + N * 4)
+
+#define SDMMC_DTIMER REGISTER(SDMMC_BASE_ADDR + 0x24)
+
+#define SDMMC_DLEN REGISTER(SDMMC_BASE_ADDR + 0x28)
+
+#define SDMMC_DCTRL REGISTER(SDMMC_BASE_ADDR + 0x2C)
+#define SDMMC_DCTRL_DTEN (1<<0)
+#define SDMMC_DCTRL_DTDIR (1<<1)
+#define SDMMC_DCTRL_DTMODE_BLOCK (0<<2)
+#define SDMMC_DCTRL_DTMODE_STREAM (1<<2)
+#define SDMMC_DCTRL_DMAEN (1<<3)
+#define SDMMC_DCTRL_DBLOCKSIZE_MASK (0xf<<4)
+#define SDMMC_DCTRL_DBLOCKSIZE_FACTOR (1<<4)
+#define SDMMC_DCTRL_RWSTART (1<<8)
+#define SDMMC_DCTRL_RWSTOP (1<<9)
+#define SDMMC_DCTRL_RWMOD (1<<10)
+#define SDMMC_DCTRL_SDIOEN (1<<11)
+
+#define SDMMC_DCOUNT REGISTER(SDMMC_BASE_ADDR + 0x30)
+
+#define SDMMC_STA REGISTER(SDMMC_BASE_ADDR + 0x34)
+
+#define SDMMC_ICR REGISTER(SDMMC_BASE_ADDR + 0x38)
+
+#define SDMMC_MASK REGISTER(SDMMC_BASE_ADDR + 0x3C)
+
+#define SDMMC_FIFOCNT REGISTER(SDMMC_BASE_ADDR + 0x48)
+
+#define SDMMC_FIFO REGISTER(SDMMC_BASE_ADDR + 0x80)
+
+#endif

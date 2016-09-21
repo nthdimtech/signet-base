@@ -1,0 +1,14 @@
+*.o
+*.o.d
+*~
+*.swp
+dfu-util-loader
+json-encoder
+signet-fw
+serial-loader
+ct-ng/.build
+ct-ng/build.log
+ct-ng/config
+ct-ng/.config.2
+ct-ng/.config.old
+ct-ng/config.gen

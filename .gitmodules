@@ -1,0 +1,6 @@
+[submodule "nettle"]
+	path = nettle
+	url = ../nettle.git
+[submodule "crosstool-ng"]
+	path = crosstool-ng
+	url = https://github.com/crosstool-ng/crosstool-ng.git

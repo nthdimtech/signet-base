@@ -1,0 +1,7 @@
+Tasks:
+	Redundant storage with CRC's
+	HID events for state changes
+	Add better way to get all account meta data on connection
+	Provide pools of buffers smaller than flash block size for DB storage
+	Review handling of USB reset command by device
+	Handle sleep requests

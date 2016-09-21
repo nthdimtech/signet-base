@@ -1,0 +1,1 @@
+../configure --prefix=/opt/cortexM0 --target=arm-none-eabi --disable-multilib --enable-interowrk --with-gnu-as --with-gnu-ld --disable-nls --enable-plugins --with-sysroot=/opt/cortexM0 --enable-install-libbfd
