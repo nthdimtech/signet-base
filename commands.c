@@ -346,44 +346,6 @@ void blink_timeout()
 	}
 }
 
-int group_to_blk[] = {
-	1, //2k
-	1+64, //1k
-	1+64, //512b
-	1+64+16, //256b
-        1+64+16+8, //128b
-	1+64+16+8+4, //64b
-	1+64+16+8+4+2, //32b	
-};
-
-struct entry_location {
-	int blk;
-	int blk_offset;
-	int sz;
-};
-
-int id_to_entry_location(int id, struct entry_location *loc)
-{
-	if (group > 6) {
-		return -1;
-	}
-	int group = id >> 8;
-	int sub_id = id & 0xff;
-
-	int group_ent_sz = 1<<(11 - group);
-	
-	int start_blk = group_to_blk[group] << 11;
-	int next_blk = group_to_blk[group+1] << 11;
-	int offset = start_blk + (group_ent_size * sub_id);
-	if ((offset + group_ent_size) >= next_blk) {
-		return -1;
-	}
-	loc->blk = offset >> 11;
-	loc->blk_offset = offset & ((1<<11) - 1);
-	loc->sz = group_ent_sz;
-	return 0;
-}
-
 void button_press(int button_state)
 {
 	if (button_state && waiting_for_button) {
