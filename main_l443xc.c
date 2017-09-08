@@ -28,13 +28,23 @@ void blink_timeout();
 void led_on()
 {
 	blink_state = 1;
-	STATUS_LED_PORT->BSRR = 1 << (STATUS_LED_PIN);
+#if STATUS_LED_COUNT > 0
+	STATUS_LED1_PORT->BSRR = 1 << (STATUS_LED1_PIN);
+#if STATUS_LED_COUNT > 1
+	STATUS_LED2_PORT->BSRR = 1 << (STATUS_LED2_PIN);
+#endif
+#endif
 }
 
 void led_off()
 {
 	blink_state = 0;
-	STATUS_LED_PORT->BSRR = 1 << (STATUS_LED_PIN + 16);
+#if STATUS_LED_COUNT > 0
+	STATUS_LED1_PORT->BSRR = 1 << (STATUS_LED1_PIN + 16);
+#if STATUS_LED_COUNT > 1
+	STATUS_LED2_PORT->BSRR = 1 << (STATUS_LED2_PIN + 16);
+#endif
+#endif
 }
 
 void blink_idle()
@@ -232,9 +242,15 @@ int main()
 	EXTI_IMR |= (1<<BUTTON_PIN);
 
 	//Led pins
-	gpio_set_out(STATUS_LED_PORT, STATUS_LED_PIN);
 
-	gpio_out_set(STATUS_LED_PORT, STATUS_LED_PIN);
+#if STATUS_LED_COUNT > 0
+	gpio_set_out(STATUS_LED1_PORT, STATUS_LED1_PIN);
+	gpio_out_set(STATUS_LED1_PORT, STATUS_LED1_PIN);
+#if STATUS_LED_COUNT > 1
+	gpio_set_out(STATUS_LED2_PORT, STATUS_LED2_PIN);
+	gpio_out_set(STATUS_LED2_PORT, STATUS_LED2_PIN);
+#endif
+#endif
 
 #if USE_FLASH
 	if (FLASH_CR & FLASH_CR_LOCK)
