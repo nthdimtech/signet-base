@@ -47,7 +47,7 @@ LDFLAGS+= -Wl,"-Tstm32l443xc.ld"
 CFLAGS+= -DMCU_STM32L443XC
 endif
 
-CFLAGS += -DUSE_RAW_HID -I../signet-client/common
+CFLAGS += -DUSE_RAW_HID -I../signet-desktop-client/common
 
 clean:
 	rm -rf *.o *.d signet-fw serial-loader json-encoder dfu-util-loader
