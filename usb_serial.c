@@ -6,15 +6,15 @@
 #include "usb.h"
 #include "print.h"
 #include "regmap.h"
-static u8 packet_size = 0;
-static u8 packet_size_bytes = 0;
-static u8 packet_pos = 0;
-
 void cmd_packet(u8 *data);
 void cmd_connect();
 void cmd_disconnect();
 
 #ifndef USE_RAW_HID
+static u8 packet_size = 0;
+static u8 packet_size_bytes = 0;
+static u8 packet_pos = 0;
+
 void cmd_packet_send(const u8 *data)
 {
 	usb_send_bytes(CDC_TX_ENDPOINT, data, data[0]);
