@@ -346,9 +346,13 @@ void blink_timeout()
 	}
 }
 
-void button_press(int button_state)
+void long_button_press()
 {
-	if (button_state && waiting_for_button) {
+}
+
+void button_press()
+{
+	if (waiting_for_button) {
 		end_button_wait();
 		switch(active_cmd) {
 		case LOGIN:
@@ -409,7 +413,7 @@ void button_press(int button_state)
 			enter_state(FIRMWARE_UPDATE);
 			break;
 		}
-	} else if (button_state && !waiting_for_button) {
+	} else if (!waiting_for_button) {
 		cmd_event_send(1, NULL, 0);
 	}
 }

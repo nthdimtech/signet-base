@@ -71,7 +71,7 @@ void blink_idle()
 void start_blinking(int period, int duration)
 {
 	blink_start = ms_count;
-	blink_period = 500;
+	blink_period = period;
 	blink_duration = duration;
 	led_on();
 }
@@ -90,8 +90,6 @@ int is_blinking()
 void systick_handler()
 {
 	ms_count++;
-	if ((ms_count - ms_last_pressed) > 2000)
-		ms_last_pressed = ms_count - 1000;
 }
 
 void delay(int ms)
@@ -101,33 +99,26 @@ void delay(int ms)
 }
 int button_state = 0;
 
-void button_press(int button_state);
+void button_press();
+void long_button_press();
 extern volatile int typing;
 
 void BUTTON_HANDLER()
 {
 	int current_button_state = (BUTTON_PORT->IDR & (1<<BUTTON_PIN)) ? 0 : 1;
-	if (!current_button_state || (((ms_count - ms_last_pressed) > 300) && !typing)) {
+	if (current_button_state) {
+		ms_last_pressed = ms_count;
 		if (test_state) {
 			if (!blink_period) {
 				start_blinking(500,10000);
 			}
 		}
-		dprint_s("Button state ");
-		dprint_dec(current_button_state);
-		dprint_s("\r\n");
 		button_press(current_button_state);
-	} else {
-		dprint_s("Suppressed ");
-		dprint_dec(ms_count);
-		dprint_s(" ");
-		dprint_dec(ms_last_pressed);
-		dprint_s(" ");
-		dprint_dec(current_button_state);
-		dprint_s("\r\n");
+	}
+	if (button_state && !current_button_state) {
+		long_button_press();
 	}
 	button_state = current_button_state;
-	ms_last_pressed = ms_count;
 	EXTI_PR = (1<<BUTTON_PIN);
 }
 
