@@ -76,7 +76,8 @@ static int progress_level[8];
 static int progress_maximum[8];
 static int progress_check = 0;
 static int progress_target_state = DISCONNECTED;
-static int waiting_for_button = 0;
+static int waiting_for_button_press = 0;
+static int waiting_for_long_button_press = 0;
 
 //
 // Misc functions
@@ -123,15 +124,27 @@ void enter_state(enum device_state state)
 	enter_progressing_state(state, 0, NULL);
 }
 
-void begin_button_wait()
+void begin_button_press_wait()
 {
-	waiting_for_button = 1;
+	waiting_for_button_press = 1;
 	start_blinking(500, 10000);
 }
 
-void end_button_wait()
+void begin_long_button_press_wait()
 {
-	waiting_for_button = 0;
+	waiting_for_long_button_press = 1;
+	start_blinking(1000, 10000);
+}
+
+void end_button_press_wait()
+{
+	waiting_for_button_press = 0;
+	stop_blinking();
+}
+
+void end_long_button_press_wait()
+{
+	waiting_for_long_button_press = 0;
 	stop_blinking();
 }
 
@@ -340,20 +353,26 @@ void flash_write_failed()
 
 void blink_timeout()
 {
-	if (waiting_for_button) {
-		end_button_wait();
+	if (waiting_for_button_press) {
+		end_button_press_wait();
 		finish_command_resp(BUTTON_PRESS_TIMEOUT);
 	}
 }
 
 void long_button_press()
 {
+	if (waiting_for_long_button_press) {
+		end_long_button_press_wait();
+		switch(active_cmd) {
+			break;
+		}
+	}
 }
 
 void button_press()
 {
-	if (waiting_for_button) {
-		end_button_wait();
+	if (waiting_for_button_press) {
+		end_button_press_wait();
 		switch(active_cmd) {
 		case LOGIN:
 			stm_aes_encrypt(cmd_data.login.password, root_page.header.auth_rand, cmd_data.login.cyphertext);
@@ -413,7 +432,7 @@ void button_press()
 			enter_state(FIRMWARE_UPDATE);
 			break;
 		}
-	} else if (!waiting_for_button) {
+	} else if (!waiting_for_button_press && !waiting_for_long_button_press) {
 		cmd_event_send(1, NULL, 0);
 	}
 }
@@ -450,13 +469,13 @@ void initialize_cmd(u8 *data, int data_len)
 	data_len -= INITIALIZE_CMD_SIZE;
 	memset(cmd_data.init_data.userdata, 0, DEVICE_USERDATA_SIZE);
 	memcpy(cmd_data.init_data.userdata, data, data_len);
-	begin_button_wait();
+	begin_button_press_wait();
 }
 
 void wipe_cmd()
 {
 	dprint_s("WIPE\r\n");
-	begin_button_wait();
+	begin_button_press_wait();
 }
 
 void get_progress_cmd(u8 *data, int data_len)
@@ -475,13 +494,13 @@ void get_progress_cmd(u8 *data, int data_len)
 void backup_device_cmd(u8 *data, int data_len)
 {
 	dprint_s("BACKUP DEVICE\r\n");
-	begin_button_wait();
+	begin_button_press_wait();
 }
 
 void restore_device_cmd(u8 *data, int data_len)
 {
 	dprint_s("RESTORE DEVICE\r\n");
-	begin_button_wait();
+	begin_button_press_wait();
 }
 
 void read_block_cmd(u8 *data, int data_len)
@@ -572,7 +591,13 @@ void change_master_password_cmd(u8 *data, int data_len)
 	memcpy(cmd_data.change_master_password.new_key, new_key, AES_BLK_SIZE);
 	memcpy(cmd_data.change_master_password.hashfn, hashfn, AES_BLK_SIZE);
 	memcpy(cmd_data.change_master_password.salt, salt, AES_BLK_SIZE);
-	begin_button_wait();
+	begin_button_press_wait();
+}
+
+void get_all_data_cmd(u8 *data, int data_len)
+{
+	dprint_s("GET_ALL_DATA\r\n");
+	begin_long_button_press_wait();
 }
 
 void get_data_cmd(int id_cmd)
@@ -664,9 +689,8 @@ void cmd_connect()
 void cmd_disconnect()
 {
 	//Cancel commands waiting for button press
-	if (waiting_for_button) {
-		end_button_wait();
-	}
+	end_button_press_wait();
+	end_long_button_press_wait();
 	active_cmd = -1;
 	active_id = -1;
 	enter_state(DISCONNECTED);
@@ -708,7 +732,7 @@ int uninitialized_state(int cmd, u8 *data, int data_len)
 		get_progress_cmd(data, data_len);
 		break;
 	case RESTORE_DEVICE:
-		begin_button_wait();
+		begin_button_press_wait();
 		break;
 	case INITIALIZE:
 		initialize_cmd(data, data_len);
@@ -739,11 +763,11 @@ int logged_out_state(int cmd, u8 *data, int data_len)
 		break;
 	case BACKUP_DEVICE:
 		dprint_s("BACKUP DEVICE\r\n");
-		begin_button_wait();
+		begin_button_press_wait();
 		break;
 	case RESTORE_DEVICE:
 		dprint_s("RESTORE DEVICE\r\n");
-		begin_button_wait();
+		begin_button_press_wait();
 		break;
 	case LOGIN:
 		dprint_s("LOGIN\r\n");
@@ -751,7 +775,7 @@ int logged_out_state(int cmd, u8 *data, int data_len)
 			finish_command_resp(INVALID_INPUT);
 		} else {
 			memcpy(cmd_data.login.password, data, AES_BLK_SIZE);
-			begin_button_wait();
+			begin_button_press_wait();
 		}
 		break;
 	case GET_DEVICE_CAPACITY:
@@ -779,12 +803,12 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 			dprint_dec(cmd_data.open_id.id);
 			dprint_s("\r\n");
 			active_id = -1;
-			begin_button_wait();
+			begin_button_press_wait();
 		}
 		break;
 	case BACKUP_DEVICE:
 		dprint_s("Backup device\r\n");
-		begin_button_wait();
+		begin_button_press_wait();
 		break;
 	case CLOSE_ID:
 		active_id = -1;
@@ -808,7 +832,7 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		usb_keyboard_type(cmd_data.type_data.chars, n_chars);
 	} break;
 	case BUTTON_WAIT:
-		begin_button_wait();
+		begin_button_press_wait();
 		break;
 	case LOGOUT:
 		active_id = -1;
@@ -816,7 +840,7 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		finish_command_resp(OKAY);
 		break;
 	case UPDATE_FIRMWARE:
-		begin_button_wait();
+		begin_button_press_wait();
 		break;
 	default:
 		return -1;
@@ -865,9 +889,8 @@ void startup_cmd(u8 *data, int data_len)
 	if (device_state != RESET) {
 		test_state = 0;
 		stop_blinking();
-		if (waiting_for_button) {
-			end_button_wait();
-		}
+		end_button_press_wait();
+		end_long_button_press_wait();
 		active_cmd = -1;
 		active_id = -1;
 	}
@@ -907,27 +930,29 @@ int cmd_packet_recv()
 	int prev_active_cmd = active_cmd;
 	data += CMD_PACKET_HEADER_SIZE;
 
+	int waiting_for_a_button_press = waiting_for_button_press | waiting_for_long_button_press;
+
 	if (next_active_cmd == DISCONNECT) {
 		cmd_disconnect();
-		return waiting_for_button;
+		return waiting_for_a_button_press;
 	}
 
-	if (prev_active_cmd != -1 && next_active_cmd == CANCEL_BUTTON_PRESS && !waiting_for_button) {
+	if (prev_active_cmd != -1 && next_active_cmd == CANCEL_BUTTON_PRESS && !waiting_for_a_button_press) {
 		//Ignore button cancel requests with no button press waiting
-		return waiting_for_button;
+		return waiting_for_a_button_press;
 	}
 
-	if (prev_active_cmd != -1 && waiting_for_button && next_active_cmd == CANCEL_BUTTON_PRESS) {
+	if (prev_active_cmd != -1 && waiting_for_a_button_press && next_active_cmd == CANCEL_BUTTON_PRESS) {
 		dprint_s("CANCEL_BUTTON_PRESS\r\n");
-		end_button_wait();
+		end_button_press_wait();
 		finish_command_resp(BUTTON_PRESS_CANCELED);
-		return waiting_for_button;
+		return waiting_for_a_button_press;
 	}
 	active_cmd = next_active_cmd;
 
 	if (active_cmd == STARTUP) {
 		startup_cmd(data, data_len);
-		return waiting_for_button;
+		return waiting_for_a_button_press;
 	}
 
 	//Always allow the GET_DEVICE_STATE command. It's easiest to handle it here
@@ -935,7 +960,7 @@ int cmd_packet_recv()
 		dprint_s("GET_DEVICE_STATE\r\n");
 		u8 resp[] = {device_state};
 		finish_command(OKAY, resp, sizeof(resp));
-		return waiting_for_button;
+		return waiting_for_a_button_press;
 	}
 	int ret = -1;
 
@@ -944,14 +969,14 @@ int cmd_packet_recv()
 		//be a sign of a bug
 		dprint_s("CANCEL_BUTTON_PRESS misfire\r\n");
 		active_cmd = -1;
-		return waiting_for_button;
+		return waiting_for_a_button_press;
 	}
 
 	//Every command should be able to accept CMD_PACKET_PAYLOAD_SIZE bytes of
 	//data. If there is more, we reject it here.
 	if (data_len > CMD_PACKET_PAYLOAD_SIZE) {
 		finish_command_resp(INVALID_INPUT);
-		return waiting_for_button;
+		return waiting_for_a_button_press;
 	}
 
 	switch (device_state) {
@@ -992,5 +1017,5 @@ int cmd_packet_recv()
 		dprint_s("INVALID STATE\r\n");
 		finish_command_resp(INVALID_STATE);
 	}
-	return waiting_for_button;
+	return waiting_for_a_button_press;
 }
