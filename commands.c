@@ -195,20 +195,30 @@ void get_progress_check()
 	}
 }
 
-void finish_command(enum command_responses resp, const u8 *payload, int payload_len)
+void finish_command_multi(enum command_responses resp, int packets_remaining, const u8 *payload, int payload_len)
 {
 	static u8 cmd_resp[CMD_PACKET_BUF_SIZE];
 	int full_length = payload_len + CMD_PACKET_HEADER_SIZE;
 	cmd_resp[0] = full_length & 0xff;
 	cmd_resp[1] = (full_length >> 8) & 0xff;
 	cmd_resp[2] = resp;
+	cmd_resp[3] = packets_remaining & 0xff;
+	cmd_resp[4] = (packets_remaining >> 8) & 0xff;
+	cmd_resp[5] = 0;
 	if (payload) {
 		memcpy(cmd_resp + CMD_PACKET_HEADER_SIZE, payload, payload_len);
 	}
-	active_cmd = -1;
-	if (device_state != DISCONNECTED) {
-		cmd_packet_send(cmd_resp);
+	if (!packets_remaining) {
+		active_cmd = -1;
 	}
+	if (device_state != DISCONNECTED) {
+		cmd_packet_send(cmd_resp, full_length);
+	}
+}
+
+void finish_command(enum command_responses resp, const u8 *payload, int payload_len)
+{
+	finish_command_multi(resp, 0, payload, payload_len);
 }
 
 void finish_command_resp(enum command_responses resp)
@@ -357,6 +367,10 @@ void blink_timeout()
 		end_button_press_wait();
 		finish_command_resp(BUTTON_PRESS_TIMEOUT);
 	}
+}
+
+void cmd_packet_sent()
+{
 }
 
 void long_button_press()

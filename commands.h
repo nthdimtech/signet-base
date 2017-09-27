@@ -68,13 +68,13 @@ union cmd_data_u {
 extern union cmd_data_u cmd_data;
 
 int cmd_packet_recv();
-void cmd_packet_send(const u8 *data);
+void cmd_packet_send(const u8 *data, u16 len);
 void cmd_event_send(int event_num, const u8 *data, int data_len);
 
 extern u8 cmd_packet_buf[];
 
 void enter_state(enum device_state state);
-void enter_progresssing_state(enum device_state state, int _n_progress_components, int *_progress_maximums);
+void enter_progressing_state(enum device_state state, int _n_progress_components, int *_progress_maximums);
 
 void cmd_rand_update();
 

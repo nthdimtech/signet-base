@@ -34,6 +34,8 @@ int maybe_send_raw_hid_event()
 	return 1;
 }
 
+void cmd_packet_sent();
+
 void maybe_send_raw_hid_packet()
 {
 	if (maybe_send_raw_hid_event())
@@ -51,12 +53,12 @@ void maybe_send_raw_hid_packet()
 		raw_hid_tx_seq = 0;
 		raw_hid_tx_count = 0;
 		raw_hid_tx_data = NULL;
+		cmd_packet_sent();
 	}
 }
 
-void cmd_packet_send(const u8 *data)
+void cmd_packet_send(const u8 *data, u16 len)
 {
-	u16 len = ((u16)data[0]) + (((u16)data[1])<<8);
 	raw_hid_tx_count = (len + RAW_HID_PAYLOAD_SIZE - 1)/RAW_HID_PAYLOAD_SIZE;
 	raw_hid_tx_seq = 0;
 	raw_hid_tx_data = data;
