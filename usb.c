@@ -29,20 +29,12 @@ int usb_device_addr = 0;
 #define USB_HID_BOOT_SUBCLASS 0x1
 #define USB_HID_KEYBOARD_PROTOCOL 0x1
 
-#define USB_MASS_STORAGE_CLASS 0x8
-#define USB_MASS_STORAGE_UFI_SUBCLASS 0x4
-#define USB_MASS_STORAGE_SCSI_SUBCLASS 0x6
-#define USB_MASS_STORAGE_PROTOCOL_BULK_ONLY 0x50
-
 #define USB_ENDPOINT_TX (0x80)
 
 #define USB_STANDARD_REQ 0
 #define USB_CLASS_REQ 1
 
 #define USB_CLASS_REQ_CLEAR_FEATURE 1
-
-#define USB_MASS_STORAGE_REQ_GET_MAX_LUN (0xfe)
-#define USB_MASS_STORAGE_REQ_BOMSR (0xff)
 
 #define USB_CDC_REQ_SET_LINE_CODING 32
 #define USB_CDC_REQ_GET_LINE_CODING 33
@@ -164,40 +156,6 @@ const u8 raw_hid_rx_endpoint[] = {
 	RAW_HID_RX_INTERVAL			// bInterval
 };
 
-#if USE_STORAGE
-
-const u8 storage_interface_desc[] = {
-	0x9,
-	USB_INTERFACE_DESC,
-	STORAGE_INTERFACE,
-	0,
-	2, //# endpoints
-	USB_MASS_STORAGE_CLASS,
-	USB_MASS_STORAGE_SCSI_SUBCLASS,
-	USB_MASS_STORAGE_PROTOCOL_BULK_ONLY,
-	0, //No string
-};
-
-const u8 storage_rx_endpoint[] = {
-        7,
-        USB_ENDPOINT_DESC,
-        STORAGE_RX_ENDPOINT,
-        USB_BULK_ATTR,
-        WTB(STORAGE_RX_SIZE),
-        0  // No interval
-};
-
-const u8 storage_tx_endpoint[] = {
-        7,
-        USB_ENDPOINT_DESC,
-        STORAGE_TX_ENDPOINT | USB_ENDPOINT_TX,
-        USB_BULK_ATTR,
-        WTB(STORAGE_TX_SIZE),
-        0 //No interval
-};
-
-#else
-
 const u8 cdc_interface_association[] = {
 	8,                                      // bLength
         11,                                     // bDescriptorType
@@ -290,8 +248,6 @@ const u8 cdc_acm_tx_endpoint[] = {
         0                                      // bInterval
 };
 
-#endif
-
 const u8 device_descriptor[] = {
 	18,//18 byte descriptor
 	1, //device descriptor
@@ -301,7 +257,7 @@ const u8 device_descriptor[] = {
 	0,//1, //Interface specific protocol
 	CTRL_RX_SIZE, //> CTRL_TX_SIZE ? CTRL_RX_SIZE : CTRL_TX_SIZE, //max packet size
 	WTB(USB_VENDOR_ID), //Vendor ID
-	WTB(USB_PRODUCT_ID), //Product ID
+	WTB(USB_SIGNET_COMMON_PRODUCT_ID), //Product ID
 	WTB(USB_REV_ID), //Rev ID
 	1, //Manufacturer string
 	2, //Product string
@@ -385,14 +341,11 @@ void usb_set_device_address(int addr)
 	dprint_s("\r\n");
 }
 
-extern const u8 device_config[];
+extern const u8 device_config_desktop[];
 
-//9 * 5 + 7 * 5 = 80
+const u8 *device_configuration_desktop[] = {
+	device_config_desktop, //9
 
-const u8 *device_configuration[] = {
-	device_config, //9
-
-#if !USE_STORAGE
 	cdc_interface_association,
 		cdc_status_interface,
 			cdc_header_functional_descriptor,
@@ -403,7 +356,6 @@ const u8 *device_configuration[] = {
 		cdc_acm_data_interface,
 			cdc_acm_rx_endpoint,
 	cdc_acm_tx_endpoint,
-#endif
 
 	keyboard_interface, //9
 		keyboard_hid_descriptor, //9
@@ -413,29 +365,31 @@ const u8 *device_configuration[] = {
 		raw_hid_descriptor, //9
 		raw_hid_tx_endpoint, //7
 		raw_hid_rx_endpoint,//7
-#if USE_STORAGE
-	storage_interface_desc, //9
-		storage_tx_endpoint, //7
-		storage_rx_endpoint, //7
-#endif
 };
 
-#if USE_STORAGE
-#define USB_CONFIG_TOTAL_SIZE ( \
-	9 /*sizeof(device_config) + */ + \
-	sizeof(storage_interface_desc) + \
-		sizeof(storage_tx_endpoint) + \
-		sizeof(storage_rx_endpoint) + \
-	sizeof(keyboard_interface) + \
-		sizeof(keyboard_hid_descriptor) + \
-		sizeof(keyboard_endpoint) + \
-	sizeof(raw_hid_interface) + \
-		sizeof(raw_hid_descriptor) + \
-		sizeof(raw_hid_tx_endpoint) + \
-		sizeof(raw_hid_rx_endpoint) \
-		)
-#else
-#define USB_CONFIG_TOTAL_SIZE ( \
+extern const u8 device_config_common[];
+
+const u8 *device_configuration_common[] = {
+	device_config_common, //9
+
+	cdc_interface_association,
+		cdc_status_interface,
+			cdc_header_functional_descriptor,
+			cdc_call_management_functional_descriptor,
+			cdc_acm_control_management_functional_descriptor,
+			cdc_union_functional_descriptor,
+			cdc_acm_endpoint_descriptor,
+		cdc_acm_data_interface,
+			cdc_acm_rx_endpoint,
+	cdc_acm_tx_endpoint,
+
+	raw_hid_interface, //9
+		raw_hid_descriptor, //9
+		raw_hid_tx_endpoint, //7
+		raw_hid_rx_endpoint,//7
+};
+
+#define USB_CONFIG_TOTAL_SIZE_DESKTOP ( \
 	9 /* sizeof(device_config) */ + \
 	sizeof(cdc_interface_association) + \
 		sizeof(cdc_status_interface) + \
@@ -455,12 +409,40 @@ const u8 *device_configuration[] = {
 		sizeof(raw_hid_tx_endpoint) + \
 		sizeof(raw_hid_rx_endpoint) \
 		)
-#endif
 
-const u8 device_config[] = {
+#define USB_CONFIG_TOTAL_SIZE_COMMON ( \
+	9 /* sizeof(device_config) */ + \
+	sizeof(cdc_interface_association) + \
+		sizeof(cdc_status_interface) + \
+			sizeof(cdc_header_functional_descriptor) + \
+			sizeof(cdc_call_management_functional_descriptor) + \
+			sizeof(cdc_acm_control_management_functional_descriptor) + \
+			sizeof(cdc_union_functional_descriptor) + \
+			sizeof(cdc_acm_endpoint_descriptor) + \
+		sizeof(cdc_acm_data_interface) + \
+			sizeof(cdc_acm_rx_endpoint) + \
+	sizeof(cdc_acm_tx_endpoint) + \
+	sizeof(raw_hid_interface) + \
+		sizeof(raw_hid_descriptor) + \
+		sizeof(raw_hid_tx_endpoint) + \
+		sizeof(raw_hid_rx_endpoint) \
+		)
+
+const u8 device_config_desktop[] = {
 	9,
 	2, //device type
-	WTB(USB_CONFIG_TOTAL_SIZE), //total length
+	WTB(USB_CONFIG_TOTAL_SIZE_DESKTOP), //total length
+	NUM_INTERFACES, //number of interfaces
+	1, //1 configuration
+	0, //No configuration name string
+	0x80, //USB powered no remote wakeup
+	100 //200ma power limit + Interface descriptor length
+};
+
+const u8 device_config_common[] = {
+	9,
+	2, //device type
+	WTB(USB_CONFIG_TOTAL_SIZE_COMMON), //total length
 	NUM_INTERFACES, //number of interfaces
 	1, //1 configuration
 	0, //No configuration name string
@@ -489,7 +471,7 @@ void usb_get_device_descriptor(int type, int index, int lang_id, int length)
 		dprint_dec(length);
 		dprint_s(")\r\n");
 		current_max = length > CTRL_TX_SIZE ? CTRL_TX_SIZE : length;
-		restart_byte = usb_send_descriptors(device_configuration, 0, ARRAY_COUNT(device_configuration), current_max);
+		restart_byte = usb_send_descriptors(device_configuration_desktop, 0, ARRAY_COUNT(device_configuration_desktop), current_max);
 		transaction_length = length;
 		break;
 	case 3: //String
@@ -699,30 +681,6 @@ void usb_class_req(int dir, int req, int dest, int w_value, int interface, int w
 			matched = 0;
 		}
 		break;
-#if USE_STORAGE
-	case STORAGE_INTERFACE:
-		switch (req) {
-		case USB_CLASS_REQ_CLEAR_FEATURE:
-			dprint_s("USB mass storage: clear feature\r\n");
-			break;
-		case USB_MASS_STORAGE_REQ_GET_MAX_LUN: {
-			u8 max_lun = 0;
-			usb_send_bytes(CONTROL_ENDPOINT, &max_lun, 1);
-			dprint_s("USB mass storage: get max LUN:");
-			dprint_s(" dir = "); dprint_dec(dir);
-			dprint_s(" length = "); dprint_dec(w_length);
-			dprint_s(" wvalue = "); dprint_dec(w_value);
-			dprint_s(" dest = "); dprint_dec(dest);
-			dprint_s("\r\n");
-			} break;
-		case USB_MASS_STORAGE_REQ_BOMSR:
-			dprint_s("USB mass storage: reset\r\n");
-			break;
-		default:
-			matched = 0;
-		}
-		break;
-#else
 	case CDC_STATUS_INTERFACE:
 		switch (req) {
 		case USB_CDC_REQ_SET_LINE_CODING: {
@@ -740,7 +698,6 @@ void usb_class_req(int dir, int req, int dest, int w_value, int interface, int w
 			matched = 0;
 		}
 		break;
-#endif
 	case RAW_HID_INTERFACE:
 		switch (req) {
 		case HID_REQ_GET_REPORT:
@@ -842,15 +799,9 @@ void usb_rx(int id, int setup, volatile usbw_t *data, int count)
 	case CONTROL_ENDPOINT:
 		valid_rx = usb_rx_ctrl(setup, data, count);
 		break;
-#if USE_STORAGE
-	case STORAGE_RX_ENDPOINT:
-		valid_rx = usb_storage_rx(data, count);
-		break;
-#else
 	case CDC_RX_ENDPOINT:
 		valid_rx = usb_serial_rx(data, count);
 		break;
-#endif
 	case RAW_HID_RX_ENDPOINT:
 		valid_rx = usb_raw_hid_rx(data, count);
 		break;
@@ -876,16 +827,10 @@ void usb_tx(int id)
 			usb_valid_rx(CONTROL_ENDPOINT);
 		}
 		break;
-#if USE_STORAGE
-	case STORAGE_TX_ENDPOINT:
-		usb_storage_tx();
-		break;
-#else
 	case CDC_TX_ENDPOINT:
 		usb_serial_tx();
 		usb_valid_rx(CDC_RX_ENDPOINT);
 		break;
-#endif
 	case RAW_HID_TX_ENDPOINT:
 		usb_raw_hid_tx();
 		break;
@@ -909,7 +854,7 @@ void usb_tx_ctrl()
 			dprint_s(" ");
 			dprint_dec(current_max);
 			dprint_s("\r\n");
-			restart_byte = usb_send_descriptors(device_configuration, restart_byte, ARRAY_COUNT(device_configuration), current_max);
+			restart_byte = usb_send_descriptors(device_configuration_desktop, restart_byte, ARRAY_COUNT(device_configuration_desktop), current_max);
 		} else {
 			restart_byte = -1;
 		}
