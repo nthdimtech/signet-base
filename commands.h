@@ -63,6 +63,11 @@ union cmd_data_u {
 		u8 password[AES_BLK_SIZE];
 		u8 cyphertext[AES_BLK_SIZE];
 	} login;
+	struct {
+		int id;
+		int unmask;
+		u8 block[BLK_SIZE];
+	} get_all_data;
 };
 
 extern union cmd_data_u cmd_data;

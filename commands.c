@@ -195,20 +195,20 @@ void get_progress_check()
 	}
 }
 
-void finish_command_multi(enum command_responses resp, int packets_remaining, const u8 *payload, int payload_len)
+void finish_command_multi(enum command_responses resp, int messages_remaining, const u8 *payload, int payload_len)
 {
 	static u8 cmd_resp[CMD_PACKET_BUF_SIZE];
 	int full_length = payload_len + CMD_PACKET_HEADER_SIZE;
 	cmd_resp[0] = full_length & 0xff;
 	cmd_resp[1] = (full_length >> 8) & 0xff;
 	cmd_resp[2] = resp;
-	cmd_resp[3] = packets_remaining & 0xff;
-	cmd_resp[4] = (packets_remaining >> 8) & 0xff;
+	cmd_resp[3] = messages_remaining & 0xff;
+	cmd_resp[4] = (messages_remaining >> 8) & 0xff;
 	cmd_resp[5] = 0;
 	if (payload) {
 		memcpy(cmd_resp + CMD_PACKET_HEADER_SIZE, payload, payload_len);
 	}
-	if (!packets_remaining) {
+	if (!messages_remaining) {
 		active_cmd = -1;
 	}
 	if (device_state != DISCONNECTED) {
@@ -369,8 +369,15 @@ void blink_timeout()
 	}
 }
 
+void get_all_data_iter();
+
 void cmd_packet_sent()
 {
+	switch(active_cmd) {
+	case GET_ALL_DATA:
+		get_all_data_iter();
+		break;
+	}
 }
 
 void long_button_press()
@@ -378,6 +385,8 @@ void long_button_press()
 	if (waiting_for_long_button_press) {
 		end_long_button_press_wait();
 		switch(active_cmd) {
+		case GET_ALL_DATA:
+			get_all_data_iter();
 			break;
 		}
 	}
@@ -608,29 +617,21 @@ void change_master_password_cmd(u8 *data, int data_len)
 	begin_button_press_wait();
 }
 
-void get_all_data_cmd(u8 *data, int data_len)
+static int decrypt_id(u8 *block, int id, int masked)
 {
-	dprint_s("GET_ALL_DATA\r\n");
-	begin_long_button_press_wait();
-}
-
-void get_data_cmd(int id_cmd)
-{
-	if (!validate_present_id(id_cmd)) {
-		dprint_s("GET_DATA ");
-		dprint_dec(id_cmd);
+	unsigned int k = 0;
+	if (!validate_present_id(id)) {
+		dprint_dec(id);
 		dprint_s("\r\n");
-		u8 *addr =  ID_BLK(id_cmd);
+		u8 *addr =  ID_BLK(id);
 
 		u16 sz = addr[2] + (addr[3] << 8);
 		int blk_count = SIZE_TO_SUB_BLK_COUNT(sz);
-		derive_iv(id_cmd, cmd_data.get_data.iv);
-		unsigned int k = 0;
-		u8 *block = cmd_data.get_data.block;
+		derive_iv(id, cmd_data.get_data.iv);
 		block[k] = addr[2]; k++;
 		block[k] = addr[3]; k++;
 		stm_aes_decrypt_cbc(encrypt_key, blk_count, cmd_data.get_data.iv, addr + SUB_BLK_SIZE, block + k);
-		if (id_cmd != active_id) {
+		if (masked) {
 			u8 *sub_block = block + k;
 			for (int i = 0; i < blk_count; i++) {
 				u8 *mask = sub_block;
@@ -646,7 +647,51 @@ void get_data_cmd(int id_cmd)
 			}
 		}
 		k += SUB_BLK_SIZE * blk_count;
-		finish_command(OKAY, block, k);
+	}
+	return k;
+}
+
+void get_data_cmd(int id_cmd)
+{
+	dprint_s("GET_DATA ");
+	dprint_dec(id_cmd);
+	dprint_s("\r\n");
+	int sz = decrypt_id(cmd_data.get_data.block, id_cmd, id_cmd != active_id);
+	if (sz) {
+		finish_command(OKAY, cmd_data.get_data.block, sz);
+	}
+}
+
+void get_all_data_iter()
+{
+	int id = cmd_data.get_all_data.id;
+	int remaining = MAX_ID - id;
+	if (remaining >= 0) {
+		u8 *block = cmd_data.get_all_data.block;
+		block[0] = id & 0xff;
+		block[1] = id >> 8;
+		int sz = decrypt_id(block + 2,
+			id,
+			!cmd_data.get_all_data.unmask);
+		cmd_data.get_all_data.id++;
+		finish_command_multi(OKAY, remaining, block, sz + 2);
+	}
+}
+
+void get_all_data_cmd(u8 *data, int data_len)
+{
+	dprint_s("GET_ALL_DATA\r\n");
+	u8 unmask;
+	if (data_len != 1) {
+		finish_command_resp(INVALID_INPUT);
+	}
+	unmask = data[0];
+	cmd_data.get_all_data.id = 1;
+	cmd_data.get_all_data.unmask = unmask;
+	if (unmask) {
+		begin_long_button_press_wait();
+	} else {
+		get_all_data_iter();
 	}
 }
 
@@ -831,6 +876,9 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		break;
 	case GET_DATA:
 		get_data_cmd(data[0]);
+		break;
+	case GET_ALL_DATA:
+		get_all_data_cmd(data, data_len);
 		break;
 	case SET_DATA:
 		set_data_cmd(data[0], data + 1, data_len - 1);
