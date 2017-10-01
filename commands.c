@@ -238,7 +238,6 @@ int validate_id(int id)
 int validate_present_id(int id)
 {
 	if (id < MIN_ID || id > MAX_ID || *((u16 *)ID_BLK(id)) != 0) {
-		finish_command_resp(ID_INVALID);
 		return -1;
 	}
 	return 0;
@@ -617,7 +616,7 @@ void change_master_password_cmd(u8 *data, int data_len)
 	begin_button_press_wait();
 }
 
-static int decrypt_id(u8 *block, int id, int masked)
+static int decrypt_id(u8 *block, u8 *iv, int id, int masked)
 {
 	unsigned int k = 0;
 	if (!validate_present_id(id)) {
@@ -627,10 +626,10 @@ static int decrypt_id(u8 *block, int id, int masked)
 
 		u16 sz = addr[2] + (addr[3] << 8);
 		int blk_count = SIZE_TO_SUB_BLK_COUNT(sz);
-		derive_iv(id, cmd_data.get_data.iv);
+		derive_iv(id, iv);
 		block[k] = addr[2]; k++;
 		block[k] = addr[3]; k++;
-		stm_aes_decrypt_cbc(encrypt_key, blk_count, cmd_data.get_data.iv, addr + SUB_BLK_SIZE, block + k);
+		stm_aes_decrypt_cbc(encrypt_key, blk_count, iv, addr + SUB_BLK_SIZE, block + k);
 		if (masked) {
 			u8 *sub_block = block + k;
 			for (int i = 0; i < blk_count; i++) {
@@ -656,9 +655,11 @@ void get_data_cmd(int id_cmd)
 	dprint_s("GET_DATA ");
 	dprint_dec(id_cmd);
 	dprint_s("\r\n");
-	int sz = decrypt_id(cmd_data.get_data.block, id_cmd, id_cmd != active_id);
+	int sz = decrypt_id(cmd_data.get_data.block, cmd_data.get_data.iv, id_cmd, id_cmd != active_id);
 	if (sz) {
 		finish_command(OKAY, cmd_data.get_data.block, sz);
+	} else {
+		finish_command_resp(ID_INVALID);
 	}
 }
 
@@ -671,6 +672,7 @@ void get_all_data_iter()
 		block[0] = id & 0xff;
 		block[1] = id >> 8;
 		int sz = decrypt_id(block + 2,
+			cmd_data.get_all_data.iv,
 			id,
 			!cmd_data.get_all_data.unmask);
 		cmd_data.get_all_data.id++;
@@ -734,6 +736,8 @@ void delete_cmd(int id_cmd)
 		} else {
 			finish_command_resp(ID_NOT_OPEN);
 		}
+	} else {
+		finish_command_resp(ID_INVALID);
 	}
 }
 

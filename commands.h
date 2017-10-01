@@ -66,6 +66,7 @@ union cmd_data_u {
 	struct {
 		int id;
 		int unmask;
+		u8 iv[AES_BLK_SIZE];
 		u8 block[BLK_SIZE];
 	} get_all_data;
 };
