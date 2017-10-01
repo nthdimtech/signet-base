@@ -87,6 +87,8 @@ int is_blinking()
 	return blink_period > 0;
 }
 
+int button_state = 0;
+
 void systick_handler()
 {
 	ms_count++;
@@ -97,8 +99,6 @@ void delay(int ms)
 	int ms_target = ms_count + ms;
 	while(ms_count < ms_target);
 }
-int button_state = 0;
-
 void button_press();
 void long_button_press();
 extern volatile int typing;
@@ -114,9 +114,6 @@ void BUTTON_HANDLER()
 			}
 		}
 		button_press(current_button_state);
-	}
-	if (button_state && !current_button_state) {
-		long_button_press();
 	}
 	button_state = current_button_state;
 	EXTI_PR = (1<<BUTTON_PIN);
@@ -284,6 +281,10 @@ int main()
 		__asm__("cpsid i");
 		blink_idle();
 		flash_idle();
+		if (button_state && (ms_count - ms_last_pressed) > 2000) {
+			button_state = 0;
+			long_button_press();
+		}
 		__asm__("cpsie i");
 	}
 	return 0;
