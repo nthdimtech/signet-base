@@ -41,32 +41,38 @@ u8 cmd_packet_buf[CMD_PACKET_BUF_SIZE];
 //executed
 union cmd_data_u cmd_data;
 
-static u8 encrypt_key[AES_BLK_SIZE];
+static u8 encrypt_key[AES_256_KEY_SIZE];
 
-static const u8 root_signature[AES_BLK_SIZE] = {1,3,4,5,6,7,8,9,10,11,12,13,14,15,0};
+static const u8 root_signature[AES_BLK_SIZE] = {2 /*root block format */,3,4,5,6,7,8,9,10,11,12,13,14,15,0};
 
 static union state_data_u state_data;
 
 
-struct root_page_header {
-	u8 signature[AES_BLK_SIZE];
-	u8 auth_rand[AES_BLK_SIZE];
-	u8 auth_rand_ct[AES_BLK_SIZE];
-	u8 encrypt_key_ct[AES_BLK_SIZE];
-	u8 cbc_iv[AES_BLK_SIZE];
-	u8 salt[AES_BLK_SIZE];
-	u8 hashfn[AES_BLK_SIZE];
-};
-
-
-#define DEVICE_USERDATA_SIZE (BLK_SIZE - sizeof(struct root_page_header))
 #define INITIALIZE_RAND_DATA_SIZE (INITIALIZE_CMD_SIZE - AES_BLK_SIZE)
 #define INITIALIZE_RAND_DATA_SIZE_WORDS ((INITIALIZE_CMD_SIZE -AES_BLK_SIZE)/4)
 
 struct root_page
 {
-	struct root_page_header header;
-	u8 userdata[DEVICE_USERDATA_SIZE];
+	u8 signature[AES_BLK_SIZE];
+	union {
+		struct {
+			u8 auth_rand[AES_128_KEY_SIZE];
+			u8 auth_rand_ct[AES_128_KEY_SIZE];
+			u8 encrypt_key_ct[AES_128_KEY_SIZE];
+			u8 cbc_iv[AES_BLK_SIZE];
+			u8 salt[AES_128_KEY_SIZE];
+			u8 hashfn[AES_BLK_SIZE];
+		} v1;
+		struct {
+			u8 auth_rand[AES_256_KEY_SIZE];
+			u8 auth_rand_ct[AES_256_KEY_SIZE];
+			u8 encrypt_key_ct[AES_256_KEY_SIZE];
+			u8 cbc_iv[AES_BLK_SIZE];
+			u8 salt[AES_256_KEY_SIZE];
+			u8 hashfn[AES_256_KEY_SIZE];
+			u8 title[256];
+		} v2;
+	} header;
 } root_page;
 
 extern struct root_page _root_page;
@@ -245,8 +251,15 @@ int validate_present_id(int id)
 
 void derive_iv(u32 id, u8 *iv)
 {
-	memcpy(iv, root_page.header.cbc_iv, AES_BLK_SIZE);
-	iv[15] += (u8)(id);
+	switch(root_page.signature[0]) {
+	case 1:
+		memcpy(iv, root_page.header.v1.cbc_iv, AES_BLK_SIZE);
+		break;
+	case 2:
+		memcpy(iv, root_page.header.v2.cbc_iv, AES_BLK_SIZE);
+		break;
+	}
+	iv[AES_BLK_SIZE-1] += (u8)(id);
 }
 
 
@@ -254,17 +267,18 @@ static void finalize_root_page_check()
 {
 	if (rand_avail() >= INITIALIZE_RAND_DATA_SIZE_WORDS && !cmd_data.init_data.root_block_finalized && (cmd_data.init_data.blocks_written == (MAX_ID - MIN_ID + 1))) {
 		cmd_data.init_data.root_block_finalized = 1;
-		memcpy(root_page.header.signature, root_signature, AES_BLK_SIZE);
-		memcpy(root_page.userdata, cmd_data.init_data.userdata, DEVICE_USERDATA_SIZE);
+		memcpy(root_page.signature, root_signature, AES_BLK_SIZE);
 		for (int i = 0; i < INITIALIZE_RAND_DATA_SIZE_WORDS; i++) {
 			((u32 *)cmd_data.init_data.rand)[i] ^= rand_get();
 		}
-		memcpy(root_page.header.cbc_iv, cmd_data.init_data.rand, AES_BLK_SIZE);
-		memcpy(root_page.header.auth_rand, cmd_data.init_data.rand + AES_BLK_SIZE, AES_BLK_SIZE);
-		stm_aes_encrypt(cmd_data.init_data.passwd, root_page.header.auth_rand, root_page.header.auth_rand_ct);
-		stm_aes_encrypt(cmd_data.init_data.passwd, cmd_data.init_data.rand + AES_BLK_SIZE * 2, root_page.header.encrypt_key_ct);
-		memcpy(root_page.header.salt, cmd_data.init_data.salt, AES_BLK_SIZE);
-		memcpy(root_page.header.hashfn, cmd_data.init_data.hashfn, AES_BLK_SIZE);
+		memcpy(root_page.header.v2.cbc_iv, cmd_data.init_data.rand, AES_BLK_SIZE);
+		memcpy(root_page.header.v2.auth_rand, cmd_data.init_data.rand + AES_BLK_SIZE, AES_256_KEY_SIZE);
+		stm_aes_256_encrypt_cbc(cmd_data.init_data.passwd, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
+				root_page.header.v2.auth_rand, root_page.header.v2.auth_rand_ct);
+		stm_aes_256_encrypt_cbc(cmd_data.init_data.passwd, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
+				cmd_data.init_data.rand + AES_BLK_SIZE + AES_256_KEY_SIZE, root_page.header.v2.encrypt_key_ct);
+		memcpy(root_page.header.v2.salt, cmd_data.init_data.salt, SALT_SZ_V2);
+		memcpy(root_page.header.v2.hashfn, cmd_data.init_data.hashfn, HASH_FN_SZ);
 		flash_write_page((u8 *)&_root_page, (u8 *)&root_page, sizeof(struct root_page));
 	}
 }
@@ -397,13 +411,29 @@ void button_press()
 		end_button_press_wait();
 		switch(active_cmd) {
 		case LOGIN:
-			stm_aes_encrypt(cmd_data.login.password, root_page.header.auth_rand, cmd_data.login.cyphertext);
-			if (memcmp(cmd_data.login.cyphertext, root_page.header.auth_rand_ct, AES_BLK_SIZE)) {
-				finish_command_resp(BAD_PASSWORD);
-			} else {
-				finish_command_resp(OKAY);
-				stm_aes_decrypt(cmd_data.login.password, root_page.header.encrypt_key_ct, encrypt_key);
-				enter_state(LOGGED_IN);
+			switch (root_page.signature[0]) {
+			case 1:
+				stm_aes_128_encrypt(cmd_data.login.password, root_page.header.v1.auth_rand, cmd_data.login.cyphertext);
+				if (memcmp(cmd_data.login.cyphertext, root_page.header.v1.auth_rand_ct, AES_128_KEY_SIZE)) {
+					finish_command_resp(BAD_PASSWORD);
+				} else {
+					finish_command_resp(OKAY);
+					stm_aes_128_decrypt(cmd_data.login.password, root_page.header.v1.encrypt_key_ct, encrypt_key);
+					enter_state(LOGGED_IN);
+				}
+				break;
+			case 2:
+				stm_aes_256_encrypt_cbc(cmd_data.login.password, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
+						root_page.header.v2.auth_rand, cmd_data.login.cyphertext);
+				if (memcmp(cmd_data.login.cyphertext, root_page.header.v2.auth_rand_ct, AES_256_KEY_SIZE)) {
+					finish_command_resp(BAD_PASSWORD);
+				} else {
+					finish_command_resp(OKAY);
+					stm_aes_256_decrypt_cbc(cmd_data.login.password, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
+							root_page.header.v2.encrypt_key_ct, encrypt_key);
+					enter_state(LOGGED_IN);
+				}
+				break;
 			}
 			break;
 		case OPEN_ID:
@@ -443,10 +473,22 @@ void button_press()
 			finish_command_resp(OKAY);
 			break;
 		case CHANGE_MASTER_PASSWORD:
-			stm_aes_encrypt(cmd_data.change_master_password.new_key, encrypt_key, root_page.header.encrypt_key_ct);
-			stm_aes_encrypt(cmd_data.change_master_password.new_key, root_page.header.auth_rand, root_page.header.auth_rand_ct);
-			memcpy(root_page.header.hashfn, cmd_data.change_master_password.hashfn, AES_BLK_SIZE);
-			memcpy(root_page.header.salt, cmd_data.change_master_password.salt, AES_BLK_SIZE);
+			switch (root_page.signature[0]) {
+			case 1:
+				memcpy(root_page.header.v1.hashfn, cmd_data.change_master_password.hashfn, HASH_FN_SZ);
+				stm_aes_128_encrypt(cmd_data.change_master_password.new_key, encrypt_key, root_page.header.v1.encrypt_key_ct);
+				stm_aes_128_encrypt(cmd_data.change_master_password.new_key, root_page.header.v1.auth_rand, root_page.header.v1.auth_rand_ct);
+				memcpy(root_page.header.v1.salt, cmd_data.change_master_password.salt, SALT_SZ_V1);
+				break;
+			case 2:
+				memcpy(root_page.header.v2.hashfn, cmd_data.change_master_password.hashfn, HASH_FN_SZ);
+				stm_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
+						encrypt_key, root_page.header.v2.encrypt_key_ct);
+				stm_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
+						root_page.header.v2.auth_rand, root_page.header.v2.auth_rand_ct);
+				memcpy(root_page.header.v2.salt, cmd_data.change_master_password.salt, SALT_SZ_V2);
+				break;
+			}
 			flash_write_page(ID_BLK(0), (u8 *)&root_page, sizeof(root_page));
 			break;
 		case UPDATE_FIRMWARE:
@@ -481,16 +523,16 @@ void initialize_cmd(u8 *data, int data_len)
 		return;
 	}
 
-	memcpy(cmd_data.init_data.passwd, data, AES_BLK_SIZE);
-	memcpy(cmd_data.init_data.hashfn, data + AES_BLK_SIZE, AES_BLK_SIZE);
-	memcpy(cmd_data.init_data.salt, data + AES_BLK_SIZE * 2, AES_BLK_SIZE);
-	memcpy(cmd_data.init_data.rand, data + AES_BLK_SIZE * 3, INIT_RAND_DATA_SZ);
+	u8 *d = data;
+
+	memcpy(cmd_data.init_data.passwd, d, AES_256_KEY_SIZE); d += AES_256_KEY_SIZE;
+	memcpy(cmd_data.init_data.hashfn, d, AES_BLK_SIZE); d += AES_BLK_SIZE;
+	memcpy(cmd_data.init_data.salt, d, SALT_SZ_V2); d += SALT_SZ_V2;
+	memcpy(cmd_data.init_data.rand, d, INIT_RAND_DATA_SZ); d += INIT_RAND_DATA_SZ;
 	cmd_data.init_data.started = 0;
 
 	data += INITIALIZE_CMD_SIZE;
 	data_len -= INITIALIZE_CMD_SIZE;
-	memset(cmd_data.init_data.userdata, 0, DEVICE_USERDATA_SIZE);
-	memcpy(cmd_data.init_data.userdata, data, data_len);
 	begin_button_press_wait();
 }
 
@@ -596,23 +638,37 @@ void get_device_capacity_cmd(u8 *data, int data_len)
 void change_master_password_cmd(u8 *data, int data_len)
 {
 	dprint_s("CHANGE MASTER PASSWORD\r\n");
-	if (data_len != (AES_BLK_SIZE * 4)) {
+	if (data_len != ((AES_256_KEY_SIZE * 2) + HASH_FN_SZ + SALT_SZ_V2)) {
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
 	u8 *old_key = data;
-	u8 *new_key = data + AES_BLK_SIZE;
-	u8 *hashfn = data + AES_BLK_SIZE * 2;
-	u8 *salt = data + AES_BLK_SIZE * 3;
-	stm_aes_encrypt(old_key, root_page.header.auth_rand, cmd_data.change_master_password.cyphertext);
-	if (memcmp(cmd_data.change_master_password.cyphertext, root_page.header.auth_rand_ct, AES_BLK_SIZE)) {
-		finish_command_resp(BAD_PASSWORD);
-		return;
+	u8 *new_key = data + AES_256_KEY_SIZE;
+	u8 *hashfn = data + (AES_256_KEY_SIZE * 2);
+	u8 *salt = data + (AES_256_KEY_SIZE * 2) + HASH_FN_SZ;
+	memcpy(cmd_data.change_master_password.hashfn, hashfn, HASH_FN_SZ);
+	memcpy(cmd_data.change_master_password.salt, salt, SALT_SZ_V2);
+	switch (root_page.signature[0]) {
+	case 1:
+		stm_aes_128_encrypt(old_key, root_page.header.v1.auth_rand, cmd_data.change_master_password.cyphertext);
+		if (memcmp(cmd_data.change_master_password.cyphertext, root_page.header.v1.auth_rand_ct, AES_128_KEY_SIZE)) {
+			finish_command_resp(BAD_PASSWORD);
+			return;
+		}
+		stm_aes_128_decrypt(old_key, root_page.header.v1.encrypt_key_ct, encrypt_key);
+		memcpy(cmd_data.change_master_password.new_key, new_key, AES_128_KEY_SIZE);
+		break;
+	case 2:
+		stm_aes_256_encrypt_cbc(old_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
+				root_page.header.v2.auth_rand, cmd_data.change_master_password.cyphertext);
+		if (memcmp(cmd_data.change_master_password.cyphertext, root_page.header.v2.auth_rand_ct, AES_256_KEY_SIZE)) {
+			finish_command_resp(BAD_PASSWORD);
+			return;
+		}
+		stm_aes_256_decrypt_cbc(old_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
+				root_page.header.v2.encrypt_key_ct, encrypt_key);
+		memcpy(cmd_data.change_master_password.new_key, new_key, AES_256_KEY_SIZE);
 	}
-	stm_aes_decrypt(old_key, root_page.header.encrypt_key_ct, encrypt_key);
-	memcpy(cmd_data.change_master_password.new_key, new_key, AES_BLK_SIZE);
-	memcpy(cmd_data.change_master_password.hashfn, hashfn, AES_BLK_SIZE);
-	memcpy(cmd_data.change_master_password.salt, salt, AES_BLK_SIZE);
 	begin_button_press_wait();
 }
 
@@ -629,7 +685,7 @@ static int decrypt_id(u8 *block, u8 *iv, int id, int masked)
 		derive_iv(id, iv);
 		block[k] = addr[2]; k++;
 		block[k] = addr[3]; k++;
-		stm_aes_decrypt_cbc(encrypt_key, blk_count, iv, addr + SUB_BLK_SIZE, block + k);
+		stm_aes_128_decrypt_cbc(encrypt_key, blk_count, iv, addr + SUB_BLK_SIZE, block + k);
 		if (masked) {
 			u8 *sub_block = block + k;
 			for (int i = 0; i < blk_count; i++) {
@@ -717,7 +773,7 @@ void set_data_cmd(int id_cmd, u8 *data, int data_len)
 			memset(cmd_data.set_data.block, 0, AES_BLK_SIZE);
 			cmd_data.set_data.block[2] = sz & 0xff;
 			cmd_data.set_data.block[3] = sz >> 8;
-			stm_aes_encrypt_cbc(encrypt_key, blk_count, cmd_data.set_data.iv, data, cmd_data.set_data.block + SUB_BLK_SIZE);
+			stm_aes_128_encrypt_cbc(encrypt_key, blk_count, cmd_data.set_data.iv, data, cmd_data.set_data.block + SUB_BLK_SIZE);
 			flash_write_page(addr, cmd_data.set_data.block, (blk_count + 1) * SUB_BLK_SIZE);
 		} else {
 			finish_command_resp(ID_NOT_OPEN);
@@ -834,10 +890,10 @@ int logged_out_state(int cmd, u8 *data, int data_len)
 		break;
 	case LOGIN:
 		dprint_s("LOGIN\r\n");
-		if (data_len != AES_BLK_SIZE) {
+		if (data_len != AES_256_KEY_SIZE) {
 			finish_command_resp(INVALID_INPUT);
 		} else {
-			memcpy(cmd_data.login.password, data, AES_BLK_SIZE);
+			memcpy(cmd_data.login.password, data, AES_256_KEY_SIZE);
 			begin_button_press_wait();
 		}
 		break;
@@ -961,18 +1017,36 @@ void startup_cmd(u8 *data, int data_len)
 		active_id = -1;
 	}
 	memcpy(&root_page, (u8 *)(&_root_page), BLK_SIZE);
-	if (memcmp(root_page.header.signature, root_signature, AES_BLK_SIZE)) {
+	if (memcmp(root_page.signature + 1, root_signature + 1, AES_BLK_SIZE - 1)) {
 		dprint_s("STARTUP: uninitialized\r\n");
 		enter_state(UNINITIALIZED);
 	} else {
 		dprint_s("STARTUP: logged out\r\n");
 		enter_state(LOGGED_OUT);
 	}
-	u8 resp[1+(AES_BLK_SIZE*2)];
+	u8 resp[2+(HASH_FN_SZ + SALT_SZ_V2)];
+	memset(resp, 0, sizeof(resp));
 	resp[0] = device_state;
-	memcpy(resp + 1, root_page.header.hashfn, AES_BLK_SIZE);
-	memcpy(resp + 1 + AES_BLK_SIZE, root_page.header.salt, AES_BLK_SIZE);
-	finish_command(OKAY, resp, sizeof(resp));
+	resp[1] = root_page.signature[0];
+	switch (root_page.signature[0]) {
+	case 1:
+		memcpy(resp + 2, root_page.header.v1.hashfn, HASH_FN_SZ);
+		memcpy(resp + 2 + HASH_FN_SZ, root_page.header.v1.salt, SALT_SZ_V1);
+		break;
+	case 2:
+		memcpy(resp + 2, root_page.header.v2.hashfn, HASH_FN_SZ);
+		memcpy(resp + 2 + AES_BLK_SIZE, root_page.header.v2.salt, SALT_SZ_V2);
+		break;
+	}
+	switch (root_page.signature[0]) {
+	case 1:
+	case 2:
+		finish_command(OKAY, resp, sizeof(resp));
+		break;
+	case 3:
+		finish_command_resp(UNKNOWN_DB_FORMAT);
+		break;
+	}
 	return;
 }
 

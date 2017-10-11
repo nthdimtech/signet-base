@@ -4,15 +4,24 @@
 
 #include <nettle/aes.h>
 
+#include "common.h"
+
 void stm_aes_init()
 {
 }
 
-void stm_aes_encrypt(u8 *key, const u8 *din, u8 *dout)
+void stm_aes_128_encrypt(u8 *key, const u8 *din, u8 *dout)
 {
 	struct aes128_ctx ctx;
 	aes128_set_encrypt_key(&ctx, key);
-	aes128_encrypt(&ctx, 16, dout, din);
+	aes128_encrypt(&ctx, AES_BLK_SIZE, dout, din);
+}
+
+void stm_aes_256_encrypt(u8 *key, const u8 *din, u8 *dout)
+{
+	struct aes256_ctx ctx;
+	aes256_set_encrypt_key(&ctx, key);
+	aes256_encrypt(&ctx, AES_BLK_SIZE, dout, din);
 }
 
 static void xor_block(const u8 *src_block, const u8 *mask, u8 *dst_block)
@@ -23,35 +32,76 @@ static void xor_block(const u8 *src_block, const u8 *mask, u8 *dst_block)
 	}
 }
 
-void stm_aes_encrypt_cbc(u8 *key, int n_blocks, const u8 *iv, const u8 *din, u8 *dout)
+void stm_aes_128_encrypt_cbc(u8 *key, int n_blocks, const u8 *iv, const u8 *din, u8 *dout)
 {
 	int i;
 	for (i = 0; i < n_blocks; i++) {
-		u8 temp[128];
-		xor_block(din, iv, temp);
-		stm_aes_encrypt(key, temp, dout);
+		u8 temp[AES_BLK_SIZE];
+		if (iv) {
+			xor_block(din, iv, temp);
+		}
+		stm_aes_128_encrypt(key, temp, dout);
 		iv = dout;
-		din += 16;
-		dout += 16;
+		din += AES_BLK_SIZE;
+		dout += AES_BLK_SIZE;
 	}
 }
 
-void stm_aes_decrypt_cbc(u8 *key, int n_blocks, const u8 *iv, const u8 *din, u8 *dout)
+void stm_aes_256_encrypt_cbc(u8 *key, int n_blocks, const u8 *iv, const u8 *din, u8 *dout)
 {
 	int i;
 	for (i = 0; i < n_blocks; i++) {
-		u8 temp[128];
-		stm_aes_decrypt(key, din, temp);
-		xor_block(temp, iv, dout);
-		iv = din;
-		din += 16;
-		dout += 16;
+		u8 temp[AES_BLK_SIZE];
+		if (iv) {
+			xor_block(din, iv, temp);
+		}
+		stm_aes_128_encrypt(key, temp, dout);
+		iv = dout;
+		din += AES_BLK_SIZE;
+		dout += AES_BLK_SIZE;
 	}
 }
 
-void stm_aes_decrypt(u8 *key, const u8 *din, u8 *dout)
+void stm_aes_128_decrypt_cbc(u8 *key, int n_blocks, const u8 *iv, const u8 *din, u8 *dout)
+{
+	int i;
+	for (i = 0; i < n_blocks; i++) {
+		u8 temp[AES_BLK_SIZE];
+		stm_aes_128_decrypt(key, din, temp);
+		if (iv) {
+			xor_block(temp, iv, dout);
+		}
+		iv = din;
+		din += AES_BLK_SIZE;
+		dout += AES_BLK_SIZE;
+	}
+}
+
+void stm_aes_256_decrypt_cbc(u8 *key, int n_blocks, const u8 *iv, const u8 *din, u8 *dout)
+{
+	int i;
+	for (i = 0; i < n_blocks; i++) {
+		u8 temp[AES_BLK_SIZE];
+		stm_aes_256_decrypt(key, din, temp);
+		if (iv) {
+			xor_block(temp, iv, dout);
+		}
+		iv = din;
+		din += AES_BLK_SIZE;
+		dout += AES_BLK_SIZE;
+	}
+}
+
+void stm_aes_128_decrypt(u8 *key, const u8 *din, u8 *dout)
 {
 	struct aes128_ctx ctx;
 	aes128_set_decrypt_key(&ctx, key);
-	aes128_decrypt(&ctx, 16,  dout, din);
+	aes128_decrypt(&ctx, AES_BLK_SIZE,  dout, din);
+}
+
+void stm_aes_256_decrypt(u8 *key, const u8 *din, u8 *dout)
+{
+	struct aes256_ctx ctx;
+	aes256_set_decrypt_key(&ctx, key);
+	aes256_decrypt(&ctx, AES_BLK_SIZE,  dout, din);
 }

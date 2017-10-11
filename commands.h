@@ -36,11 +36,10 @@ union cmd_data_u {
 		int random_data_gathered;
 		int root_block_finalized;
 		int blocks_written;
-		u8 passwd[AES_BLK_SIZE];
+		u8 passwd[AES_256_KEY_SIZE];
 		u8 hashfn[AES_BLK_SIZE];
-		u8 salt[AES_BLK_SIZE];
+		u8 salt[AES_256_KEY_SIZE];
 		u8 rand[INIT_RAND_DATA_SZ];
-		u8 userdata[BLK_SIZE];
 	} init_data;
 	struct {
 		int block;
@@ -54,14 +53,14 @@ union cmd_data_u {
 		u8 block[BLK_SIZE];
 	} get_data;
 	struct {
-		u8 new_key[AES_BLK_SIZE];
-		u8 cyphertext[AES_BLK_SIZE];
+		u8 new_key[AES_256_KEY_SIZE];
+		u8 cyphertext[AES_256_KEY_SIZE];
 		u8 hashfn[AES_BLK_SIZE];
-		u8 salt[AES_BLK_SIZE];
+		u8 salt[AES_256_KEY_SIZE];
 	} change_master_password;
 	struct {
-		u8 password[AES_BLK_SIZE];
-		u8 cyphertext[AES_BLK_SIZE];
+		u8 password[AES_256_KEY_SIZE];
+		u8 cyphertext[AES_256_KEY_SIZE];
 	} login;
 	struct {
 		int id;
