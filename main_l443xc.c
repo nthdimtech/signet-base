@@ -278,6 +278,9 @@ int main()
 #endif
 	dprint_s("Entering main loop\r\n");
 	while(1) {
+		if (!flash_writing()) {
+			__asm__("wfi");
+		}
 		__asm__("cpsid i");
 		blink_idle();
 		flash_idle();
