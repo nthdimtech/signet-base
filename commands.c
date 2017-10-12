@@ -47,10 +47,6 @@ static const u8 root_signature[AES_BLK_SIZE] = {2 /*root block format */,3,4,5,6
 
 static union state_data_u state_data;
 
-
-#define INITIALIZE_RAND_DATA_SIZE (INITIALIZE_CMD_SIZE - AES_BLK_SIZE)
-#define INITIALIZE_RAND_DATA_SIZE_WORDS ((INITIALIZE_CMD_SIZE -AES_BLK_SIZE)/4)
-
 struct root_page
 {
 	u8 signature[AES_BLK_SIZE];
@@ -265,10 +261,10 @@ void derive_iv(u32 id, u8 *iv)
 
 static void finalize_root_page_check()
 {
-	if (rand_avail() >= INITIALIZE_RAND_DATA_SIZE_WORDS && !cmd_data.init_data.root_block_finalized && (cmd_data.init_data.blocks_written == (MAX_ID - MIN_ID + 1))) {
+	if (rand_avail() >= (INIT_RAND_DATA_SZ/4) && !cmd_data.init_data.root_block_finalized && (cmd_data.init_data.blocks_written == (MAX_ID - MIN_ID + 1))) {
 		cmd_data.init_data.root_block_finalized = 1;
 		memcpy(root_page.signature, root_signature, AES_BLK_SIZE);
-		for (int i = 0; i < INITIALIZE_RAND_DATA_SIZE_WORDS; i++) {
+		for (int i = 0; i < (INIT_RAND_DATA_SZ/4); i++) {
 			((u32 *)cmd_data.init_data.rand)[i] ^= rand_get();
 		}
 		memcpy(root_page.header.v2.cbc_iv, cmd_data.init_data.rand, AES_BLK_SIZE);
@@ -292,7 +288,7 @@ void cmd_rand_update()
 	int avail = rand_avail();
 	switch (device_state) {
 	case INITIALIZING:
-		if (avail <= INITIALIZE_RAND_DATA_SIZE_WORDS) {
+		if (avail <= (INIT_RAND_DATA_SZ/4)) {
 			cmd_data.init_data.random_data_gathered = avail - cmd_data.init_data.rand_avail_init;
 			progress_level[1] = cmd_data.init_data.random_data_gathered;
 			get_progress_check();
@@ -448,7 +444,7 @@ void button_press()
 			flash_write_page(ID_BLK(MIN_ID), NULL, 0);
 			finish_command_resp(OKAY);
 			cmd_data.init_data.rand_avail_init = rand_avail();
-			int p = INITIALIZE_RAND_DATA_SIZE_WORDS - cmd_data.init_data.rand_avail_init;
+			int p = (INIT_RAND_DATA_SZ/4) - cmd_data.init_data.rand_avail_init;
 			if (p < 0) p = 0;
 			int temp[] = {MAX_ID - MIN_ID + 1, p, 1};
 			enter_progressing_state(INITIALIZING, 3, temp);
@@ -685,7 +681,14 @@ static int decrypt_id(u8 *block, u8 *iv, int id, int masked)
 		derive_iv(id, iv);
 		block[k] = addr[2]; k++;
 		block[k] = addr[3]; k++;
-		stm_aes_128_decrypt_cbc(encrypt_key, blk_count, iv, addr + SUB_BLK_SIZE, block + k);
+		switch (root_page.signature[0]) {
+		case 1:
+			stm_aes_128_decrypt_cbc(encrypt_key, blk_count, iv, addr + SUB_BLK_SIZE, block + k);
+			break;
+		case 2:
+			stm_aes_256_decrypt_cbc(encrypt_key, blk_count, iv, addr + SUB_BLK_SIZE, block + k);
+			break;
+		}
 		if (masked) {
 			u8 *sub_block = block + k;
 			for (int i = 0; i < blk_count; i++) {
@@ -773,7 +776,14 @@ void set_data_cmd(int id_cmd, u8 *data, int data_len)
 			memset(cmd_data.set_data.block, 0, AES_BLK_SIZE);
 			cmd_data.set_data.block[2] = sz & 0xff;
 			cmd_data.set_data.block[3] = sz >> 8;
-			stm_aes_128_encrypt_cbc(encrypt_key, blk_count, cmd_data.set_data.iv, data, cmd_data.set_data.block + SUB_BLK_SIZE);
+			switch (root_page.signature[0]) {
+			case 1:
+				stm_aes_128_encrypt_cbc(encrypt_key, blk_count, cmd_data.set_data.iv, data, cmd_data.set_data.block + SUB_BLK_SIZE);
+				break;
+			case 2:
+				stm_aes_256_encrypt_cbc(encrypt_key, blk_count, cmd_data.set_data.iv, data, cmd_data.set_data.block + SUB_BLK_SIZE);
+				break;
+			}
 			flash_write_page(addr, cmd_data.set_data.block, (blk_count + 1) * SUB_BLK_SIZE);
 		} else {
 			finish_command_resp(ID_NOT_OPEN);
@@ -1035,7 +1045,7 @@ void startup_cmd(u8 *data, int data_len)
 		break;
 	case 2:
 		memcpy(resp + 2, root_page.header.v2.hashfn, HASH_FN_SZ);
-		memcpy(resp + 2 + AES_BLK_SIZE, root_page.header.v2.salt, SALT_SZ_V2);
+		memcpy(resp + 2 + HASH_FN_SZ, root_page.header.v2.salt, SALT_SZ_V2);
 		break;
 	}
 	switch (root_page.signature[0]) {
