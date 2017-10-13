@@ -13,6 +13,7 @@
 #include "rng.h"
 
 #include "config.h"
+#include "main.h"
 
 volatile int ms_count = 0;
 static int ms_last_pressed = 0;
@@ -47,9 +48,11 @@ void led_off()
 #endif
 }
 
+static int blink_paused = 0;
+
 void blink_idle()
 {
-	if (blink_period > 0) {
+	if (blink_period > 0 && !blink_paused) {
 		int next_blink_state = ((ms_count - blink_start)/(blink_period/2)) % 2;
 		if (next_blink_state != blink_state) {
 			if (next_blink_state) {
@@ -76,9 +79,28 @@ void start_blinking(int period, int duration)
 	led_on();
 }
 
+static int pause_start;
+
+void pause_blinking()
+{
+	led_off();
+	blink_paused = 1;
+	pause_start = ms_count;
+}
+
+void resume_blinking()
+{
+	if (blink_paused) {
+		blink_start += (ms_count - pause_start);
+		blink_paused = 0;
+		blink_idle();
+	}
+}
+
 void stop_blinking()
 {
 	blink_period = 0;
+	blink_paused = 0;
 	led_off();
 }
 
@@ -100,6 +122,7 @@ void delay(int ms)
 	while(ms_count < ms_target);
 }
 void button_press();
+void button_release();
 void long_button_press();
 extern volatile int typing;
 
@@ -113,7 +136,9 @@ void BUTTON_HANDLER()
 				start_blinking(500,10000);
 			}
 		}
-		button_press(current_button_state);
+		button_press();
+	} else {
+		button_release();
 	}
 	button_state = current_button_state;
 	EXTI_PR = (1<<BUTTON_PIN);

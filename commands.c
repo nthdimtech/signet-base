@@ -11,6 +11,7 @@
 #include "stm_aes.h"
 #include "firmware_update_state.h"
 #include "rtc_rand.h"
+#include "main.h"
 
 #ifdef MCU_STM32L443XC
 #include "rng.h"
@@ -28,12 +29,6 @@ static int active_cmd = -1;
 
 enum device_state device_state = DISCONNECTED;
 
-void led_on();
-void led_off();
-void start_blinking(int period, int duration);
-void stop_blinking();
-int is_blinking();
-
 // Incoming buffer for next command request
 u8 cmd_packet_buf[CMD_PACKET_BUF_SIZE];
 
@@ -43,7 +38,7 @@ union cmd_data_u cmd_data;
 
 static u8 encrypt_key[AES_256_KEY_SIZE];
 
-static const u8 root_signature[AES_BLK_SIZE] = {2 /*root block format */,3,4,5,6,7,8,9,10,11,12,13,14,15,0};
+static const u8 root_signature[AES_BLK_SIZE] = {2 /*root block format */,3,4,5, 6,7,8,9, 10,11,12,13, 14,15,0};
 
 static union state_data_u state_data;
 
@@ -401,6 +396,13 @@ void long_button_press()
 	}
 }
 
+void button_release()
+{
+	if (waiting_for_long_button_press) {
+		resume_blinking();
+	}
+}
+
 void button_press()
 {
 	if (waiting_for_button_press) {
@@ -494,6 +496,8 @@ void button_press()
 		}
 	} else if (!waiting_for_button_press && !waiting_for_long_button_press) {
 		cmd_event_send(1, NULL, 0);
+	} else if (waiting_for_long_button_press) {
+		pause_blinking();
 	}
 }
 
