@@ -12,6 +12,9 @@ static int raw_hid_tx_count = 0;
 static u8 raw_hid_tx_packet[RAW_HID_TX_SIZE];
 
 static u8 event_mask = 0;
+static const u8 *event_data[8];
+static int event_data_len[8];
+
 
 int maybe_send_raw_hid_event()
 {
@@ -26,7 +29,12 @@ int maybe_send_raw_hid_event()
 			event_mask &= ~(1<<i);
 			raw_hid_tx_packet[0] = 0xff;
 			raw_hid_tx_packet[RAW_HID_HEADER_SIZE] = i;
-			raw_hid_tx_packet[RAW_HID_HEADER_SIZE + 1] = 0;
+			if (event_data[i]) {
+				raw_hid_tx_packet[RAW_HID_HEADER_SIZE + 1] = event_data_len[i];
+				memcpy(raw_hid_tx_packet + RAW_HID_HEADER_SIZE + 2, event_data[i], event_data_len[i]);
+			} else {
+				raw_hid_tx_packet[RAW_HID_HEADER_SIZE + 1] = 0;
+			}
 			usb_send_bytes(RAW_HID_TX_ENDPOINT, raw_hid_tx_packet, RAW_HID_PACKET_SIZE);
 			break;
 		}
@@ -68,6 +76,8 @@ void cmd_packet_send(const u8 *data, u16 len)
 void cmd_event_send(int event_num, const u8 *data, int data_len)
 {
 	event_mask |= 1<<event_num;
+	event_data[event_num]  = data;
+	event_data_len[event_num] = data_len;
 	maybe_send_raw_hid_event();
 }
 

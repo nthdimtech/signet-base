@@ -367,8 +367,9 @@ void flash_write_failed()
 
 void blink_timeout()
 {
-	if (waiting_for_button_press) {
+	if (waiting_for_button_press || waiting_for_long_button_press) {
 		end_button_press_wait();
+		end_long_button_press_wait();
 		finish_command_resp(BUTTON_PRESS_TIMEOUT);
 	}
 }
@@ -379,7 +380,9 @@ void cmd_packet_sent()
 {
 	switch(active_cmd) {
 	case GET_ALL_DATA:
-		get_all_data_iter();
+		if (!waiting_for_long_button_press) {
+			get_all_data_iter();
+		}
 		break;
 	}
 }

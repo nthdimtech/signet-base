@@ -11,7 +11,7 @@
 #include "gpio.h"
 #include "irq.h"
 #include "rng.h"
-
+#include "commands.h"
 #include "config.h"
 #include "main.h"
 
@@ -50,6 +50,8 @@ void led_off()
 
 static int blink_paused = 0;
 
+static u8 timeout_event_secs;
+
 void blink_idle()
 {
 	if (blink_period > 0 && !blink_paused) {
@@ -62,11 +64,19 @@ void blink_idle()
 			}
 		}
 		blink_state = next_blink_state;
-		if (ms_count > (blink_start + blink_duration) && blink_duration > 0) {
+		int timeout_event_msecs = blink_duration - (ms_count - blink_start);
+		int next_timeout_event_secs = (timeout_event_msecs+999)/1000;
+		if ((timeout_event_msecs <= 0) && (blink_duration > 0)) {
 			blink_period = 0;
 			led_off();
 			dprint_s("BLINK TIMEOUT\r\n");
 			blink_timeout();
+		}
+		if (next_timeout_event_secs != timeout_event_secs) {
+			timeout_event_secs = next_timeout_event_secs;
+			if (device_state != DISCONNECTED && device_state != RESET) {
+				cmd_event_send(2, &timeout_event_secs, sizeof(timeout_event_secs));
+			}
 		}
 	}
 }
@@ -76,6 +86,7 @@ void start_blinking(int period, int duration)
 	blink_start = ms_count;
 	blink_period = period;
 	blink_duration = duration;
+	timeout_event_secs = (blink_duration + 999)/1000;
 	led_on();
 }
 
@@ -309,7 +320,7 @@ int main()
 		__asm__("cpsid i");
 		blink_idle();
 		flash_idle();
-		if (button_state && (ms_count - ms_last_pressed) > 2000) {
+		if (button_state && ((ms_count - ms_last_pressed) > 2000)) {
 			button_state = 0;
 			long_button_press();
 		}
