@@ -28,9 +28,6 @@ union cmd_data_u {
 		u8 chars[CMD_PACKET_PAYLOAD_SIZE];
 	} type_data;
 	struct {
-		int id;
-	} open_id;
-	struct {
 		int started;
 		int rand_avail_init;
 		int random_data_gathered;
@@ -45,10 +42,14 @@ union cmd_data_u {
 		int block;
 	} wipe_data;
 	struct {
+		int id;
 		u8 iv[AES_BLK_SIZE];
 		u8 block[BLK_SIZE];
+		int sub_blk_count;
 	} set_data;
 	struct {
+		int id;
+		int sz;
 		u8 iv[AES_BLK_SIZE];
 		u8 block[BLK_SIZE];
 	} get_data;
@@ -68,6 +69,9 @@ union cmd_data_u {
 		u8 iv[AES_BLK_SIZE];
 		u8 block[BLK_SIZE];
 	} get_all_data;
+	struct {
+		int id;
+	} delete_id;
 };
 
 extern union cmd_data_u cmd_data;

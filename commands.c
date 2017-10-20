@@ -21,9 +21,6 @@
 // Globals
 //
 
-//id that can be modified or have it's private data read from
-static int active_id = -1;
-
 //Command code of the currently executing command or -1 if no command is executing
 static int active_cmd = -1;
 
@@ -102,6 +99,9 @@ u32 rand_get()
 #define ID_BLK(id) (((u8 *)&_root_page) + BLK_SIZE * id)
 
 void get_progress_check();
+void delete_cmd_complete();
+void get_data_cmd_complete();
+void set_data_cmd_complete();
 
 void enter_progressing_state(enum device_state state, int _n_progress_components, int *_progress_maximum)
 {
@@ -437,9 +437,14 @@ void button_press()
 				break;
 			}
 			break;
-		case OPEN_ID:
-			active_id = cmd_data.open_id.id;
-			finish_command_resp(OKAY);
+		case DELETE_ID:
+			delete_cmd_complete();
+			break;
+		case GET_DATA:
+			get_data_cmd_complete();
+			break;
+		case SET_DATA:
+			set_data_cmd_complete();
 			break;
 		case INITIALIZE: {
 			cmd_data.init_data.started = 1;
@@ -716,16 +721,34 @@ static int decrypt_id(u8 *block, u8 *iv, int id, int masked)
 	return k;
 }
 
-void get_data_cmd(int id_cmd)
+void get_data_cmd_complete()
 {
+	finish_command(OKAY, cmd_data.get_data.block, cmd_data.get_data.sz);
+}
+
+void get_data_cmd(u8 *data, int data_len)
+{
+	if (data_len < 2) {
+		finish_command_resp(INVALID_INPUT);
+		return;
+	}
+	int id_cmd = data[0];
+	int masked = data[1];
 	dprint_s("GET_DATA ");
 	dprint_dec(id_cmd);
 	dprint_s("\r\n");
-	int sz = decrypt_id(cmd_data.get_data.block, cmd_data.get_data.iv, id_cmd, id_cmd != active_id);
-	if (sz) {
-		finish_command(OKAY, cmd_data.get_data.block, sz);
-	} else {
+	cmd_data.get_data.id = id_cmd;
+	int sz = decrypt_id(cmd_data.get_data.block, cmd_data.get_data.iv, id_cmd, masked);
+	if (!sz) {
 		finish_command_resp(ID_INVALID);
+		return;
+	}
+	cmd_data.get_data.sz = sz;
+
+	if (!masked) {
+		begin_button_press_wait();
+	} else {
+		get_data_cmd_complete();
 	}
 }
 
@@ -763,8 +786,18 @@ void get_all_data_cmd(u8 *data, int data_len)
 	}
 }
 
-void set_data_cmd(int id_cmd, u8 *data, int data_len)
+void set_data_cmd_complete()
 {
+	flash_write_page(ID_BLK(cmd_data.set_data.id), cmd_data.set_data.block, (cmd_data.set_data.sub_blk_count + 1) * SUB_BLK_SIZE);
+}
+
+void set_data_cmd(u8 *data, int data_len)
+{
+	if (data_len < 1) {
+		finish_command_resp(INVALID_INPUT);
+		return;
+	}
+	int id_cmd = data[0]; data++; data_len--;
 	if (!validate_id(id_cmd)) {
 		u16 sz = data[0] + (data[1] << 8);
 		data += 2;
@@ -777,49 +810,45 @@ void set_data_cmd(int id_cmd, u8 *data, int data_len)
 			finish_command_resp(INVALID_INPUT);
 			return;
 		}
-		if (id_cmd == active_id) {
-			u8 *addr =  ID_BLK(id_cmd);
-			derive_iv(id_cmd, cmd_data.set_data.iv);
-			memset(cmd_data.set_data.block, 0, AES_BLK_SIZE);
-			cmd_data.set_data.block[2] = sz & 0xff;
-			cmd_data.set_data.block[3] = sz >> 8;
-			switch (root_page.signature[0]) {
-			case 1:
-				stm_aes_128_encrypt_cbc(encrypt_key, blk_count, cmd_data.set_data.iv, data, cmd_data.set_data.block + SUB_BLK_SIZE);
-				break;
-			case 2:
-				stm_aes_256_encrypt_cbc(encrypt_key, blk_count, cmd_data.set_data.iv, data, cmd_data.set_data.block + SUB_BLK_SIZE);
-				break;
-			}
-			flash_write_page(addr, cmd_data.set_data.block, (blk_count + 1) * SUB_BLK_SIZE);
-		} else {
-			finish_command_resp(ID_NOT_OPEN);
+		cmd_data.set_data.id = id_cmd;
+		cmd_data.set_data.sub_blk_count = blk_count;
+		derive_iv(id_cmd, cmd_data.set_data.iv);
+		memset(cmd_data.set_data.block, 0, AES_BLK_SIZE);
+		cmd_data.set_data.block[2] = sz & 0xff;
+		cmd_data.set_data.block[3] = sz >> 8;
+		switch (root_page.signature[0]) {
+		case 1:
+			stm_aes_128_encrypt_cbc(encrypt_key, blk_count, cmd_data.set_data.iv, data, cmd_data.set_data.block + SUB_BLK_SIZE);
+			break;
+		case 2:
+			stm_aes_256_encrypt_cbc(encrypt_key, blk_count, cmd_data.set_data.iv, data, cmd_data.set_data.block + SUB_BLK_SIZE);
+			break;
 		}
+		begin_button_press_wait();
 	}
 }
 
-void delete_cmd(int id_cmd)
+void delete_cmd_complete()
 {
+	flash_write_page(ID_BLK(cmd_data.delete_id.id), NULL, 0);
+}
+
+void delete_cmd(u8 *data, int data_len)
+{
+	if (data_len < 1) {
+		finish_command_resp(INVALID_INPUT);
+		return;
+	}
+	int id_cmd = data[0];
+	cmd_data.delete_id.id = id_cmd;
 	if (!validate_present_id(id_cmd)) {
 		dprint_s("DELETE_ID ");
 		dprint_dec(id_cmd);
 		dprint_s("\r\n");
-		if (id_cmd == active_id) {
-			flash_write_page(ID_BLK(id_cmd), NULL, 0);
-		} else {
-			finish_command_resp(ID_NOT_OPEN);
-		}
+		begin_button_press_wait();
 	} else {
 		finish_command_resp(ID_INVALID);
 	}
-}
-
-void cmd_connect()
-{
-	test_state = 0;
-	stop_blinking();
-	enter_state(RESET);
-	finish_command_resp(OKAY);
 }
 
 void cmd_disconnect()
@@ -828,7 +857,6 @@ void cmd_disconnect()
 	end_button_press_wait();
 	end_long_button_press_wait();
 	active_cmd = -1;
-	active_id = -1;
 	enter_state(DISCONNECTED);
 }
 
@@ -932,36 +960,21 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 	case CHANGE_MASTER_PASSWORD:
 		change_master_password_cmd(data, data_len);
 		break;
-	case OPEN_ID:
-		cmd_data.open_id.id = data[0];
-		if (!validate_id(cmd_data.open_id.id)) {
-			dprint_s("OPEN_ID ");
-			dprint_dec(cmd_data.open_id.id);
-			dprint_s("\r\n");
-			active_id = -1;
-			begin_button_press_wait();
-		}
-		break;
 	case BACKUP_DEVICE:
 		dprint_s("Backup device\r\n");
 		begin_button_press_wait();
 		break;
-	case CLOSE_ID:
-		active_id = -1;
-		dprint_s("CLOSE_ID\r\n");
-		finish_command_resp(OKAY);
-		break;
 	case GET_DATA:
-		get_data_cmd(data[0]);
+		get_data_cmd(data, data_len);
 		break;
 	case GET_ALL_DATA:
 		get_all_data_cmd(data, data_len);
 		break;
 	case SET_DATA:
-		set_data_cmd(data[0], data + 1, data_len - 1);
+		set_data_cmd(data, data_len);
 		break;
 	case DELETE_ID: {
-		delete_cmd(data[0]);
+		delete_cmd(data, data_len);
 		break;
 	} break;
 	case TYPE: {
@@ -974,7 +987,6 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		begin_button_press_wait();
 		break;
 	case LOGOUT:
-		active_id = -1;
 		enter_state(LOGGED_OUT);
 		finish_command_resp(OKAY);
 		break;
@@ -1031,7 +1043,6 @@ void startup_cmd(u8 *data, int data_len)
 		end_button_press_wait();
 		end_long_button_press_wait();
 		active_cmd = -1;
-		active_id = -1;
 	}
 	memcpy(&root_page, (u8 *)(&_root_page), BLK_SIZE);
 	if (memcmp(root_page.signature + 1, root_signature + 1, AES_BLK_SIZE - 1)) {
@@ -1065,18 +1076,6 @@ void startup_cmd(u8 *data, int data_len)
 		break;
 	}
 	return;
-}
-
-int disconnected_state(int cmd, u8 *data, int data_len)
-{
-	switch (cmd) {
-	case CONNECT:
-		cmd_connect();
-		break;
-	default:
-		return -1;
-	}
-	return 0;
 }
 
 int cmd_packet_recv()
@@ -1138,7 +1137,6 @@ int cmd_packet_recv()
 
 	switch (device_state) {
 	case DISCONNECTED:
-		ret = disconnected_state(active_cmd, data, data_len);
 		break;
 	case UNINITIALIZED:
 		ret = uninitialized_state(active_cmd, data, data_len);
