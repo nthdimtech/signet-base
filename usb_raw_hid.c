@@ -9,7 +9,8 @@
 static const u8 *raw_hid_tx_data = NULL;
 static int raw_hid_tx_seq = 0;
 static int raw_hid_tx_count = 0;
-static u8 raw_hid_tx_packet[RAW_HID_TX_SIZE];
+static u8 raw_hid_tx_cmd_packet[RAW_HID_TX_SIZE];
+static u8 raw_hid_tx_event_packet[RAW_HID_TX_SIZE];
 
 static u8 event_mask = 0;
 static const u8 *event_data[8];
@@ -27,15 +28,15 @@ int maybe_send_raw_hid_event()
 	for (i = 0; i < 8; i++) {
 		if ((event_mask >> i) & 1) {
 			event_mask &= ~(1<<i);
-			raw_hid_tx_packet[0] = 0xff;
-			raw_hid_tx_packet[RAW_HID_HEADER_SIZE] = i;
+			raw_hid_tx_event_packet[0] = 0xff;
+			raw_hid_tx_event_packet[RAW_HID_HEADER_SIZE] = i;
 			if (event_data[i]) {
-				raw_hid_tx_packet[RAW_HID_HEADER_SIZE + 1] = event_data_len[i];
-				memcpy(raw_hid_tx_packet + RAW_HID_HEADER_SIZE + 2, event_data[i], event_data_len[i]);
+				raw_hid_tx_event_packet[RAW_HID_HEADER_SIZE + 1] = event_data_len[i];
+				memcpy(raw_hid_tx_event_packet + RAW_HID_HEADER_SIZE + 2, event_data[i], event_data_len[i]);
 			} else {
-				raw_hid_tx_packet[RAW_HID_HEADER_SIZE + 1] = 0;
+				raw_hid_tx_event_packet[RAW_HID_HEADER_SIZE + 1] = 0;
 			}
-			usb_send_bytes(RAW_HID_TX_ENDPOINT, raw_hid_tx_packet, RAW_HID_PACKET_SIZE);
+			usb_send_bytes(RAW_HID_TX_ENDPOINT, raw_hid_tx_event_packet, RAW_HID_PACKET_SIZE);
 			break;
 		}
 	}
@@ -53,9 +54,9 @@ void maybe_send_raw_hid_packet()
 		if ((raw_hid_tx_seq + 1) == raw_hid_tx_count) {
 			last = 1;
 		}
-		raw_hid_tx_packet[0] = (last << 7) | raw_hid_tx_seq;
-		memcpy(raw_hid_tx_packet + RAW_HID_HEADER_SIZE, raw_hid_tx_data + raw_hid_tx_seq * RAW_HID_PAYLOAD_SIZE, RAW_HID_PAYLOAD_SIZE);
-		usb_send_bytes(RAW_HID_TX_ENDPOINT, raw_hid_tx_packet, RAW_HID_PACKET_SIZE);
+		raw_hid_tx_cmd_packet[0] = (last << 7) | raw_hid_tx_seq;
+		memcpy(raw_hid_tx_cmd_packet + RAW_HID_HEADER_SIZE, raw_hid_tx_data + raw_hid_tx_seq * RAW_HID_PAYLOAD_SIZE, RAW_HID_PAYLOAD_SIZE);
+		usb_send_bytes(RAW_HID_TX_ENDPOINT, raw_hid_tx_cmd_packet, RAW_HID_PACKET_SIZE);
 		raw_hid_tx_seq++;
 	} else {
 		raw_hid_tx_seq = 0;
