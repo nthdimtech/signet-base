@@ -889,6 +889,13 @@ int wiping_state(int cmd, u8 *data, int data_len)
 	return 0;
 }
 
+void enter_mobile_mode_cmd()
+{
+	cmd_disconnect();
+	usb_set_mobile_mode();
+	usb_reset_device();
+}
+
 int uninitialized_state(int cmd, u8 *data, int data_len)
 {
 	switch(cmd) {
@@ -903,6 +910,9 @@ int uninitialized_state(int cmd, u8 *data, int data_len)
 		break;
 	case GET_DEVICE_CAPACITY:
 		get_device_capacity_cmd(data, data_len);
+		break;
+	case ENTER_MOBILE_MODE:
+		enter_mobile_mode_cmd();
 		break;
 	default:
 		return -1;
@@ -944,6 +954,9 @@ int logged_out_state(int cmd, u8 *data, int data_len)
 		break;
 	case GET_DEVICE_CAPACITY:
 		get_device_capacity_cmd(data, data_len);
+		break;
+	case ENTER_MOBILE_MODE:
+		enter_mobile_mode_cmd();
 		break;
 	default:
 		return -1;

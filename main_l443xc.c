@@ -308,9 +308,7 @@ int main()
 	CRS_CR |= CRS_CR_AUTOTRIMEN;
 	gpio_enable_af(USB_DM_PORT, USB_DM_PIN, USB_DM_AF);
 	gpio_enable_af(USB_DP_PORT, USB_DP_PIN, USB_DP_AF);
-	USB_CNTR = USB_CNTR_FRES; //Power on + reset
-	USB_ISTR = 0;
-	USB_CNTR = USB_CNTR_RESETM; //Handle reset ISR disable force reset
+	usb_reset_device();
 #endif
 	dprint_s("Entering main loop\r\n");
 	while(1) {

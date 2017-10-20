@@ -282,6 +282,13 @@ int usb_tx_pending(int ep)
 	return tx_pending[ep];
 }
 
+void usb_reset_device()
+{
+	USB_CNTR = USB_CNTR_FRES; //Power on + reset
+	USB_ISTR = 0;
+	USB_CNTR = USB_CNTR_RESETM; //Handle reset ISR disable force reset
+}
+
 static void usb_ctm()
 {
 	while (USB_ISTR & USB_ISTR_CTR) {

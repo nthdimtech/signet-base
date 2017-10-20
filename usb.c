@@ -11,6 +11,8 @@
 
 int usb_device_addr = 0;
 
+static int mobile_mode = 0;
+
 #define LSB(X) ((X) & 0xff)
 #define MSB(X) ((X) >> 8)
 
@@ -42,7 +44,7 @@ int usb_device_addr = 0;
 
 extern int ms_count;
 
-const u8 keyboard_interface[] = {
+static const u8 keyboard_interface[] = {
 	9,
 	USB_INTERFACE_DESC,
 	KEYBOARD_INTERFACE,
@@ -54,7 +56,7 @@ const u8 keyboard_interface[] = {
 	3  //Interface string
 };
 
-const u8 keyboard_hid_report_descriptor[] = {
+static const u8 keyboard_hid_report_descriptor[] = {
 	0x05, 1, //Usage page (Generic desktop)
 	0x09, 6, //Usage (Keyboard)
 	0xA1, 1, //Collection (application)
@@ -80,7 +82,7 @@ const u8 keyboard_hid_report_descriptor[] = {
 	0xc0        //End collection
 };
 
-const u8 keyboard_hid_descriptor[] = {
+static const u8 keyboard_hid_descriptor[] = {
 	9 ,
 	0x21, //HID descriptor
 	WTB(0x101), //BCD HID
@@ -91,7 +93,7 @@ const u8 keyboard_hid_descriptor[] = {
 	0
 };
 
-const u8 keyboard_endpoint[] = {
+static const u8 keyboard_endpoint[] = {
 	7,
 	USB_ENDPOINT_DESC,
 	KEYBOARD_ENDPOINT | USB_ENDPOINT_TX,
@@ -100,7 +102,7 @@ const u8 keyboard_endpoint[] = {
 	10 //10ms polling period
 };
 
-const u8 raw_hid_interface[] = {
+static const u8 raw_hid_interface[] = {
 	9,
 	USB_INTERFACE_DESC,
 	RAW_HID_INTERFACE,
@@ -112,7 +114,7 @@ const u8 raw_hid_interface[] = {
 	0, //No string
 };
 
-const u8 raw_hid_report_descriptor[] = {
+static const u8 raw_hid_report_descriptor[] = {
 	0x06, LSB(USB_RAW_HID_USAGE_PAGE), MSB(USB_RAW_HID_USAGE_PAGE),
 	0x0A, LSB(USB_RAW_HID_USAGE), MSB(USB_RAW_HID_USAGE),
 	0xA1, 0x01,				// Collection 0x01
@@ -128,7 +130,7 @@ const u8 raw_hid_report_descriptor[] = {
 	0xC0					// end collection
 };
 
-const u8 raw_hid_descriptor[] = {
+static const u8 raw_hid_descriptor[] = {
 	9,					// bLength
 	0x21,					// bDescriptorType
 	0x11, 0x01,				// bcdHID
@@ -138,7 +140,7 @@ const u8 raw_hid_descriptor[] = {
 	WTB(sizeof(raw_hid_report_descriptor)),	// wDescriptorLength
 };
 
-const u8 raw_hid_tx_endpoint[] = {
+static const u8 raw_hid_tx_endpoint[] = {
 	7,
 	USB_ENDPOINT_DESC,
 	RAW_HID_TX_ENDPOINT | USB_ENDPOINT_TX,
@@ -147,7 +149,7 @@ const u8 raw_hid_tx_endpoint[] = {
 	RAW_HID_TX_INTERVAL,
 };
 
-const u8 raw_hid_rx_endpoint[] = {
+static const u8 raw_hid_rx_endpoint[] = {
 	7,
 	USB_ENDPOINT_DESC,					// bDescriptorType
 	RAW_HID_RX_ENDPOINT,			// bEndpointAddress
@@ -156,7 +158,7 @@ const u8 raw_hid_rx_endpoint[] = {
 	RAW_HID_RX_INTERVAL			// bInterval
 };
 
-const u8 cdc_interface_association[] = {
+static const u8 cdc_interface_association[] = {
 	8,                                      // bLength
         11,                                     // bDescriptorType
         CDC_STATUS_INTERFACE,			// bFirstInterface
@@ -167,7 +169,7 @@ const u8 cdc_interface_association[] = {
         0                                      // iFunction
 };
 
-const u8 cdc_status_interface[] = {
+static const u8 cdc_status_interface[] = {
 	9,                                      // bLength
         4,                                      // bDescriptorType
         CDC_STATUS_INTERFACE,			// bInterfaceNumber
@@ -179,14 +181,14 @@ const u8 cdc_status_interface[] = {
         0                                      // iInterface
 };
 
-const u8 cdc_header_functional_descriptor[] = {
+static const u8 cdc_header_functional_descriptor[] = {
         5,                                      // bFunctionLength
         0x24,                                   // bDescriptorType
         0x00,                                   // bDescriptorSubtype
 	0x10, 0x01                              // bcdCDC
 };
 
-const u8 cdc_call_management_functional_descriptor[] = {
+static const u8 cdc_call_management_functional_descriptor[] = {
         5,                                      // bFunctionLength
         0x24,                                   // bDescriptorType
         0x01,                                   // bDescriptorSubtype
@@ -194,14 +196,14 @@ const u8 cdc_call_management_functional_descriptor[] = {
         CDC_DATA_INTERFACE			// bDataInterface
 };
 
-const u8 cdc_acm_control_management_functional_descriptor[] = {
+static const u8 cdc_acm_control_management_functional_descriptor[] = {
         4,                                      // bFunctionLength
         0x24,                                   // bDescriptorType
         0x02,                                   // bDescriptorSubtype
         0x06                                   // bmCapabilities
 };
 
-const u8 cdc_union_functional_descriptor[] = {
+static const u8 cdc_union_functional_descriptor[] = {
 	5,                                      // bFunctionLength
 	0x24,                                   // bDescriptorType
 	0x06,                                   // bDescriptorSubtype
@@ -209,7 +211,7 @@ const u8 cdc_union_functional_descriptor[] = {
 	CDC_DATA_INTERFACE                     // bSlaveInterface0
 };
 
-const u8 cdc_acm_endpoint_descriptor[] = {
+static const u8 cdc_acm_endpoint_descriptor[] = {
         7,                                      // bLength
         5,                                      // bDescriptorType
         CDC_ACM_ENDPOINT | 0x80,                // bEndpointAddress
@@ -218,7 +220,7 @@ const u8 cdc_acm_endpoint_descriptor[] = {
         64                                     // bInterval
 };
 
-const u8 cdc_acm_data_interface[] = {
+static const u8 cdc_acm_data_interface[] = {
         9,                                      // bLength
         4,                                      // bDescriptorType
         CDC_DATA_INTERFACE,                     // bInterfaceNumber
@@ -230,7 +232,7 @@ const u8 cdc_acm_data_interface[] = {
         0                                      // iInterface
 };
 
-const u8 cdc_acm_rx_endpoint[] = {
+static const u8 cdc_acm_rx_endpoint[] = {
         7,                                      // bLength
         5,                                      // bDescriptorType
         CDC_RX_ENDPOINT,                        // bEndpointAddress
@@ -239,7 +241,7 @@ const u8 cdc_acm_rx_endpoint[] = {
         0                                  // bInterval
 };
 
-const u8 cdc_acm_tx_endpoint[] = {
+static const u8 cdc_acm_tx_endpoint[] = {
         7,                                      // bLength
         5,                                      // bDescriptorType
         CDC_TX_ENDPOINT | 0x80,                 // bEndpointAddress
@@ -248,7 +250,7 @@ const u8 cdc_acm_tx_endpoint[] = {
         0                                      // bInterval
 };
 
-const u8 device_descriptor[] = {
+static const u8 device_descriptor[] = {
 	18,//18 byte descriptor
 	1, //device descriptor
 	WTB(USB_VER_BCD), //USB version
@@ -257,7 +259,7 @@ const u8 device_descriptor[] = {
 	0,//1, //Interface specific protocol
 	CTRL_RX_SIZE, //> CTRL_TX_SIZE ? CTRL_RX_SIZE : CTRL_TX_SIZE, //max packet size
 	WTB(USB_VENDOR_ID), //Vendor ID
-	WTB(USB_SIGNET_COMMON_PRODUCT_ID), //Product ID
+	WTB(USB_SIGNET_DESKTOP_PRODUCT_ID), //Product ID
 	WTB(USB_REV_ID), //Rev ID
 	1, //Manufacturer string
 	2, //Product string
@@ -265,7 +267,7 @@ const u8 device_descriptor[] = {
 	1, //one configuration
 };
 
-const u8 device_qualifier[] = {
+static const u8 device_qualifier[] = {
 	10,//10 byte descriptor
 	6, //device qualifier
 	WTB(USB_VER_BCD), //USB version
@@ -276,12 +278,12 @@ const u8 device_qualifier[] = {
 	0 //Reserved
 };
 
-const u16 string_zero[] = {
+static const u16 string_zero[] = {
 	4 | (3 << 8),
 	LANGID_US_ENGLISH
 };
 
-const u16 string_product[] = {
+static const u16 string_product[] = {
 	14 | (3 << 8),
 	u'S', //1
 	u'i', //2
@@ -291,7 +293,7 @@ const u16 string_product[] = {
 	u't', //6
 };
 
-const u16 string_manufacturer[] = {
+static const u16 string_manufacturer[] = {
 	28 | (3 << 8),
 	u'N', //1
 	u't', //2
@@ -308,7 +310,7 @@ const u16 string_manufacturer[] = {
 	u'n'  //13
 };
 
-const u16 string_keyboard_if[] = {
+static const u16 string_keyboard_if[] = {
 	30 | (3 << 8),
 	u'M', //1
 	u'a', //2
@@ -326,7 +328,7 @@ const u16 string_keyboard_if[] = {
 	u'd'  //14
 };
 
-const u16 *strings[] = {
+static const u16 *strings[] = {
 	string_zero,
 	string_manufacturer,
 	string_product,
@@ -341,9 +343,9 @@ void usb_set_device_address(int addr)
 	dprint_s("\r\n");
 }
 
-extern const u8 device_config_desktop[];
+static const u8 device_config_desktop[];
 
-const u8 *device_configuration_desktop[] = {
+static const u8 *device_configuration_desktop[] = {
 	device_config_desktop, //9
 
 	cdc_interface_association,
@@ -367,10 +369,10 @@ const u8 *device_configuration_desktop[] = {
 		raw_hid_rx_endpoint,//7
 };
 
-extern const u8 device_config_common[];
+static const u8 device_config_mobile[];
 
-const u8 *device_configuration_common[] = {
-	device_config_common, //9
+static const u8 *device_configuration_mobile[] = {
+	device_config_mobile, //9
 
 	cdc_interface_association,
 		cdc_status_interface,
@@ -410,7 +412,7 @@ const u8 *device_configuration_common[] = {
 		sizeof(raw_hid_rx_endpoint) \
 		)
 
-#define USB_CONFIG_TOTAL_SIZE_COMMON ( \
+#define USB_CONFIG_TOTAL_SIZE_MOBILE ( \
 	9 /* sizeof(device_config) */ + \
 	sizeof(cdc_interface_association) + \
 		sizeof(cdc_status_interface) + \
@@ -428,7 +430,7 @@ const u8 *device_configuration_common[] = {
 		sizeof(raw_hid_rx_endpoint) \
 		)
 
-const u8 device_config_desktop[] = {
+static const u8 device_config_desktop[] = {
 	9,
 	2, //device type
 	WTB(USB_CONFIG_TOTAL_SIZE_DESKTOP), //total length
@@ -439,11 +441,11 @@ const u8 device_config_desktop[] = {
 	100 //200ma power limit + Interface descriptor length
 };
 
-const u8 device_config_common[] = {
+static const u8 device_config_mobile[] = {
 	9,
 	2, //device type
-	WTB(USB_CONFIG_TOTAL_SIZE_COMMON), //total length
-	NUM_INTERFACES, //number of interfaces
+	WTB(USB_CONFIG_TOTAL_SIZE_MOBILE), //total length
+	NUM_INTERFACES - 1, //number of interfaces
 	1, //1 configuration
 	0, //No configuration name string
 	0x80, //USB powered no remote wakeup
@@ -452,6 +454,15 @@ const u8 device_config_common[] = {
 
 static int restart_byte = -1;
 static int transaction_length = -1;
+
+struct usb_configuration {
+	const u8 **descriptor;
+	int num_entries;
+} usb_configurations[2] = {
+	{device_configuration_desktop, ARRAY_COUNT(device_configuration_desktop)},
+	{device_configuration_mobile, ARRAY_COUNT(device_configuration_mobile)}
+};
+
 
 void usb_get_device_descriptor(int type, int index, int lang_id, int length)
 {
@@ -471,7 +482,11 @@ void usb_get_device_descriptor(int type, int index, int lang_id, int length)
 		dprint_dec(length);
 		dprint_s(")\r\n");
 		current_max = length > CTRL_TX_SIZE ? CTRL_TX_SIZE : length;
-		restart_byte = usb_send_descriptors(device_configuration_desktop, 0, ARRAY_COUNT(device_configuration_desktop), current_max);
+		restart_byte = usb_send_descriptors(
+				usb_configurations[mobile_mode].descriptor,
+				0,
+				usb_configurations[mobile_mode].num_entries,
+				current_max);
 		transaction_length = length;
 		break;
 	case 3: //String
@@ -843,6 +858,10 @@ void usb_tx(int id)
 	}
 }
 
+void usb_set_mobile_mode()
+{
+	mobile_mode = 1;
+}
 
 void usb_tx_ctrl()
 {
@@ -854,7 +873,11 @@ void usb_tx_ctrl()
 			dprint_s(" ");
 			dprint_dec(current_max);
 			dprint_s("\r\n");
-			restart_byte = usb_send_descriptors(device_configuration_desktop, restart_byte, ARRAY_COUNT(device_configuration_desktop), current_max);
+			restart_byte = usb_send_descriptors(
+					usb_configurations[mobile_mode].descriptor,
+					restart_byte,
+					usb_configurations[mobile_mode].num_entries,
+					current_max);
 		} else {
 			restart_byte = -1;
 		}

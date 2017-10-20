@@ -42,7 +42,7 @@ void usb_rx(int id, int setup, volatile usbw_t *data, int count);
 void usb_tx(int id);
 void usb_copyfrom(void *dest, const usbw_t *src, int len);
 void usb_copyto(usbw_t *dest, const void *src, int len);
-
+void usb_set_mobile_mode();
 extern int usb_device_addr;
 
 #endif
