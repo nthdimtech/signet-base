@@ -1038,7 +1038,7 @@ int restoring_device_state(int cmd, u8 *data, int data_len)
 		erase_block_cmd(data, data_len);
 		break;
 	case RESTORE_DEVICE_DONE:
-		enter_state(RESET);
+		enter_state(DISCONNECTED);
 		finish_command_resp(OKAY);
 		break;
 	default:
@@ -1050,7 +1050,7 @@ int restoring_device_state(int cmd, u8 *data, int data_len)
 void startup_cmd(u8 *data, int data_len)
 {
 	dprint_s("STARTUP\r\n");
-	if (device_state != RESET) {
+	if (device_state != DISCONNECTED) {
 		test_state = 0;
 		stop_blinking();
 		end_button_press_wait();
