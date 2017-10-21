@@ -201,7 +201,7 @@ void finish_command_multi(enum command_responses resp, int messages_remaining, c
 	cmd_resp[2] = resp;
 	cmd_resp[3] = messages_remaining & 0xff;
 	cmd_resp[4] = (messages_remaining >> 8) & 0xff;
-	cmd_resp[5] = 0;
+	cmd_resp[5] = device_state;
 	if (payload) {
 		memcpy(cmd_resp + CMD_PACKET_HEADER_SIZE, payload, payload_len);
 	}
