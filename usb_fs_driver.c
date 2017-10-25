@@ -4,13 +4,7 @@
 #include "usb.h"
 #include "print.h"
 
-#if defined(MCU_STM32F303XC)
-#define USB_PMA_PTR(addr) ((volatile usbw_t *)(USB_PMA_ADDR + addr * 2))
-#elif defined(MCU_STM32L443XC)
 #define USB_PMA_PTR(addr) ((volatile usbw_t *)(USB_PMA_ADDR + addr))
-#else
-#error Unknown MCU
-#endif
 
 static int tx_pending[8] = {0,0,0,0,0,0,0,0};
 static u8 *tx_next[8] = {0,0,0,0,0,0,0,0};
@@ -356,11 +350,7 @@ void usb_reset()
 		USB_EPR_STAT_RX_VALID |
 		USB_EPR_STAT_TX_NAK;
 	USB_DADDR = USB_DADDR_EN; //Enable USB interface
-#if defined(MCU_STM32F303XC)
-	USB_PULLUP_PORT->BSRR = (1<<USB_PULLUP_PIN); //Enable internal pullup
-#else
 	USB_BCDR |= USB_BCDR_DPPU; //Enable internal pullup
-#endif
 }
 
 void usb_handler()

@@ -6,13 +6,7 @@
 #define REGISTER(addr) (*((volatile u32 *)(addr)))
 #define REGISTER16(addr) (*((volatile u16 *)(addr)))
 
-#if defined(MCU_STM32L443XC)
 #include "regmap_l443xc.h"
-#elif defined(MCU_STM32F303XC)
-#include "regmap_f303xc.h"
-#else
-#error Undefined MCU
-#endif
 
 #define NVIC_ISERn(N) REGISTER(0xE000E100 + 4 * (N))
 #define NVIC_ICERn(N) REGISTER(0xE000E180 + 4 * (N))

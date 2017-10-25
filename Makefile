@@ -1,7 +1,5 @@
 all: signet-fw serial-loader dfu-util-loader json-encoder
 
-MCU=L443xC
-
 BTUPLE:=$(shell echo $(shell ./config.guess) | sed -e 's/\([a-z_09A-Z]\)*-/\1-build_/')
 HTUPLE:=arm-none-eabi
 
@@ -37,15 +35,7 @@ LDFLAGS=-Wl,"--gc-sections" -nostdlib
 
 CFLAGS+= -DFIRMWARE -Wall
 
-ifeq ($(MCU),F303xC)
-LDFLAGS+= -Wl,"-Tstm32f303xc.ld"
-CFLAGS+= -DMCU_STM32F303XC
-endif
-
-ifeq ($(MCU),L443xC)
 LDFLAGS+= -Wl,"-Tstm32l443xc.ld"
-CFLAGS+= -DMCU_STM32L443XC
-endif
 
 CFLAGS += -DUSE_RAW_HID -I../signet-desktop-client/common
 
@@ -56,13 +46,7 @@ clean:
 	$(HTUPLE)-gcc  $(CFLAGS) $< -c -o $@
 	@$(HTUPLE)-gcc  $(CFLAGS) $< -M -MF $@.d
 
-ifeq ($(MCU),F303xC)
-MCU_SOURCES = ivt_f303xc.c main_f303xc.c flash_f303xc.c
-endif
-
-ifeq ($(MCU),L443xC)
 MCU_SOURCES = ivt_l443xc.c main_l443xc.c rng_driver.c flash_l443xc.c
-endif
 
 SOURCES = startup.c firmware_update_state.c commands.c crc.c \
 	  usb_fs_driver.c \

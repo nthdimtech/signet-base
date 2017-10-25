@@ -12,10 +12,7 @@
 #include "firmware_update_state.h"
 #include "rtc_rand.h"
 #include "main.h"
-
-#ifdef MCU_STM32L443XC
 #include "rng.h"
-#endif
 
 //
 // Globals
@@ -77,7 +74,6 @@ static int waiting_for_long_button_press = 0;
 // Misc functions
 //
 
-#ifdef MCU_STM32L443XC
 int rand_avail()
 {
 	int rtc_level = rtc_rand_avail();
@@ -91,10 +87,6 @@ u32 rand_get()
 	u32 rng_val = rng_rand_get();
 	return rtc_val ^ rng_val;
 }
-#else
-#define rand_avail() rtc_rand_avail()
-#define rand_get() rtc_rand_get()
-#endif
 
 #define ID_BLK(id) (((u8 *)&_root_page) + BLK_SIZE * id)
 

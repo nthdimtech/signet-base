@@ -1,10 +1,10 @@
 #include "stm_aes.h"
-
 #include "print.h"
+#include "common.h"
+#include "mem.h"
 
 #include <nettle/aes.h>
 
-#include "common.h"
 
 void stm_aes_init()
 {
