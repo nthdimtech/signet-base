@@ -64,7 +64,7 @@ ifeq ($(MCU),L443xC)
 MCU_SOURCES = ivt_l443xc.c main_l443xc.c rng_driver.c flash_l443xc.c
 endif
 
-SOURCES = startup.c firmware_update_state.c commands.c \
+SOURCES = startup.c firmware_update_state.c commands.c crc.c \
 	  usb_fs_driver.c \
 	  usart.c stm_aes.c usb_serial.c usb_storage.c usb.c usb_keyboard.c \
 	  print.c mem.c irq.c gpio.c rtc_rand.c \

@@ -11,9 +11,11 @@
 #include "gpio.h"
 #include "irq.h"
 #include "rng.h"
+#include "crc.h"
 #include "commands.h"
 #include "config.h"
 #include "main.h"
+#include "usb_driver.h"
 
 volatile int ms_count = 0;
 static int ms_last_pressed = 0;
@@ -161,6 +163,7 @@ void BUTTON_HANDLER()
 #define USE_RTC 1
 #define USE_SDMMC 0
 #define USE_UART 1
+#define USE_CRC 1
 
 int main()
 {
@@ -171,6 +174,7 @@ int main()
 	RCC_CR = (RCC_CR & ~RCC_CR_MSIRANGE_MASK) | RCC_CR_MSIRGSEL | (RCC_CR_MSIRANGE_FACTOR * 11);
 	while (!(RCC_CR & RCC_CR_MSIRDY));
 
+	u32 ahb1enr_val = 0;
 	u32 ahb2enr_val = RCC_AHB2ENR_IOP_AEN | RCC_AHB2ENR_IOP_BEN | RCC_AHB2ENR_IOP_CEN |
 		RCC_AHB2ENR_IOP_DEN;
 	u32 apb2enr_val = RCC_APB2ENR_SYSCFGEN;
@@ -178,6 +182,10 @@ int main()
 
 #if USE_RTC
 	apb1enr1_val |= RCC_APB1ENR1_PWREN;
+#endif
+
+#if USE_CRC
+	ahb1enr_val |= RCC_AHB1ENR_CRCEN;
 #endif
 
 #if USE_USB
@@ -236,6 +244,7 @@ int main()
 
 	RCC_APB2ENR |= apb2enr_val;
 	RCC_APB1ENR1 |= apb1enr1_val;
+	RCC_AHB1ENR |= ahb1enr_val;
 	RCC_AHB2ENR |= ahb2enr_val;
 
 	delay(2);
@@ -284,6 +293,10 @@ int main()
 
 #if USE_RNG
 	rng_init();
+#endif
+
+#if USE_CRC
+	crc_init();
 #endif
 
 #if USE_RTC
