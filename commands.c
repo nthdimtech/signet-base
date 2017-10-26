@@ -203,9 +203,7 @@ void finish_command_multi(enum command_responses resp, int messages_remaining, c
 	if (!messages_remaining) {
 		active_cmd = -1;
 	}
-	if (device_state != DISCONNECTED) {
-		cmd_packet_send(cmd_resp, full_length);
-	}
+	cmd_packet_send(cmd_resp, full_length);
 }
 
 void finish_command(enum command_responses resp, const u8 *payload, int payload_len)
