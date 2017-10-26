@@ -204,6 +204,8 @@ int main()
 	//Enable fault handlers
 	SCB_SHCSR |= 7 << 16;
 
+	delay(100);
+
 #if USE_USB
 	set_irq_priority(USB_FS_IRQ, 128);
 	EXTI_IMR |= (1<<USB_EXTI_LINE);
@@ -247,7 +249,7 @@ int main()
 	RCC_AHB1ENR |= ahb1enr_val;
 	RCC_AHB2ENR |= ahb2enr_val;
 
-	delay(2);
+	delay(100);
 
 #if USE_UART
 	//USART2 init
