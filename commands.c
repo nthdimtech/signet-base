@@ -1065,24 +1065,29 @@ void startup_cmd(u8 *data, int data_len)
 	memset(resp, 0, sizeof(resp));
 	resp[0] = device_state;
 	resp[1] = root_page.signature[0];
-	switch (root_page.signature[0]) {
-	case 1:
-		memcpy(resp + 2, root_page.header.v1.hashfn, HASH_FN_SZ);
-		memcpy(resp + 2 + HASH_FN_SZ, root_page.header.v1.salt, SALT_SZ_V1);
-		break;
-	case 2:
-		memcpy(resp + 2, root_page.header.v2.hashfn, HASH_FN_SZ);
-		memcpy(resp + 2 + HASH_FN_SZ, root_page.header.v2.salt, SALT_SZ_V2);
-		break;
-	}
-	switch (root_page.signature[0]) {
-	case 1:
-	case 2:
+	if (device_state == UNINITIALIZED) {
 		finish_command(OKAY, resp, sizeof(resp));
-		break;
-	case 3:
-		finish_command_resp(UNKNOWN_DB_FORMAT);
-		break;
+	} else {
+		switch (root_page.signature[0]) {
+		case 1:
+			memcpy(resp + 2, root_page.header.v1.hashfn, HASH_FN_SZ);
+			memcpy(resp + 2 + HASH_FN_SZ, root_page.header.v1.salt, SALT_SZ_V1);
+			break;
+		case 2:
+			memcpy(resp + 2, root_page.header.v2.hashfn, HASH_FN_SZ);
+			memcpy(resp + 2 + HASH_FN_SZ, root_page.header.v2.salt, SALT_SZ_V2);
+			break;
+		}
+
+		switch (root_page.signature[0]) {
+		case 1:
+		case 2:
+			finish_command(OKAY, resp, sizeof(resp));
+			break;
+		default:
+			finish_command_resp(UNKNOWN_DB_FORMAT);
+			break;
+		}
 	}
 	return;
 }
