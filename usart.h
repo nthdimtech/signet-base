@@ -21,6 +21,8 @@ void usart_init(struct usart_if *iface, int clock, int baud,
 
 void usart_print_char(struct usart_if *iface, char c);
 
+int usart_poll(struct usart_if *iface);
+
 void usart2_handler();
 
 #endif

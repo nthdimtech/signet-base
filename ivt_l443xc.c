@@ -136,6 +136,4 @@ void (* const table_interrupt_vector[])(void) =
 	rng_handler, // 80
 	handler_default, // 81
 	handler_default, // 82
-	handler_default, // 83
-	handler_default, // 84
 };
