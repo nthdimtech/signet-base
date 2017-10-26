@@ -13,6 +13,7 @@
 #include "rtc_rand.h"
 #include "main.h"
 #include "rng.h"
+#include "usb_driver.h"
 
 //
 // Globals
@@ -49,12 +50,14 @@ struct root_page
 			u8 hashfn[AES_BLK_SIZE];
 		} v1;
 		struct {
+			u32 crc;
+			u8 db_format;
 			u8 auth_rand[AES_256_KEY_SIZE];
 			u8 auth_rand_ct[AES_256_KEY_SIZE];
 			u8 encrypt_key_ct[AES_256_KEY_SIZE];
 			u8 cbc_iv[AES_BLK_SIZE];
-			u8 salt[AES_256_KEY_SIZE];
-			u8 hashfn[AES_256_KEY_SIZE];
+			u8 salt[SALT_SZ_V2];
+			u8 hashfn[HASH_FN_SZ];
 			u8 title[256];
 		} v2;
 	} header;
@@ -678,6 +681,7 @@ static int decrypt_id(u8 *block, u8 *iv, int id, int masked)
 	if (!validate_present_id(id)) {
 		dprint_dec(id);
 		dprint_s("\r\n");
+
 		u8 *addr =  ID_BLK(id);
 
 		u16 sz = addr[2] + (addr[3] << 8);
@@ -1043,12 +1047,12 @@ void startup_cmd(u8 *data, int data_len)
 {
 	dprint_s("STARTUP\r\n");
 	if (device_state != DISCONNECTED) {
-		test_state = 0;
 		stop_blinking();
 		end_button_press_wait();
 		end_long_button_press_wait();
 		active_cmd = -1;
 	}
+	test_state = 0;
 	memcpy(&root_page, (u8 *)(&_root_page), BLK_SIZE);
 	if (memcmp(root_page.signature + 1, root_signature + 1, AES_BLK_SIZE - 1)) {
 		dprint_s("STARTUP: uninitialized\r\n");
