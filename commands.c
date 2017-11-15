@@ -31,7 +31,10 @@ u8 cmd_packet_buf[CMD_PACKET_BUF_SIZE];
 //executed
 union cmd_data_u cmd_data;
 
-static u8 encrypt_key[AES_256_KEY_SIZE];
+u8 encrypt_key[AES_256_KEY_SIZE];
+
+u8 header_version;
+u8 db_version;
 
 static const u8 root_signature[AES_BLK_SIZE] = {2 /*root block format */,3,4,5, 6,7,8,9, 10,11,12,13, 14,15,0};
 
@@ -51,7 +54,7 @@ struct root_page
 		} v1;
 		struct {
 			u32 crc;
-			u8 db_format;
+			u8 db_version;
 			u8 auth_rand[AES_256_KEY_SIZE];
 			u8 auth_rand_ct[AES_256_KEY_SIZE];
 			u8 encrypt_key_ct[AES_256_KEY_SIZE];
@@ -61,7 +64,7 @@ struct root_page
 			u8 title[256];
 		} v2;
 	} header;
-} root_page;
+} __attribute__((__packed__)) root_page;
 
 extern struct root_page _root_page;
 
@@ -97,7 +100,7 @@ void get_progress_check();
 void delete_cmd_complete();
 void get_data_cmd_complete();
 void set_data_cmd_complete();
-
+void initialize_cmd_complete();
 void enter_progressing_state(enum device_state state, int _n_progress_components, int *_progress_maximum)
 {
 	device_state = state;
@@ -255,6 +258,7 @@ static void finalize_root_page_check()
 		for (int i = 0; i < (INIT_RAND_DATA_SZ/4); i++) {
 			((u32 *)cmd_data.init_data.rand)[i] ^= rand_get();
 		}
+		root_page.header.v2.db_version = 2;
 		memcpy(root_page.header.v2.cbc_iv, cmd_data.init_data.rand, AES_BLK_SIZE);
 		memcpy(root_page.header.v2.auth_rand, cmd_data.init_data.rand + AES_BLK_SIZE, AES_256_KEY_SIZE);
 		stm_aes_256_encrypt_cbc(cmd_data.init_data.passwd, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
@@ -340,11 +344,15 @@ void flash_write_complete()
 	case CHANGE_MASTER_PASSWORD:
 	case WRITE_BLOCK:
 	case ERASE_BLOCK:
+	//V1 commands
 	case SET_DATA:
 	case DELETE_ID:
 	case WRITE_FLASH:
 		finish_command_resp(OKAY);
 		break;
+	case UPDATE_UID:
+		update_uid_cmd_write_finished();
+	        break;	
 	default:
 		break;
 	}
@@ -373,9 +381,10 @@ void cmd_packet_sent()
 {
 	switch(active_cmd) {
 	case GET_ALL_DATA:
-		if (!waiting_for_long_button_press) {
-			get_all_data_iter();
-		}
+		get_all_data_iter();
+		break;
+	case READ_ALL_UIDS:
+		read_all_uids_cmd_iter();
 		break;
 	}
 }
@@ -387,6 +396,9 @@ void long_button_press()
 		switch(active_cmd) {
 		case GET_ALL_DATA:
 			get_all_data_iter();
+			break;
+		case READ_ALL_UIDS:
+			read_all_uids_cmd_iter();
 			break;
 		}
 	}
@@ -439,18 +451,14 @@ void button_press()
 		case SET_DATA:
 			set_data_cmd_complete();
 			break;
+		case UPDATE_UID:
+			update_uid_cmd_complete();
+			break;
+		case READ_UID:
+			read_uid_cmd_complete();
+			break;
 		case INITIALIZE: {
-			cmd_data.init_data.started = 1;
-			cmd_data.init_data.blocks_written = 0;
-			cmd_data.init_data.random_data_gathered = 0;
-			cmd_data.init_data.root_block_finalized = 0;
-			flash_write_page(ID_BLK(MIN_ID), NULL, 0);
-			finish_command_resp(OKAY);
-			cmd_data.init_data.rand_avail_init = rand_avail();
-			int p = (INIT_RAND_DATA_SZ/4) - cmd_data.init_data.rand_avail_init;
-			if (p < 0) p = 0;
-			int temp[] = {MAX_ID - MIN_ID + 1, p, 1};
-			enter_progressing_state(INITIALIZING, 3, temp);
+			initialize_cmd_complete();
 			} break;
 		case WIPE: {
 			finish_command_resp(OKAY);
@@ -535,6 +543,21 @@ void initialize_cmd(u8 *data, int data_len)
 	data += INITIALIZE_CMD_SIZE;
 	data_len -= INITIALIZE_CMD_SIZE;
 	begin_button_press_wait();
+}
+
+void initialize_cmd_complete()
+{
+	cmd_data.init_data.started = 1;
+	cmd_data.init_data.blocks_written = 0;
+	cmd_data.init_data.random_data_gathered = 0;
+	cmd_data.init_data.root_block_finalized = 0;
+	flash_write_page(ID_BLK(MIN_ID), NULL, 0);
+	finish_command_resp(OKAY);
+	cmd_data.init_data.rand_avail_init = rand_avail();
+	int p = (INIT_RAND_DATA_SZ/4) - cmd_data.init_data.rand_avail_init;
+	if (p < 0) p = 0;
+	int temp[] = {MAX_ID - MIN_ID + 1, p, 1};
+	enter_progressing_state(INITIALIZING, 3, temp);
 }
 
 void wipe_cmd()
@@ -984,6 +1007,34 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		delete_cmd(data, data_len);
 		break;
 	} break;
+	case READ_UID: {
+		if (data_len < 3) {
+			finish_command_resp(INVALID_INPUT);
+			return 0;
+		}
+		int uid = data[0] + (data[1] << 8);
+		int masked = data[1];
+		read_uid_cmd(uid, masked);
+		
+	} break;
+	case UPDATE_UID: {
+		if (data_len < 2) {
+			finish_command_resp(INVALID_INPUT);
+			return 0;
+		}
+		int uid = data[0] + (data[1] << 8);
+		data += 2;
+		data_len -= 2;
+		update_uid_cmd(uid, data, data_len);
+	} break;
+	case READ_ALL_UIDS: {
+		if (data_len < 1) {
+			finish_command_resp(INVALID_INPUT);
+			return 0;
+		}
+		int masked = data[0];
+		read_all_uids_cmd(masked);
+	} break;
 	case TYPE: {
 		dprint_s("TYPE\r\n");
 		int n_chars = data_len >> 1;
@@ -1066,18 +1117,21 @@ void startup_cmd(u8 *data, int data_len)
 	if (device_state == UNINITIALIZED) {
 		finish_command(OKAY, resp, sizeof(resp));
 	} else {
-		switch (root_page.signature[0]) {
+		header_version = root_page.signature[0];
+		switch (header_version) {
 		case 1:
 			memcpy(resp + 2, root_page.header.v1.hashfn, HASH_FN_SZ);
 			memcpy(resp + 2 + HASH_FN_SZ, root_page.header.v1.salt, SALT_SZ_V1);
+			db_version = 1;
 			break;
 		case 2:
 			memcpy(resp + 2, root_page.header.v2.hashfn, HASH_FN_SZ);
 			memcpy(resp + 2 + HASH_FN_SZ, root_page.header.v2.salt, SALT_SZ_V2);
+			db_version = root_page.header.v2.db_version;
 			break;
 		}
 
-		switch (root_page.signature[0]) {
+		switch (header_version) {
 		case 1:
 		case 2:
 			finish_command(OKAY, resp, sizeof(resp));
@@ -1086,6 +1140,11 @@ void startup_cmd(u8 *data, int data_len)
 			finish_command_resp(UNKNOWN_DB_FORMAT);
 			break;
 		}
+	}
+	switch (db_version) {
+	case 2:
+		db2_startup_scan();
+		break;
 	}
 	return;
 }

@@ -2,12 +2,16 @@
 #define COMMANDS_H
 #include "types.h"
 #include "common.h"
+#include "db.h"
 
 void get_progress_cmd(u8 *data, int data_len);
 
 void finish_command(enum command_responses resp, const u8 *payload, int payload_len);
 void finish_command_resp(enum command_responses resp);
-
+void finish_command_multi(enum command_responses resp, int messages_remaining, const u8 *payload, int payload_len);
+void derive_iv(u32 id, u8 *iv);
+void begin_button_press_wait();
+void begin_long_button_press_wait();
 extern u8 cmd_resp[];
 
 extern enum device_state device_state;
@@ -42,18 +46,6 @@ union cmd_data_u {
 		int block;
 	} wipe_data;
 	struct {
-		int id;
-		u8 iv[AES_BLK_SIZE];
-		u8 block[BLK_SIZE];
-		int sub_blk_count;
-	} set_data;
-	struct {
-		int id;
-		int sz;
-		u8 iv[AES_BLK_SIZE];
-		u8 block[BLK_SIZE];
-	} get_data;
-	struct {
 		u8 new_key[AES_256_KEY_SIZE];
 		u8 cyphertext[AES_256_KEY_SIZE];
 		u8 hashfn[AES_BLK_SIZE];
@@ -63,6 +55,21 @@ union cmd_data_u {
 		u8 password[AES_256_KEY_SIZE];
 		u8 cyphertext[AES_256_KEY_SIZE];
 	} login;
+
+	//V1 commands
+	struct {
+		u8 iv[AES_BLK_SIZE];
+		u8 block[BLK_SIZE];
+		int id;
+		int sub_blk_count;
+
+	} set_data;
+	struct {
+		int id;
+		int sz;
+		u8 iv[AES_BLK_SIZE];
+		u8 block[BLK_SIZE];
+	} get_data;
 	struct {
 		int id;
 		int unmask;
@@ -72,6 +79,34 @@ union cmd_data_u {
 	struct {
 		int id;
 	} delete_id;
+
+	//V2 commands
+	struct {
+		u8 iv[AES_BLK_SIZE];
+		int uid;
+		int sz;
+		int write_count;
+		int block_num;
+		int prev_block_num;
+		struct block_info blk_info;
+		u8 block[BLK_SIZE];
+	} update_uid;
+	struct {
+		u8 iv[AES_BLK_SIZE];
+		int uid;
+		int block_num;
+		int index;
+		const struct uid_ent *ent;
+		int masked;
+		u8 block[BLK_SIZE];
+	} read_uid;
+	struct {
+		u8 iv[AES_BLK_SIZE];
+		int uid;
+		int expected_remaining;
+		int masked;
+		u8 block[BLK_SIZE];
+	} read_all_uids;
 };
 
 extern union cmd_data_u cmd_data;

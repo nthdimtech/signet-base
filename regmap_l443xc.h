@@ -137,8 +137,10 @@
 #define RCC_BDCR_RTCSEL_HSE (3<<8)
 
 #define RCC_CSR REGISTER(RCC_BASE_ADDR + 0x94)
-#define RCC_CSR_LSION (1<<0)
 #define RCC_CSR_LSIRDY (1<<1)
+#define RCC_CSR_LSION (1<<0)
+#define RCC_CSR_BORRSTF (1<<27)
+#define RCC_CSR_PINRSTF (1<<26)
 
 #define RCC_CRRCR REGISTER(RCC_BASE_ADDR + 0x98)
 #define RCC_CRRCR_HSI48ON (1<<0)
