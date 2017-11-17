@@ -139,16 +139,20 @@ void button_release();
 void long_button_press();
 extern volatile int typing;
 
+#define ENABLE_TEST_STATE 0
+
 void BUTTON_HANDLER()
 {
 	int current_button_state = (BUTTON_PORT->IDR & (1<<BUTTON_PIN)) ? 0 : 1;
 	if (current_button_state) {
 		ms_last_pressed = ms_count;
+#if ENABLE_TEST_STATE
 		if (test_state) {
 			if (!blink_period) {
 				start_blinking(500,10000);
 			}
 		}
+#endif
 		button_press();
 	} else {
 		button_release();
