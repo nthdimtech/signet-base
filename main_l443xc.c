@@ -23,7 +23,6 @@ static int blink_state = 0;
 static int blink_start = 0;
 static int blink_period = 0;
 static int blink_duration = 0;
-
 int test_state = 1;
 
 void blink_timeout();
@@ -208,7 +207,7 @@ int main()
 	//Enable fault handlers
 	SCB_SHCSR |= 7 << 16;
 
-	delay(100);
+	delay(4);
 
 #if USE_USB
 	set_irq_priority(USB_FS_IRQ, 128);
@@ -253,7 +252,7 @@ int main()
 	RCC_AHB1ENR |= ahb1enr_val;
 	RCC_AHB2ENR |= ahb2enr_val;
 
-	delay(100);
+	delay(2);
 
 #if USE_UART
 	//USART2 init
@@ -315,6 +314,7 @@ int main()
 		RCC_BDCR_RTCSEL_LSI;
 	rtc_rand_init(0x7f);
 #endif
+
 	start_blinking(1000,100);
 
 #if USE_SDMMC
