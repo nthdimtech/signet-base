@@ -97,8 +97,12 @@ struct signetdev_read_id_resp_data {
 };
 
 struct signetdev_startup_resp_data {
+	int fw_major_version;
+	int fw_minor_version;
+	int fw_step_version;
 	int device_state;
 	int root_block_format;
+	int db_format;
 	u8 hashfn[HASH_FN_SZ];
 	u8 salt[SALT_SZ_V2];
 };

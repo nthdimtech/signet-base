@@ -586,14 +586,18 @@ void signetdev_priv_handle_command_resp(void *user, int token,
 		} break;
 	case STARTUP: {
 		struct signetdev_startup_resp_data cb_resp;
-		if (resp_code == OKAY && resp_len < (HASH_FN_SZ + SALT_SZ_V2 + 2)) {
+		if (resp_code == OKAY && resp_len < (HASH_FN_SZ + SALT_SZ_V2 + 6)) {
 			signetdev_priv_handle_error();
 			break;
 		} else if (resp_code == OKAY) {
-			cb_resp.device_state = resp[0];
-			cb_resp.root_block_format = resp[1];
-			memcpy(cb_resp.hashfn, resp + 2, HASH_FN_SZ);
-			memcpy(cb_resp.salt, resp + 2 + HASH_FN_SZ, SALT_SZ_V2);
+			cb_resp.fw_major_version = resp[0];
+			cb_resp.fw_minor_version = resp[1];
+			cb_resp.fw_step_version = resp[2];
+			cb_resp.device_state = resp[3];
+			cb_resp.root_block_format = resp[4];
+			cb_resp.db_format = resp[5];
+			memcpy(cb_resp.hashfn, resp + 6, HASH_FN_SZ);
+			memcpy(cb_resp.salt, resp + 6 + HASH_FN_SZ, SALT_SZ_V2);
 		}
 		if (g_command_resp_cb)
 			g_command_resp_cb(g_command_resp_cb_param,

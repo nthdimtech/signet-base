@@ -1110,26 +1110,31 @@ void startup_cmd(u8 *data, int data_len)
 		dprint_s("STARTUP: logged out\r\n");
 		enter_state(LOGGED_OUT);
 	}
-	u8 resp[2+(HASH_FN_SZ + SALT_SZ_V2)];
+	u8 resp[6+(HASH_FN_SZ + SALT_SZ_V2)];
 	memset(resp, 0, sizeof(resp));
-	resp[0] = device_state;
-	resp[1] = root_page.signature[0];
+	header_version = root_page.signature[0];
+	resp[0] = SIGNET_MAJOR_VERSION;
+	resp[1] = SIGNET_MINOR_VERSION;
+	resp[2] = SIGNET_STEP_VERSION;
+	resp[3] = device_state;
+	resp[4] = header_version;
+	resp[5] = 0;
 	if (device_state == UNINITIALIZED) {
 		finish_command(OKAY, resp, sizeof(resp));
 	} else {
-		header_version = root_page.signature[0];
 		switch (header_version) {
 		case 1:
-			memcpy(resp + 2, root_page.header.v1.hashfn, HASH_FN_SZ);
-			memcpy(resp + 2 + HASH_FN_SZ, root_page.header.v1.salt, SALT_SZ_V1);
+			memcpy(resp + 6, root_page.header.v1.hashfn, HASH_FN_SZ);
+			memcpy(resp + 6 + HASH_FN_SZ, root_page.header.v1.salt, SALT_SZ_V1);
 			db_version = 1;
 			break;
 		case 2:
-			memcpy(resp + 2, root_page.header.v2.hashfn, HASH_FN_SZ);
-			memcpy(resp + 2 + HASH_FN_SZ, root_page.header.v2.salt, SALT_SZ_V2);
+			memcpy(resp + 6, root_page.header.v2.hashfn, HASH_FN_SZ);
+			memcpy(resp + 6 + HASH_FN_SZ, root_page.header.v2.salt, SALT_SZ_V2);
 			db_version = root_page.header.v2.db_version;
 			break;
 		}
+		resp[5] = db_version;
 
 		switch (header_version) {
 		case 1:

@@ -1,5 +1,5 @@
-#ifndef COMMON_H
-#define COMMON_H
+#ifndef SIGNETDEV_COMMON_H
+#define SIGNETDEV_COMMON_H
 
 enum commands {
 	STARTUP,
@@ -71,6 +71,10 @@ enum command_responses {
 	BUTTON_PRESS_TIMEOUT,
 	UNKNOWN_DB_FORMAT
 };
+
+#define SIGNET_MAJOR_VERSION 1
+#define SIGNET_MINOR_VERSION 0
+#define SIGNET_STEP_VERSION 1
 
 #define SIGNET_ERROR_UNKNOWN -1
 #define SIGNET_ERROR_DISCONNECT -2
