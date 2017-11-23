@@ -1,7 +1,6 @@
 #include "types.h"
 #include "regmap.h"
 #include "usart.h"
-#include "hid_keyboard.h"
 #include "usb.h"
 #include "print.h"
 #include "flash.h"

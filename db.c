@@ -1,4 +1,4 @@
-#include "common.h"
+#include "signetdev/common/signetdev_common.h"
 #include "types.h"
 #include "crc.h"
 #include "mem.h"

@@ -1,6 +1,6 @@
 #include "firmware_update_state.h"
 #include "commands.h"
-#include "common.h"
+#include "signetdev/common/signetdev_common.h"
 #include "flash.h"
 #include "mem.h"
 #include "regmap.h"

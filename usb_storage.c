@@ -4,8 +4,7 @@
 #include "usb.h"
 #include "usb_driver.h"
 #include "flash.h"
-#include "common.h"
-
+#include "signetdev/common/signetdev_common.h"
 
 #if USE_STORAGE
 

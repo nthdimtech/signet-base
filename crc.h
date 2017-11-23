@@ -1,7 +1,7 @@
 #ifndef CRC_H
 #define CRC_H
 
-#include "common.h"
+#include "signetdev/common/signetdev_common.h"
 
 void crc_init();
 

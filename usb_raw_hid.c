@@ -4,7 +4,7 @@
 #include "commands.h"
 #include "mem.h"
 #include "print.h"
-#include "common.h"
+#include "signetdev/common/signetdev_common.h"
 
 static const u8 *raw_hid_tx_data = NULL;
 static int raw_hid_tx_seq = 0;

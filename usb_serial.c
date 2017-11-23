@@ -1,7 +1,7 @@
 #include "usb_serial.h"
 
 #include "commands.h"
-#include "common.h"
+#include "signetdev/common/signetdev_common.h"
 #include "types.h"
 #include "usb.h"
 #include "print.h"
