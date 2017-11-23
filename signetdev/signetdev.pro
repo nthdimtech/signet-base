@@ -17,12 +17,11 @@ SOURCES += host/signetdev.c \
 HEADERS +=\
         signetdev_global.h \
         host/signetdev.h \
-        host/hid_keyboard.h \
+        common/hid_keyboard.h \
         host/signetdev_priv.h
 
 unix {
-HEADERS +=
-    host/signetdev_unix.h \
+HEADERS += host/signetdev_unix.h
 }
 
 win32 {
