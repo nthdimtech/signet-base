@@ -438,7 +438,7 @@ static const u8 device_config_desktop[] = {
 	1, //1 configuration
 	0, //No configuration name string
 	0x80, //USB powered no remote wakeup
-	100 //200ma power limit + Interface descriptor length
+	50 //100ma power limit
 };
 
 static const u8 device_config_mobile[] = {
@@ -449,7 +449,7 @@ static const u8 device_config_mobile[] = {
 	1, //1 configuration
 	0, //No configuration name string
 	0x80, //USB powered no remote wakeup
-	100 //200ma power limit + Interface descriptor length
+	50 //100ma power limit
 };
 
 static int restart_byte = -1;
