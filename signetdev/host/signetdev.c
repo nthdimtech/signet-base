@@ -407,22 +407,34 @@ int signetdev_write_flash_async(void *param, int *token, u32 addr, const void *d
 				msg, 4 + data_len, SIGNETDEV_PRIV_GET_RESP);
 }
 
-int signetdev_update_uid_async(void *param, int *token, int uid, const void *data, int data_len)
+int signetdev_update_uid_async(void *param, int *token, int uid, int size, const u8 *data, const u8 *mask)
 {
-	*token = get_cmd_token();
 	uint8_t msg[CMD_PACKET_PAYLOAD_SIZE];
-	unsigned int message_size = 2 + data_len;
+	*token = get_cmd_token();
+	int k = 0;
+	msg[k] = (uid >> 0) & 0xff; k++;
+	msg[k] = (uid >> 8) & 0xff; k++;
+	msg[k] = (size >> 0) & 0xff; k++;
+	msg[k] = (size >> 8); k++;
+	int i;
+	int blk_count = SIZE_TO_SUB_BLK_COUNT(size);
+	unsigned int message_size = k + (blk_count * SUB_BLK_SIZE);
 	if (message_size >= sizeof(msg))
 		return SIGNET_ERROR_OVERFLOW;
-	msg[0] = (uid >> 0) & 0xff;
-	msg[1] = (uid >> 8) & 0xff;
-	if (data)
-		memcpy(msg + 2, data, data_len);
-	else
-		memset(msg + 2, 0, data_len);
+
+	for (i = 0; i < size; i++) {
+		int r = i % SUB_BLK_DATA_SIZE;
+		int blk = i / SUB_BLK_DATA_SIZE;
+		int idx = blk * SUB_BLK_SIZE + r + SUB_BLK_MASK_SIZE;
+		int bit = (mask[i/8] >> (i % 8)) & 0x1;
+		int m_idx = blk * SUB_BLK_SIZE + (r/8);
+		msg[k + idx] = data[i];
+		msg[k + m_idx] = (msg[k + m_idx] & ~(1<<(r%8))) | (bit << (r%8));
+	}
+	k += blk_count * SUB_BLK_SIZE;
 	return signetdev_priv_send_message_async(param, *token,
-				UPDATE_UID, SIGNETDEV_CMD_UPDATE_UID,
-				msg, 2 + data_len, SIGNETDEV_PRIV_GET_RESP);
+		UPDATE_UID, SIGNETDEV_CMD_UPDATE_UID,
+		msg, message_size, SIGNETDEV_PRIV_GET_RESP);
 }
 
 int signetdev_read_uid_async(void *param, int *token, int uid, int masked)
@@ -632,6 +644,32 @@ void signetdev_priv_handle_command_resp(void *user, int token,
 				expected_messages_remaining,
 				resp_code, &cb_resp);
 
+		} break;
+	case READ_ALL_UIDS: {
+		struct signetdev_read_all_uids_resp_data cb_resp;
+		u8 *data = cb_resp.data;
+		u8 *mask = cb_resp.mask;
+		if (resp_code == OKAY) {
+			if (resp_len < 2) {
+				signetdev_priv_handle_error();
+				break;
+			}
+			cb_resp.uid = resp[0] + (resp[1] << 8);
+			resp_len -=2;
+			resp += 2;
+			if (resp_len == 0) {
+				cb_resp.size = 0;
+			} else if (decode_id(resp, resp_len, data, mask, &cb_resp.size)) {
+				signetdev_priv_handle_error();
+				break;
+			}
+		}
+		if (g_command_resp_cb)
+			g_command_resp_cb(g_command_resp_cb_param,
+				user, token, api_cmd,
+				end_device_state,
+				expected_messages_remaining,
+				resp_code, &cb_resp);
 		} break;
 	case GET_DATA: {
 		struct signetdev_read_id_resp_data cb_resp;

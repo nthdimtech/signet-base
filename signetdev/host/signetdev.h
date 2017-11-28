@@ -79,7 +79,7 @@ int signetdev_write_flash_async(void *param, int *token, u32 addr, const void *d
 int signetdev_erase_pages_async(void *param, int *token, int n_pages, const u8 *page_numbers);
 int signetdev_read_all_id_async(void *user, int *token, int unmask);
 
-int signetdev_update_uid_async(void *param, int *token, int uid, const void *data, int data_len);
+int signetdev_update_uid_async(void *user, int *token, int id, int size, const u8 *data, const u8 *mask);
 int signetdev_read_uid_async(void *param, int *token, int uid, int masked);
 int signetdev_read_all_uids_async(void *param, int *token, int masked);
 
@@ -90,7 +90,20 @@ struct signetdev_read_all_id_resp_data {
 	u8 mask[CMD_PACKET_PAYLOAD_SIZE];
 };
 
+struct signetdev_read_all_uids_resp_data {
+	int uid;
+	int size;
+	u8 data[CMD_PACKET_PAYLOAD_SIZE];
+	u8 mask[CMD_PACKET_PAYLOAD_SIZE];
+};
+
 struct signetdev_read_id_resp_data {
+	int size;
+	u8 data[CMD_PACKET_PAYLOAD_SIZE];
+	u8 mask[CMD_PACKET_PAYLOAD_SIZE];
+};
+
+struct signetdev_read_uid_resp_data {
 	int size;
 	u8 data[CMD_PACKET_PAYLOAD_SIZE];
 	u8 mask[CMD_PACKET_PAYLOAD_SIZE];
