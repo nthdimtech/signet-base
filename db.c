@@ -17,8 +17,8 @@ extern struct root_page _root_page;
 #define INVALID_BLOCK (0)
 #define MIN_BLOCK (1)
 #define MAX_BLOCK (NUM_STORAGE_BLOCKS-1)
-#define INVALID_PART_SIZE (0xff)
-#define INVALID_CRC (0xffff)
+#define INVALID_PART_SIZE (0xffff)
+#define INVALID_CRC (0xffffffff)
 
 extern u8 encrypt_key[AES_256_KEY_SIZE];
 
@@ -57,13 +57,17 @@ static int block_crc(const struct block *blk)
 	return crc_32((&blk->header.crc) + 1, (BLK_SIZE/4) - 1);
 }
 
+//
+// Returns non-zero if CRC and partition size are in an invalid state OR the CRC is
+// correct. If the CRC is correct then the block is allocated otherwise th
+//
 static int block_crc_check(const struct block *blk)
 {
-	if (blk->header.part_size == INVALID_PART_SIZE && blk->header.crc == INVALID_CRC) {
-		return 1;
+	if (blk->header.part_size == INVALID_PART_SIZE) {
+		return 0;
 	}
 	u32 res = block_crc(blk);
-	return res == blk->header.crc;
+	return (res == blk->header.crc) ? 1 : 0;
 }
 
 static int get_block_header_size(int part_count)
@@ -91,20 +95,18 @@ void db2_startup_scan()
 	for (int i = MIN_BLOCK; i <= MAX_BLOCK; i++) {
 		const struct block *blk = BLOCK(i);
 		struct block_info *blk_info = block_info_tbl + i;
-		if (!block_crc_check(blk)) {
-			blk_info->valid = 0;
+		blk_info->valid = block_crc_check(blk) || blk_info->part_size == INVALID_PART_SIZE;
+		blk_info->part_size = blk->header.part_size;
+		blk_info->occupied = (blk_info->part_size != INVALID_PART_SIZE);
+		if (!blk_info->valid) {
 			continue;
 		}
-		
-		blk_info->occupied = (blk_info->part_size != INVALID_PART_SIZE);
+
 		if (blk_info->occupied) {
 			//TODO: more validity checks
-			blk_info->part_size = blk->header.part_size;
 			blk_info->part_occupancy = blk->header.occupancy;
 			blk_info->part_count = get_part_count(blk->header.part_size);
 			blk_info->part_tbl_offs = get_block_header_size(blk_info->part_count);
-		}
-		if (blk_info->occupied) {
 			for (int j = 0; j < blk_info->part_occupancy; j++) {
 				const struct uid_ent *ent = blk->uid_tbl + j;
 				int uid = ent->uid;
@@ -145,10 +147,7 @@ static void allocate_uid_blk(int uid, const u8 *data, int sz, int rev, const u8 
 	
 	int blk_count = SIZE_TO_SUB_BLK_COUNT(sz);
 
-	//TODO: data needs to be SUB_BLK_SIZE padded...	
 	stm_aes_256_encrypt_cbc(encrypt_key, blk_count, iv, data, get_part(block_temp, blk_info_temp, index));
-	
-	block_temp->header.crc = block_crc(block_temp);
 }
 
 static int allocate_uid(int uid, const u8 *data, int sz, int rev, const u8 *iv, struct block *block_temp, struct block_info *blk_info_temp)
@@ -173,14 +172,13 @@ static int allocate_uid(int uid, const u8 *data, int sz, int rev, const u8 *iv, 
 	//If we can't try to create a new block with the right partition size
 	if (block_num == INVALID_BLOCK) {
 		block_num = find_free_block();
-		struct block_info *blk_info = block_info_tbl + block_num;
 		memset(block_temp, 0, BLK_SIZE);
 		block_temp->header.occupancy = 0;
 		block_temp->header.part_size = target_part_size(sz); 
 		blk_info_temp->part_size = target_part_size(sz);
 		blk_info_temp->part_occupancy = 0;
 		blk_info_temp->part_count = get_part_count(blk_info_temp->part_size);
-		blk_info_temp->part_tbl_offs = get_block_header_size(blk_info->part_count);
+		blk_info_temp->part_tbl_offs = get_block_header_size(blk_info_temp->part_count);
 	}
 
 	if (block_num != INVALID_BLOCK) {
@@ -395,7 +393,7 @@ void read_all_uids_cmd_iter()
 		if (cmd_data.read_all_uids.uid == MAX_UID) {
 			block[0] = MAX_UID & 0xff;
 			block[1] = MAX_UID >> 8;
-			finish_command_multi(OKAY, 0, block, 2);
+			finish_command_multi(ID_INVALID, 0, block, 2);
 			return;
 		}
 		ent = find_uid(cmd_data.read_all_uids.uid, &block_num, &index);

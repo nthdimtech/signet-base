@@ -1018,14 +1018,20 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		
 	} break;
 	case UPDATE_UID: {
-		if (data_len < 2) {
+		if (data_len < 4) {
 			finish_command_resp(INVALID_INPUT);
 			return 0;
 		}
 		int uid = data[0] + (data[1] << 8);
-		data += 2;
-		data_len -= 2;
-		update_uid_cmd(uid, data, data_len);
+		int sz = data[2] + (data[3] << 8);
+		int blk_count = SIZE_TO_SUB_BLK_COUNT(sz);
+		data += 4;
+		data_len -= 4;
+		if (data_len != (blk_count * SUB_BLK_SIZE)) {
+			finish_command_resp(INVALID_INPUT);
+			return;
+		}
+		update_uid_cmd(uid, data, sz);
 	} break;
 	case READ_ALL_UIDS: {
 		if (data_len < 1) {
