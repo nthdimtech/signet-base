@@ -4,10 +4,10 @@
 struct block_info {
 	u8 valid;
 	u8 occupied;
-	u8 part_size; //0 == invalid block, 61=>X>=1 == block size = X * 32,, X > 63 == invalid block
 	u8 part_count; //# of partitions total in a block
-	u8 part_occupancy; //# of partitions total in a block
-	u16 part_tbl_offs; // # of occupied partitions in a block
+	u8 part_occupancy; //# of partitions allocated in a block
+	u16 part_size; //0 == invalid block, 61=>X>=1 == block size = X * 16,, X > 63 == invalid block
+	u16 part_tbl_offs; // offset of partitions in sub blocks
 };
 
 void read_uid_cmd(int uid, int masked);

@@ -42,14 +42,11 @@ void handler_reset(void)
 	// Copying data from Flash to RAM
 	source = &_flash_origin;
 	for (destination = &_data_begin; destination < &_data_end;)
-	{
 		*(destination++) = *(source++);
-	}
+
 	// default zero to undefined variables
 	for (destination = &_bss_begin; destination < &_bss_end;)
-	{
 		*(destination++) = 0;
-	}
 
 	SCB_VTOR = (u32)&_ivt_ram;
 

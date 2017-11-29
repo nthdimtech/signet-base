@@ -96,6 +96,8 @@ static void handle_error()
 	if (msg) {
 		signetdev_priv_finalize_message(msg, SIGNET_ERROR_DISCONNECT);
 	}
+	conn->tx_state.message = NULL;
+	conn->rx_state.message = NULL;
 }
 
 static int attempt_raw_hid_write()

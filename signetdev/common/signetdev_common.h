@@ -90,6 +90,7 @@ enum command_responses {
 #define SUB_BLK_DATA_SIZE (14)
 
 #define SIZE_TO_SUB_BLK_COUNT(sz) (((sz) + (SUB_BLK_DATA_SIZE - 1))/SUB_BLK_DATA_SIZE)
+#define SUB_BLK_COUNT(sz) (((sz) + (SUB_BLK_SIZE - 1))/SUB_BLK_SIZE)
 
 #define BLK_SIZE (2048)
 #define SUB_BLK_PER_BLOCK ((BLK_SIZE/SUB_BLK_SIZE) - 1)

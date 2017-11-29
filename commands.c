@@ -313,6 +313,10 @@ void flash_write_complete()
 			finalize_root_page_check();
 		} else {
 			dprint_s("DONE INITIALIZING\r\n");
+			//TODO: fix magic numbers
+			header_version = 2;
+			db_version = 2;
+			db2_startup_scan();
 			enter_state(LOGGED_OUT);
 		}
 		break;
@@ -1013,7 +1017,7 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 			return 0;
 		}
 		int uid = data[0] + (data[1] << 8);
-		int masked = data[1];
+		int masked = data[2];
 		read_uid_cmd(uid, masked);
 		
 	} break;
@@ -1029,7 +1033,7 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		data_len -= 4;
 		if (data_len != (blk_count * SUB_BLK_SIZE)) {
 			finish_command_resp(INVALID_INPUT);
-			return;
+			return 0;
 		}
 		update_uid_cmd(uid, data, sz);
 	} break;
@@ -1151,11 +1155,11 @@ void startup_cmd(u8 *data, int data_len)
 			finish_command_resp(UNKNOWN_DB_FORMAT);
 			break;
 		}
-	}
-	switch (db_version) {
-	case 2:
-		db2_startup_scan();
-		break;
+		switch (db_version) {
+		case 2:
+			db2_startup_scan();
+			break;
+		}
 	}
 	return;
 }
