@@ -8,10 +8,13 @@ extern unsigned long _bss_begin;
 extern unsigned long _bss_end;
 extern unsigned long _stack_end;
 
+void busy_delay(int ms);
+
 void handler_default(void)
 {
-	dprint_s("Unhandled IRQ/fault\r\n");
-	while(1);
+	dprint_s("Unhandled IRQ\r\n");
+	led_on();
+	while (1) busy_delay(2);
 }
 
 void systick_handler(void) __attribute__ ((weak, alias ("handler_default")));
