@@ -10,14 +10,14 @@ void stm_aes_init()
 {
 }
 
-void stm_aes_128_encrypt(u8 *key, const u8 *din, u8 *dout)
+void stm_aes_128_encrypt(const u8 *key, const u8 *din, u8 *dout)
 {
 	struct aes128_ctx ctx;
 	aes128_set_encrypt_key(&ctx, key);
 	aes128_encrypt(&ctx, AES_BLK_SIZE, dout, din);
 }
 
-void stm_aes_256_encrypt(u8 *key, const u8 *din, u8 *dout)
+void stm_aes_256_encrypt(const u8 *key, const u8 *din, u8 *dout)
 {
 	struct aes256_ctx ctx;
 	aes256_set_encrypt_key(&ctx, key);
@@ -36,7 +36,7 @@ static void xor_block(const u8 *src_block, const u8 *mask, u8 *dst_block)
 	}
 }
 
-void stm_aes_128_encrypt_cbc(u8 *key, int n_blocks, const u8 *iv, const u8 *din, u8 *dout)
+void stm_aes_128_encrypt_cbc(const u8 *key, int n_blocks, const u8 *iv, const u8 *din, u8 *dout)
 {
 	int i;
 	for (i = 0; i < n_blocks; i++) {
@@ -49,7 +49,7 @@ void stm_aes_128_encrypt_cbc(u8 *key, int n_blocks, const u8 *iv, const u8 *din,
 	}
 }
 
-void stm_aes_256_encrypt_cbc(u8 *key, int n_blocks, const u8 *iv, const u8 *din, u8 *dout)
+void stm_aes_256_encrypt_cbc(const u8 *key, int n_blocks, const u8 *iv, const u8 *din, u8 *dout)
 {
 	int i;
 	for (i = 0; i < n_blocks; i++) {
@@ -62,7 +62,7 @@ void stm_aes_256_encrypt_cbc(u8 *key, int n_blocks, const u8 *iv, const u8 *din,
 	}
 }
 
-void stm_aes_128_decrypt_cbc(u8 *key, int n_blocks, const u8 *iv, const u8 *din, u8 *dout)
+void stm_aes_128_decrypt_cbc(const u8 *key, int n_blocks, const u8 *iv, const u8 *din, u8 *dout)
 {
 	int i;
 	for (i = 0; i < n_blocks; i++) {
@@ -75,7 +75,7 @@ void stm_aes_128_decrypt_cbc(u8 *key, int n_blocks, const u8 *iv, const u8 *din,
 	}
 }
 
-void stm_aes_256_decrypt_cbc(u8 *key, int n_blocks, const u8 *iv, const u8 *din, u8 *dout)
+void stm_aes_256_decrypt_cbc(const u8 *key, int n_blocks, const u8 *iv, const u8 *din, u8 *dout)
 {
 	int i;
 	for (i = 0; i < n_blocks; i++) {
@@ -88,14 +88,14 @@ void stm_aes_256_decrypt_cbc(u8 *key, int n_blocks, const u8 *iv, const u8 *din,
 	}
 }
 
-void stm_aes_128_decrypt(u8 *key, const u8 *din, u8 *dout)
+void stm_aes_128_decrypt(const u8 *key, const u8 *din, u8 *dout)
 {
 	struct aes128_ctx ctx;
 	aes128_set_decrypt_key(&ctx, key);
 	aes128_decrypt(&ctx, AES_BLK_SIZE,  dout, din);
 }
 
-void stm_aes_256_decrypt(u8 *key, const u8 *din, u8 *dout)
+void stm_aes_256_decrypt(const u8 *key, const u8 *din, u8 *dout)
 {
 	struct aes256_ctx ctx;
 	aes256_set_decrypt_key(&ctx, key);
