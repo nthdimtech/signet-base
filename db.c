@@ -11,12 +11,7 @@ extern struct root_page _root_page;
 
 #define BLOCK(id) ((const struct block *)(((const u8 *)&_root_page) + BLK_SIZE * (id)))
 
-#define MAX_UID ((1<<12)-1)
-#define MIN_UID (1)
-#define INVALID_UID (0)
 #define INVALID_BLOCK (0)
-#define MIN_BLOCK (1)
-#define MAX_BLOCK (NUM_STORAGE_BLOCKS-1)
 #define INVALID_PART_SIZE (0xffff)
 #define INVALID_CRC (0xffffffff)
 
@@ -26,10 +21,6 @@ struct block_info block_info_tbl[NUM_STORAGE_BLOCKS];
 
 
 static u8 uid_map[MAX_UID + 1]; //0 == invalid, block #
-
-#define NUM_PART_SIZES 11
-
-static int part_sizes[NUM_PART_SIZES] = {1,2,3,4,6,7,12,15,31,63,127};
 
 struct uid_ent {
 	unsigned int uid : 12;
@@ -98,7 +89,7 @@ void db2_startup_scan()
 	int i;
 	for (i = MIN_UID; i <= MAX_UID; i++)
 		uid_map[i] = INVALID_BLOCK;
-	for (int i = MIN_BLOCK; i <= MAX_BLOCK; i++) {
+	for (int i = MIN_DATA_BLOCK; i <= MAX_DATA_BLOCK; i++) {
 		const struct block *blk = BLOCK(i);
 		struct block_info *blk_info = block_info_tbl + i;
 		blk_info->part_size = blk->header.part_size;
@@ -125,22 +116,51 @@ void db2_startup_scan()
 	}
 }
 
+#define NUM_PART_SIZES 11
+
+static int part_sizes[NUM_PART_SIZES] = {1,2,3,4,6,7,12,15,31,63,127};
+
 //Return the partition size that will fit 
 static int target_part_size(int data_bytes)
 {
-	return 63; //TODO: decide this dynamically
+	int min_part_size = SIZE_TO_SUB_BLK_COUNT(data_bytes);
+	for (int i = 0; i < NUM_PART_SIZES; i++) {
+		if (part_sizes[i] >= min_part_size) {
+			return part_sizes[i];
+		}
+	}
+	return 0; 
 }
 
 //Return a block that has not been allocated or INVALID_BLOCK if there are no free blocks
 static int find_free_block()
 {
-	for (int i = MIN_BLOCK; i <= MAX_BLOCK; i++) {
+	for (int i = MIN_DATA_BLOCK; i <= MAX_DATA_BLOCK; i++) {
 		struct block_info *blk_info = block_info_tbl + i;
 		if (blk_info->valid && !blk_info->occupied) {
 			return i;
 		}
 	}
 	return INVALID_BLOCK;
+}
+
+static void initialize_block(int part_size, struct block *block)
+{
+	memset(block, 0, BLK_SIZE);
+	block->header.part_size = part_size;
+	block->header.occupancy = 0;
+}
+
+struct block *db2_initialize_block(int block_num, struct block *block)
+{
+	if ((block_num - MIN_DATA_BLOCK) < NUM_PART_SIZES) {
+		int part_size = part_sizes[block_num - MIN_DATA_BLOCK];
+		initialize_block(part_size, block);
+		block->header.crc = block_crc(block);
+		return block;
+	} else {
+		return NULL;
+	}
 }
 
 static void allocate_uid_blk(int uid, const u8 *data, int sz, int rev, const u8 *iv, struct block *block_temp, struct block_info *blk_info_temp)
@@ -168,8 +188,12 @@ static int allocate_uid(int uid, const u8 *data, int sz, int rev, const u8 *iv, 
 	int part_size = target_part_size(sz);
 	int block_num = INVALID_BLOCK;
 
+	if (!part_size) {
+		return INVALID_BLOCK;
+	}
+
 	//Try to find a block with the right partition size
-	for (int i = MIN_BLOCK; i <= MAX_BLOCK; i++) {
+	for (int i = MIN_DATA_BLOCK; i <= MAX_DATA_BLOCK; i++) {
 		struct block_info *blk_info = block_info_tbl + i;
 		if (!blk_info->valid || !blk_info->occupied)
 			continue;
@@ -184,9 +208,7 @@ static int allocate_uid(int uid, const u8 *data, int sz, int rev, const u8 *iv, 
 	if (block_num == INVALID_BLOCK) {
 		block_num = find_free_block();
 		if (block_num != INVALID_BLOCK) {
-			memset(block_temp, 0, BLK_SIZE);
-			block_temp->header.occupancy = 0;
-			block_temp->header.part_size = part_size;
+			initialize_block(part_size, block_temp);
 			blk_info_temp->part_occupancy = 0;
 			blk_info_temp->part_size = part_size;
 			blk_info_temp->part_count = get_part_count(blk_info_temp->part_size);
@@ -263,6 +285,9 @@ static int update_uid(int uid, u8 *data, int sz, int *prev_block_num, const u8 *
 			return block_num;
 		} else {
 			int part_size = target_part_size(sz);
+			if (!part_size) {
+				return INVALID_BLOCK;
+			}
 			struct block_info *blk_info = block_info_tbl + block_num;
 			memcpy(blk_info_temp, blk_info, sizeof(*blk_info_temp));
 			if (blk_info_temp->part_size == part_size) {

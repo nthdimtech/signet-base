@@ -94,7 +94,7 @@ u32 rand_get()
 	return rtc_val ^ rng_val;
 }
 
-#define ID_BLK(id) (((u8 *)&_root_page) + BLK_SIZE * id)
+#define ID_BLK(id) (((u8 *)&_root_page) + BLK_SIZE * (id))
 
 void get_progress_check();
 void delete_cmd_complete();
@@ -221,7 +221,7 @@ void finish_command_resp(enum command_responses resp)
 
 int validate_id(int id)
 {
-	if (id < MIN_ID || id > MAX_ID) {
+	if (id < MIN_DATA_BLOCK || id > MAX_DATA_BLOCK) {
 		finish_command_resp(ID_INVALID);
 		return -1;
 	}
@@ -230,7 +230,7 @@ int validate_id(int id)
 
 int validate_present_id(int id)
 {
-	if (id < MIN_ID || id > MAX_ID || *((u16 *)ID_BLK(id)) != 0) {
+	if (id < MIN_DATA_BLOCK || id > MAX_DATA_BLOCK || *((u16 *)ID_BLK(id)) != 0) {
 		return -1;
 	}
 	return 0;
@@ -252,7 +252,7 @@ void derive_iv(u32 id, u8 *iv)
 
 static void finalize_root_page_check()
 {
-	if (rand_avail() >= (INIT_RAND_DATA_SZ/4) && !cmd_data.init_data.root_block_finalized && (cmd_data.init_data.blocks_written == (MAX_ID - MIN_ID + 1))) {
+	if (rand_avail() >= (INIT_RAND_DATA_SZ/4) && !cmd_data.init_data.root_block_finalized && (cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS)) {
 		cmd_data.init_data.root_block_finalized = 1;
 		memcpy(root_page.signature, root_signature, AES_BLK_SIZE);
 		for (int i = 0; i < (INIT_RAND_DATA_SZ/4); i++) {
@@ -296,9 +296,6 @@ void flash_write_storage_complete();
 
 void flash_write_complete()
 {
-#if USE_STORAGE
-	flash_write_storage_complete();
-#endif
 	switch (device_state) {
 	case INITIALIZING:
 		cmd_data.init_data.blocks_written++;
@@ -307,9 +304,10 @@ void flash_write_complete()
 		progress_level[1] = cmd_data.init_data.random_data_gathered;
 		get_progress_check();
 
-		if (cmd_data.init_data.blocks_written < (MAX_ID - MIN_ID + 1)) {
-			flash_write_page(ID_BLK(cmd_data.init_data.blocks_written + MIN_ID), NULL, 0);
-		} else if (cmd_data.init_data.blocks_written == (MAX_ID - MIN_ID + 1)) {
+		if (cmd_data.init_data.blocks_written < NUM_DATA_BLOCKS) {
+			struct block *blk = db2_initialize_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (struct block *)cmd_data.init_data.block);
+			flash_write_page(ID_BLK(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK), (u8 *)blk, blk ? BLK_SIZE : 0);
+		} else if (cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS) {
 			finalize_root_page_check();
 		} else {
 			dprint_s("DONE INITIALIZING\r\n");
@@ -555,12 +553,14 @@ void initialize_cmd_complete()
 	cmd_data.init_data.blocks_written = 0;
 	cmd_data.init_data.random_data_gathered = 0;
 	cmd_data.init_data.root_block_finalized = 0;
-	flash_write_page(ID_BLK(MIN_ID), NULL, 0);
+
+	struct block *blk = db2_initialize_block(MIN_DATA_BLOCK + cmd_data.init_data.blocks_written, (struct block *)cmd_data.init_data.block);
+	flash_write_page(ID_BLK(MIN_DATA_BLOCK + cmd_data.init_data.blocks_written), (u8 *)blk, blk ? BLK_SIZE : 0);
 	finish_command_resp(OKAY);
 	cmd_data.init_data.rand_avail_init = rand_avail();
 	int p = (INIT_RAND_DATA_SZ/4) - cmd_data.init_data.rand_avail_init;
 	if (p < 0) p = 0;
-	int temp[] = {MAX_ID - MIN_ID + 1, p, 1};
+	int temp[] = {NUM_DATA_BLOCKS, p, 1};
 	enter_progressing_state(INITIALIZING, 3, temp);
 }
 
@@ -776,7 +776,7 @@ void get_data_cmd(u8 *data, int data_len)
 void get_all_data_iter()
 {
 	int id = cmd_data.get_all_data.id;
-	int remaining = MAX_ID - id;
+	int remaining = MAX_DATA_BLOCK - id;
 	if (remaining >= 0) {
 		u8 *block = cmd_data.get_all_data.block;
 		block[0] = id & 0xff;

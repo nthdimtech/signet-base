@@ -41,6 +41,7 @@ union cmd_data_u {
 		u8 hashfn[AES_BLK_SIZE];
 		u8 salt[AES_256_KEY_SIZE];
 		u8 rand[INIT_RAND_DATA_SZ];
+		u8 block[BLK_SIZE];
 	} init_data;
 	struct {
 		int block;

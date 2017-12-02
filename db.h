@@ -20,4 +20,5 @@ void update_uid_cmd_complete();
 void update_uid_cmd_write_finished();
 
 void db2_startup_scan();
+struct block *db2_initialize_block(int block_num, struct block *block_temp);
 #endif
