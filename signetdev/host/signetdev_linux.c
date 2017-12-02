@@ -85,7 +85,7 @@ static void handle_exit(void *arg)
 static void handle_error()
 {
 	struct signetdev_connection *conn = &g_connection;
-	if (conn->fd) {
+	if (conn->fd >= 0) {
 		close(conn->fd);
 		conn->fd = -1;
 	}
@@ -133,6 +133,7 @@ static int attempt_raw_hid_read()
 		return 1;
 	} else if (rc != RAW_HID_PACKET_SIZE) {
 		handle_error();
+		return 1;
 	} else {
 		signetdev_priv_process_rx_packet(&conn->rx_state, rx_packet_buf);
 	}
