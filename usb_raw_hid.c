@@ -61,8 +61,10 @@ void maybe_send_raw_hid_packet()
 	} else {
 		raw_hid_tx_seq = 0;
 		raw_hid_tx_count = 0;
-		raw_hid_tx_data = NULL;
-		cmd_packet_sent();
+		if (raw_hid_tx_data) {
+			raw_hid_tx_data = NULL;
+			cmd_packet_sent();
+		}
 	}
 }
 
