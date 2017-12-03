@@ -274,6 +274,10 @@ static void finalize_root_page_check()
 //
 // System events
 //
+//
+//
+
+void get_rand_bits_cmd_check();
 
 void cmd_rand_update()
 {
@@ -288,6 +292,11 @@ void cmd_rand_update()
 		finalize_root_page_check();
 		break;
 	default:
+		break;
+	}
+	switch (active_cmd) {
+	case GET_RAND_BITS:
+		get_rand_bits_cmd_check();
 		break;
 	}
 }
@@ -881,6 +890,30 @@ void cmd_disconnect()
 	enter_state(DISCONNECTED);
 }
 
+void get_rand_bits_cmd_check()
+{
+	if (rand_avail() >= cmd_data.get_rand_bits.sz) {
+		for (int i = 0; i < ((cmd_data.get_rand_bits.sz + 3)/4); i++) {
+			((u32 *)cmd_data.get_rand_bits.block)[i] ^= rand_get();
+		}
+		finish_command(OKAY, cmd_data.get_rand_bits.block, cmd_data.get_rand_bits.sz);
+	}
+}
+
+void get_rand_bits_cmd(u8 *data, int data_len)
+{
+	if (data_len < 2) {
+		finish_command_resp(INVALID_INPUT);
+		return;
+	}
+	cmd_data.get_rand_bits.sz = data[0] + (data[1] << 8);
+	if (cmd_data.get_rand_bits.sz >= BLK_SIZE) {
+		finish_command_resp(INVALID_INPUT);
+		return;
+	}
+	get_rand_bits_cmd_check();
+}
+
 //
 // State functions. These control which commands can be issued
 // in different states.
@@ -1010,6 +1043,9 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 	case DELETE_ID: {
 		delete_cmd(data, data_len);
 		break;
+	} break;
+	case GET_RAND_BITS: {
+		get_rand_bits_cmd(data, data_len);
 	} break;
 	case READ_UID: {
 		if (data_len < 3) {

@@ -36,6 +36,7 @@ enum commands {
 	UPDATE_UID,
 	READ_UID,
 	READ_ALL_UIDS,
+	GET_RAND_BITS,
 	ENTER_MOBILE_MODE
 };
 

@@ -179,6 +179,16 @@ int signetdev_button_wait_async(void *user, int *token)
 		BUTTON_WAIT, SIGNETDEV_CMD_BUTTON_WAIT);
 }
 
+int signetdev_get_rand_bits_async(void *user, int *token, int sz)
+{
+	uint8_t msg[2];
+	msg[0] = sz & 0xff;
+	msg[1] = sz >> 8;
+	return signetdev_priv_send_message_async(user, *token,
+		GET_RAND_BITS, SIGNETDEV_CMD_GET_RAND_BITS,
+		msg, sizeof(msg), SIGNETDEV_PRIV_GET_RESP);
+}
+
 int signetdev_disconnect_async(void *user, int *token)
 {
 	*token = get_cmd_token();
@@ -642,6 +652,17 @@ void signetdev_priv_handle_command_resp(void *user, int token,
 				expected_messages_remaining,
 				resp_code, &cb_resp);
 
+		} break;
+	case GET_RAND_BITS: {
+		struct signetdev_get_rand_bits_resp_data cb_resp;
+		cb_resp.data = resp;
+		cb_resp.size = resp_len;
+		if (g_command_resp_cb)
+			g_command_resp_cb(g_command_resp_cb_param,
+				user, token, api_cmd,
+				end_device_state,
+				expected_messages_remaining,
+				resp_code, &cb_resp);
 		} break;
 	case READ_ALL_UIDS: {
 		struct signetdev_read_all_uids_resp_data cb_resp;

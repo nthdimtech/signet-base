@@ -42,6 +42,7 @@ typedef enum signetdev_cmd_id {
 	SIGNETDEV_CMD_UPDATE_UID,
 	SIGNETDEV_CMD_READ_UID,
 	SIGNETDEV_CMD_READ_ALL_UIDS,
+	SIGNETDEV_CMD_GET_RAND_BITS,
 	SIGNETDEV_NUM_COMMANDS
 } signetdev_cmd_id_t;
 
@@ -75,6 +76,7 @@ int signetdev_begin_initialize_device_async(void *param, int *token,
 int signetdev_disconnect_async(void *user, int *token);
 int signetdev_read_block_async(void *param, int *token, int idx);
 int signetdev_write_block_async(void *param, int *token, int idx, const void *buffer);
+int signetdev_get_rand_bits_async(void *param, int *token, int sz);
 int signetdev_write_flash_async(void *param, int *token, u32 addr, const void *data, int data_len);
 int signetdev_erase_pages_async(void *param, int *token, int n_pages, const u8 *page_numbers);
 int signetdev_read_all_id_async(void *user, int *token, int unmask);
@@ -88,6 +90,11 @@ struct signetdev_read_all_id_resp_data {
 	int size;
 	u8 data[CMD_PACKET_PAYLOAD_SIZE];
 	u8 mask[CMD_PACKET_PAYLOAD_SIZE];
+};
+
+struct signetdev_get_rand_bits_resp_data {
+	int size;
+	const u8 *data;
 };
 
 struct signetdev_read_all_uids_resp_data {

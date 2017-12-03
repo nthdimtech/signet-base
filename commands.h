@@ -108,6 +108,10 @@ union cmd_data_u {
 		int masked;
 		u8 block[BLK_SIZE];
 	} read_all_uids;
+	struct {
+		u16 sz;
+		u8 block[BLK_SIZE];
+	} get_rand_bits;
 };
 
 extern union cmd_data_u cmd_data;
