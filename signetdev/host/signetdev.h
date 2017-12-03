@@ -27,9 +27,6 @@ typedef enum signetdev_cmd_id {
 	SIGNETDEV_CMD_END_DEVICE_RESTORE,
 	SIGNETDEV_CMD_BEGIN_UPDATE_FIRMWARE,
 	SIGNETDEV_CMD_RESET_DEVICE,
-	SIGNETDEV_CMD_READ_ID,
-	SIGNETDEV_CMD_WRITE_ID,
-	SIGNETDEV_CMD_DELETE_ID,
 	SIGNETDEV_CMD_TYPE,
 	SIGNETDEV_CMD_CHANGE_MASTER_PASSWORD,
 	SIGNETDEV_CMD_BEGIN_INITIALIZE_DEVICE,
@@ -37,7 +34,6 @@ typedef enum signetdev_cmd_id {
 	SIGNETDEV_CMD_WRITE_BLOCK,
 	SIGNETDEV_CMD_WRITE_FLASH,
 	SIGNETDEV_CMD_ERASE_PAGES,
-	SIGNETDEV_CMD_READ_ALL_ID,
 	SIGNETDEV_CMD_ENTER_MOBILE_MODE,
 	SIGNETDEV_CMD_UPDATE_UID,
 	SIGNETDEV_CMD_READ_UID,
@@ -61,8 +57,6 @@ int signetdev_startup_async(void *param, int *token);
 int signetdev_type_async(void *param, int *token, const u8 *keys, int n_keys);
 int signetdev_delete_id_async(void *param, int *token, int id);
 int signetdev_button_wait_async(void *user, int *token);
-int signetdev_read_id_async(void *user, int *token, int id, int masked);
-int signetdev_write_id_async(void *user, int *token, int id, int size, const u8 *data, const u8 *mask);
 int signetdev_change_master_password_async(void *param, int *token,
 						u8 *old_key, u32 old_key_len,
 						u8 *new_key, u32 new_key_len,
@@ -79,7 +73,6 @@ int signetdev_write_block_async(void *param, int *token, int idx, const void *bu
 int signetdev_get_rand_bits_async(void *param, int *token, int sz);
 int signetdev_write_flash_async(void *param, int *token, u32 addr, const void *data, int data_len);
 int signetdev_erase_pages_async(void *param, int *token, int n_pages, const u8 *page_numbers);
-int signetdev_read_all_id_async(void *user, int *token, int unmask);
 
 int signetdev_update_uid_async(void *user, int *token, int id, int size, const u8 *data, const u8 *mask);
 int signetdev_read_uid_async(void *param, int *token, int uid, int masked);
