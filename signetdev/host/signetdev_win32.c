@@ -1,5 +1,5 @@
 #include "host/rawhid/hid.h"
-#include "signetdev_common.h"
+#include "../common/signetdev_common.h"
 #include <windows.h>
 #include <dbt.h>
 #include <Usbiodef.h>
@@ -282,7 +282,7 @@ void signetdev_priv_platform_deinit()
 
 int signetdev_open_connection()
 {
-	int ct = rawhid_open(1, USB_VENDOR_ID, USB_SIGNET_COMMON_PRODUCT_ID, USB_RAW_HID_USAGE_PAGE, USB_RAW_HID_USAGE);
+	int ct = rawhid_open(1, USB_VENDOR_ID, USB_SIGNET_DESKTOP_PRODUCT_ID, USB_RAW_HID_USAGE_PAGE, USB_RAW_HID_USAGE);
 	if (ct != 1) {
 		g_open_request_pending = 1;
 		return -1;

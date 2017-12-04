@@ -11,8 +11,7 @@ TEMPLATE = lib
 
 DEFINES += SIGNETDEV_LIBRARY
 
-SOURCES += host/signetdev.c \
-    host/signetdev_unix.c
+SOURCES += host/signetdev.c
 
 HEADERS +=\
         signetdev_global.h \
@@ -22,6 +21,7 @@ HEADERS +=\
 
 unix {
 HEADERS += host/signetdev_unix.h
+SOURCES += host/signetdev_unix.c
 }
 
 win32 {
