@@ -33,6 +33,9 @@ union cmd_data_u cmd_data;
 
 u8 encrypt_key[AES_256_KEY_SIZE];
 
+u8 token_auth_rand_ct[AES_256_KEY_SIZE];
+u8 token_encrypt_key_ct[AES_256_KEY_SIZE];
+
 u8 header_version;
 u8 db_version;
 
@@ -278,6 +281,7 @@ static void finalize_root_page_check()
 //
 
 void get_rand_bits_cmd_check();
+void get_login_token_cmd_iter();
 
 void cmd_rand_update()
 {
@@ -297,6 +301,9 @@ void cmd_rand_update()
 	switch (active_cmd) {
 	case GET_RAND_BITS:
 		get_rand_bits_cmd_check();
+		break;
+	case GET_LOGIN_TOKEN:
+		get_login_token_cmd_iter();
 		break;
 	}
 }
@@ -422,6 +429,18 @@ void button_release()
 	}
 }
 
+int attempt_login_256(const u8 *auth_key, const u8 *auth_rand, const u8 *auth_rand_ct, const u8 *encrypt_key_ct, u8 *encrypt_key)
+{
+	u8 auth_rand_ct_test[AES_256_KEY_SIZE];
+	stm_aes_256_encrypt_cbc(auth_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL, auth_rand, auth_rand_ct_test);
+	if (memcmp(auth_rand_ct_test, auth_rand_ct, AES_256_KEY_SIZE)) {
+		return 0;
+	} else {
+		stm_aes_256_decrypt_cbc(auth_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL, encrypt_key_ct, encrypt_key);
+		return 1;
+	}
+}
+
 void button_press()
 {
 	if (waiting_for_button_press) {
@@ -429,30 +448,37 @@ void button_press()
 		switch(active_cmd) {
 		case LOGIN:
 			switch (root_page.signature[0]) {
-			case 1:
-				stm_aes_128_encrypt(cmd_data.login.password, root_page.header.v1.auth_rand, cmd_data.login.cyphertext);
-				if (memcmp(cmd_data.login.cyphertext, root_page.header.v1.auth_rand_ct, AES_128_KEY_SIZE)) {
-					finish_command_resp(BAD_PASSWORD);
-				} else {
+			case 2: {
+				int rc = attempt_login_256(cmd_data.login.password,
+						root_page.header.v2.auth_rand,
+						root_page.header.v2.auth_rand_ct,
+						root_page.header.v2.encrypt_key_ct,
+						encrypt_key);
+				if (rc) {
 					finish_command_resp(OKAY);
-					stm_aes_128_decrypt(cmd_data.login.password, root_page.header.v1.encrypt_key_ct, encrypt_key);
 					enter_state(LOGGED_IN);
 				}
-				break;
+			} break;
+			}
+			break;
+		case LOGIN_TOKEN: {
+			int rc;
+			switch (root_page.signature[0]) {
 			case 2:
-				stm_aes_256_encrypt_cbc(cmd_data.login.password, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-						root_page.header.v2.auth_rand, cmd_data.login.cyphertext);
-				if (memcmp(cmd_data.login.cyphertext, root_page.header.v2.auth_rand_ct, AES_256_KEY_SIZE)) {
-					finish_command_resp(BAD_PASSWORD);
-				} else {
+				rc = attempt_login_256(cmd_data.login_token.token,
+					root_page.header.v2.auth_rand,
+					token_auth_rand_ct,
+					token_encrypt_key_ct,
+					encrypt_key);
+				if (rc) {
 					finish_command_resp(OKAY);
-					stm_aes_256_decrypt_cbc(cmd_data.login.password, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-							root_page.header.v2.encrypt_key_ct, encrypt_key);
 					enter_state(LOGGED_IN);
+				} else {
+					finish_command_resp(BAD_PASSWORD);
 				}
 				break;
 			}
-			break;
+			} break;
 		case DELETE_ID:
 			delete_cmd_complete();
 			break;
@@ -914,6 +940,48 @@ void get_rand_bits_cmd(u8 *data, int data_len)
 	get_rand_bits_cmd_check();
 }
 
+void login_cmd(u8 *data, int data_len)
+{
+	if (data_len != AES_256_KEY_SIZE) {
+		finish_command_resp(INVALID_INPUT);
+	} else {
+		memcpy(cmd_data.login.password, data, AES_256_KEY_SIZE);
+		begin_button_press_wait();
+	}
+}
+
+void login_token_cmd(u8 *data, int data_len)
+{
+	if (data_len != AES_256_KEY_SIZE) {
+		finish_command_resp(INVALID_INPUT);
+	} else {
+		memcpy(cmd_data.login_token.token, data, AES_256_KEY_SIZE);
+		begin_button_press_wait();
+	}
+}
+
+
+void get_login_token_cmd_iter()
+{
+	if (rand_avail() >= (AES_256_KEY_SIZE/4)) {
+		for (int i = 0; i < (AES_256_KEY_SIZE/4); i++) {
+			cmd_data.get_login_token.token[i] = rand_get();
+		}
+
+		stm_aes_256_encrypt_cbc((u8 *)cmd_data.get_login_token.token, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
+				root_page.header.v2.auth_rand, token_auth_rand_ct);
+		stm_aes_256_encrypt_cbc(cmd_data.init_data.passwd, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
+				encrypt_key, token_encrypt_key_ct);
+
+		finish_command(OKAY, (u8 *)cmd_data.get_login_token.token, AES_256_KEY_SIZE);
+	}
+}
+
+void get_login_token_cmd(u8 *data, int data_len)
+{
+	get_login_token_cmd_iter();
+}
+
 //
 // State functions. These control which commands can be issued
 // in different states.
@@ -999,12 +1067,11 @@ int logged_out_state(int cmd, u8 *data, int data_len)
 		break;
 	case LOGIN:
 		dprint_s("LOGIN\r\n");
-		if (data_len != AES_256_KEY_SIZE) {
-			finish_command_resp(INVALID_INPUT);
-		} else {
-			memcpy(cmd_data.login.password, data, AES_256_KEY_SIZE);
-			begin_button_press_wait();
-		}
+		login_cmd(data, data_len);
+		break;
+	case LOGIN_TOKEN:
+		dprint_s("LOGIN TOKEN\r\n");
+		login_token_cmd(data, data_len);
 		break;
 	case GET_DEVICE_CAPACITY:
 		get_device_capacity_cmd(data, data_len);
@@ -1096,6 +1163,9 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		break;
 	case UPDATE_FIRMWARE:
 		begin_button_press_wait();
+		break;
+	case GET_LOGIN_TOKEN:
+		get_login_token_cmd(data, data_len);
 		break;
 	default:
 		return -1;

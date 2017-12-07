@@ -37,7 +37,9 @@ enum commands {
 	READ_UID,
 	READ_ALL_UIDS,
 	GET_RAND_BITS,
-	ENTER_MOBILE_MODE
+	ENTER_MOBILE_MODE,
+	LOGIN_TOKEN,
+	GET_LOGIN_TOKEN
 };
 
 enum device_state {
