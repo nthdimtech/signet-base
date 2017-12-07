@@ -11,9 +11,16 @@
 #include <json-c/json.h>
 #include "b64/cencode.h"
 
+#include "signetdev/common/signetdev_common.h"
+
+#define STR(x) #x
+#define VERSION_STRING(x,y,z) STR(x) "." STR(y) "." STR(z)
+
+#define QUOTE(x) STR(x) ""
+
 int main(int argc, char **argv)
 {
-	if (argc < 3) {
+	if (argc < 2) {
 		fprintf(stderr, "Insufficient arguments\n");
 		exit(-1);
 	}
@@ -26,15 +33,28 @@ int main(int argc, char **argv)
 	}
 	bfd_check_format(b, bfd_object);
 
-	FILE *json_out = fopen(argv[2], "wb");
+	FILE *out_file = NULL;
 
+	if (argc > 2) {
+		out_file = fopen(argv[2], "wb");
+	} else {
+
+		out_file = fopen("signet-"
+				VERSION_STRING(SIGNET_MAJOR_VERSION, SIGNET_MINOR_VERSION, SIGNET_STEP_VERSION)
+				".sfw", "wb");
+	}
 	printf("Format %s\n", b->xvec->name);
 
 	asection *s;
 
 	json_object *doc = json_object_new_object();
 	json_object *sections = json_object_new_object();
+	json_object *version = json_object_new_object();
+	json_object_object_add(version, "major", json_object_new_string(QUOTE(SIGNET_MAJOR_VERSION)));
+	json_object_object_add(version, "minor", json_object_new_string(QUOTE(SIGNET_MINOR_VERSION)));
+	json_object_object_add(version, "step", json_object_new_string(QUOTE(SIGNET_STEP_VERSION)));
 
+	json_object_object_add(doc, "version", version);
 	json_object_object_add(doc, "sections", sections);
 
 	char temp[1000000];
@@ -73,8 +93,8 @@ int main(int argc, char **argv)
 
 		}
 	}
-	fprintf(json_out,"%s\n",json_object_to_json_string_ext(doc, JSON_C_TO_STRING_PRETTY));
-	fclose(json_out);
+	fprintf(out_file,"%s\n",json_object_to_json_string_ext(doc, JSON_C_TO_STRING_PRETTY));
+	fclose(out_file);
 	bfd_close(b);
 	return 0;
 }
