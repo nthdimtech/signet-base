@@ -1,4 +1,4 @@
-all: signet-fw serial-loader dfu-util-loader json-encoder
+all: signet-fw serial-loader dfu-util-loader signet-firmware-encoder
 
 BTUPLE:=$(shell echo $(shell ./config.guess) | sed -e 's/\([a-z_09A-Z]\)*-/\1-build_/')
 HTUPLE:=arm-none-eabi
@@ -13,13 +13,13 @@ SERIAL_LOADER_CPPFLAGS=-DPACKAGE
 serial-loader: serial-loader.c
 	gcc $< $(SERIAL_LOADER_LDFLAGS) $(SERIAL_LOADER_INCLUDES) $(SERIAL_LOADER_CPPFLAGS) $(SERIAL_LOADER_LIBS) -o $@
 
-JSON_ENCODER_LDFLAGS=-L$(LIBBDF_INSTALLDIR)/lib
-JSON_ENCODER_INCLUDES=-I$(LIBBDF_INSTALLDIR)/include -Ilibb64-1.2.1/include
-JSON_ENCODER_LIBS=-lbfd -lz -ldl -ljson-c libb64-1.2.1/src/libb64.a
-JSON_ENCODER_CPPFLAGS=-DPACKAGE
+FIRMWARE_ENCODER_LDFLAGS=-L$(LIBBDF_INSTALLDIR)/lib
+FIRMWARE_ENCODER_INCLUDES=-I$(LIBBDF_INSTALLDIR)/include -Ilibb64-1.2.1/include
+FIRMWARE_ENCODER_LIBS=-lbfd -lz -ldl -ljson-c libb64-1.2.1/src/libb64.a
+FIRMWARE_ENCODER_CPPFLAGS=-DPACKAGE
 
-json-encoder: json-encoder.c
-	gcc $< $(JSON_ENCODER_LDFLAGS) $(JSON_ENCODER_INCLUDES) $(JSON_ENCODER_CPPFLAGS) $(JSON_ENCODER_LIBS) -o $@
+signet-firmware-encoder: signet-firmware-encoder.c
+	gcc $< $(FIRMWARE_ENCODER_LDFLAGS) $(FIRMWARE_ENCODER_INCLUDES) $(FIRMWARE_ENCODER_CPPFLAGS) $(FIRMWARE_ENCODER_LIBS) -o $@
 
 DFU_UTIL_LOADER_LDFLAGS=-L$(LIBBDF_INSTALLDIR)/lib
 DFU_UTIL_LOADER_INCLUDES=-I$(LIBBDF_INSTALLDIR)/include
