@@ -38,8 +38,7 @@ enum commands {
 	READ_ALL_UIDS,
 	GET_RAND_BITS,
 	ENTER_MOBILE_MODE,
-	LOGIN_TOKEN,
-	GET_LOGIN_TOKEN
+	LOGIN_TOKEN
 };
 
 enum device_state {
@@ -76,7 +75,7 @@ enum command_responses {
 };
 
 #define SIGNET_MAJOR_VERSION 1
-#define SIGNET_MINOR_VERSION 0
+#define SIGNET_MINOR_VERSION 1
 #define SIGNET_STEP_VERSION 1
 
 #define SIGNET_ERROR_UNKNOWN -1

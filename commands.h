@@ -55,13 +55,13 @@ union cmd_data_u {
 	struct {
 		u8 password[AES_256_KEY_SIZE];
 		u8 cyphertext[AES_256_KEY_SIZE];
+		int authenticated;
+		int gen_token;
+		u32 token[AES_256_KEY_SIZE/4];
 	} login;
 	struct {
-		u8 token[AES_256_KEY_SIZE];
-	} login_token;
-	struct {
 		u32 token[AES_256_KEY_SIZE/4];
-	} get_login_token;
+	} login_token;
 
 	//V1 commands
 	struct {
