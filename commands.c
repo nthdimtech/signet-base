@@ -972,12 +972,12 @@ void login_cmd(u8 *data, int data_len)
 	if (data_len < AES_256_KEY_SIZE) {
 		finish_command_resp(INVALID_INPUT);
 	} else {
+		memcpy(cmd_data.login.password, data, AES_256_KEY_SIZE);
 		data += AES_256_KEY_SIZE;
 		data_len -= AES_256_KEY_SIZE;
 		if (data_len > 0) {
 			cmd_data.login.gen_token = data[0];
 		}
-		memcpy(cmd_data.login.password, data, AES_256_KEY_SIZE);
 		begin_button_press_wait();
 	}
 }
