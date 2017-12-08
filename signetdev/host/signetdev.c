@@ -138,7 +138,7 @@ void signetdev_deinitialize_api()
 
 int signetdev_cancel_button_wait()
 {
-    signetdev_priv_cancel_message_async(CANCEL_BUTTON_PRESS, NULL, 0);
+    signetdev_priv_cancel_message(CANCEL_BUTTON_PRESS, NULL, 0);
     return OKAY;
 }
 
@@ -148,67 +148,67 @@ static int get_cmd_token()
 	return token_ctr++;
 }
 
-static int execute_command_async(void *user, int token, int dev_cmd, int api_cmd)
+static int execute_command(void *user, int token, int dev_cmd, int api_cmd)
 {
-	return signetdev_priv_send_message_async(user, token, dev_cmd,
+	return signetdev_priv_send_message(user, token, dev_cmd,
 			api_cmd, NULL, 0 /* payload size*/, SIGNETDEV_PRIV_GET_RESP);
 }
 
-static int execute_command_no_resp_async(void *user, int token,  int dev_cmd, int api_cmd)
+static int execute_command_no_resp(void *user, int token,  int dev_cmd, int api_cmd)
 {
-	return signetdev_priv_send_message_async(user, token, dev_cmd,
+	return signetdev_priv_send_message(user, token, dev_cmd,
 			api_cmd, NULL, 0, SIGNETDEV_PRIV_NO_RESP);
 }
 
-int signetdev_logout_async(void *user, int *token)
+int signetdev_logout(void *user, int *token)
 {
 	*token = get_cmd_token();
-	return execute_command_async(user, *token, LOGOUT, SIGNETDEV_CMD_LOGOUT);
+	return execute_command(user, *token, LOGOUT, SIGNETDEV_CMD_LOGOUT);
 }
 
-int signetdev_wipe_async(void *user, int *token)
+int signetdev_wipe(void *user, int *token)
 {
 	*token = get_cmd_token();
-	return execute_command_async(user, *token,
+	return execute_command(user, *token,
 		WIPE, SIGNETDEV_CMD_WIPE);
 }
 
-int signetdev_button_wait_async(void *user, int *token)
+int signetdev_button_wait(void *user, int *token)
 {
 	*token = get_cmd_token();
-	return execute_command_async(user, *token,
+	return execute_command(user, *token,
 		BUTTON_WAIT, SIGNETDEV_CMD_BUTTON_WAIT);
 }
 
-int signetdev_get_rand_bits_async(void *user, int *token, int sz)
+int signetdev_get_rand_bits(void *user, int *token, int sz)
 {
 	uint8_t msg[2];
 	msg[0] = sz & 0xff;
 	msg[1] = sz >> 8;
-	return signetdev_priv_send_message_async(user, *token,
+	return signetdev_priv_send_message(user, *token,
 		GET_RAND_BITS, SIGNETDEV_CMD_GET_RAND_BITS,
 		msg, sizeof(msg), SIGNETDEV_PRIV_GET_RESP);
 }
 
-int signetdev_disconnect_async(void *user, int *token)
+int signetdev_disconnect(void *user, int *token)
 {
 	*token = get_cmd_token();
-	return execute_command_no_resp_async(user, *token,
+	return execute_command_no_resp(user, *token,
 		DISCONNECT, SIGNETDEV_CMD_DISCONNECT);
 }
 
-int signetdev_login_async(void *user, int *token, u8 *key, unsigned int key_len)
+int signetdev_login(void *user, int *token, u8 *key, unsigned int key_len)
 {
 	*token = get_cmd_token();
 	uint8_t msg[AES_256_KEY_SIZE];
 	memset(msg, 0, sizeof(msg));
 	memcpy(msg, key, key_len > sizeof(msg) ? sizeof(msg) : key_len);
-	return signetdev_priv_send_message_async(user, *token,
+	return signetdev_priv_send_message(user, *token,
 		LOGIN, SIGNETDEV_CMD_LOGIN,
 		msg, sizeof(msg), SIGNETDEV_PRIV_GET_RESP);
 }
 
-int signetdev_get_progress_async(void *user, int *token, int progress, int state)
+int signetdev_get_progress(void *user, int *token, int progress, int state)
 {
 	uint8_t msg[4];
 	*token = get_cmd_token();
@@ -216,58 +216,58 @@ int signetdev_get_progress_async(void *user, int *token, int progress, int state
 	msg[1] = progress >> 8;
 	msg[2] = state & 0xff;
 	msg[3] = state >> 8;
-	return signetdev_priv_send_message_async(user, *token,
+	return signetdev_priv_send_message(user, *token,
 			GET_PROGRESS, SIGNETDEV_CMD_GET_PROGRESS,
 			msg, sizeof(msg), SIGNETDEV_PRIV_GET_RESP);
 }
 
-int signetdev_begin_device_backup_async(void *user, int *token)
+int signetdev_begin_device_backup(void *user, int *token)
 {
 	*token = get_cmd_token();
-	return execute_command_async(user, *token,
+	return execute_command(user, *token,
 		BACKUP_DEVICE, SIGNETDEV_CMD_BEGIN_DEVICE_BACKUP);
 }
 
-int signetdev_end_device_backup_async(void *user, int *token)
+int signetdev_end_device_backup(void *user, int *token)
 {
 	*token = get_cmd_token();
-	return execute_command_async(user, *token,
+	return execute_command(user, *token,
 		BACKUP_DEVICE_DONE, SIGNETDEV_CMD_END_DEVICE_BACKUP);
 }
 
-int signetdev_begin_device_restore_async(void *user, int *token)
+int signetdev_begin_device_restore(void *user, int *token)
 {
 	*token = get_cmd_token();
-	return execute_command_async(user, *token,
+	return execute_command(user, *token,
 		RESTORE_DEVICE, SIGNETDEV_CMD_BEGIN_DEVICE_RESTORE);
 }
 
-int signetdev_end_device_restore_async(void *user, int *token)
+int signetdev_end_device_restore(void *user, int *token)
 {
 	*token = get_cmd_token();
-	return execute_command_async(user, *token,
+	return execute_command(user, *token,
 		RESTORE_DEVICE_DONE, SIGNETDEV_CMD_END_DEVICE_RESTORE);
 }
 
-int signetdev_begin_update_firmware_async(void *user, int *token)
+int signetdev_begin_update_firmware(void *user, int *token)
 {
 	*token = get_cmd_token();
-	return execute_command_async(user, *token,
+	return execute_command(user, *token,
 		UPDATE_FIRMWARE, SIGNETDEV_CMD_BEGIN_UPDATE_FIRMWARE);
 }
 
-int signetdev_reset_device_async(void *user, int *token)
+int signetdev_reset_device(void *user, int *token)
 {
 	*token = get_cmd_token();
-	int rc = execute_command_no_resp_async(user, *token,
+	int rc = execute_command_no_resp(user, *token,
 		RESET_DEVICE, SIGNETDEV_CMD_RESET_DEVICE);
 	return rc;
 }
 
-int signetdev_startup_async(void *param, int *token)
+int signetdev_startup(void *param, int *token)
 {
 	*token = get_cmd_token();
-	return signetdev_priv_send_message_async(param, *token,
+	return signetdev_priv_send_message(param, *token,
 			STARTUP, SIGNETDEV_CMD_STARTUP,
 			NULL, 0,
 			SIGNETDEV_PRIV_GET_RESP);
@@ -276,13 +276,13 @@ int signetdev_startup_async(void *param, int *token)
 int signetdev_enter_mobile_mode(void *param, int *token)
 {
 	*token = get_cmd_token();
-	return signetdev_priv_send_message_async(param, *token,
+	return signetdev_priv_send_message(param, *token,
 			ENTER_MOBILE_MODE, SIGNETDEV_CMD_ENTER_MOBILE_MODE,
 			NULL, 0,
 			SIGNETDEV_PRIV_NO_RESP);
 }
 
-int signetdev_type_async(void *param, int *token, const u8 *keys, int n_keys)
+int signetdev_type(void *param, int *token, const u8 *keys, int n_keys)
 {
 	*token = get_cmd_token();
 	u8 msg[CMD_PACKET_PAYLOAD_SIZE];
@@ -298,13 +298,13 @@ int signetdev_type_async(void *param, int *token, const u8 *keys, int n_keys)
 		msg[j + 2] = 0;
 		msg[j + 3] = 0;
 	}
-	return signetdev_priv_send_message_async(param, *token,
+	return signetdev_priv_send_message(param, *token,
 			TYPE, SIGNETDEV_CMD_TYPE,
 			msg, message_size,
 			SIGNETDEV_PRIV_GET_RESP);
 }
 
-int signetdev_begin_initialize_device_async(void *param, int *token,
+int signetdev_begin_initialize_device(void *param, int *token,
 					const u8 *key, int key_len,
 					const u8 *hashfn, int hashfn_len,
 					const u8 *salt, int salt_len,
@@ -319,31 +319,31 @@ int signetdev_begin_initialize_device_async(void *param, int *token,
 	memcpy(msg + AES_256_KEY_SIZE + HASH_FN_SZ, salt, salt_len > SALT_SZ_V2 ? SALT_SZ_V2 : salt_len);
 	memcpy(msg + AES_256_KEY_SIZE + HASH_FN_SZ + SALT_SZ_V2, rand_data, rand_data_len > INIT_RAND_DATA_SZ ? INIT_RAND_DATA_SZ : rand_data_len);
 
-	return signetdev_priv_send_message_async(param, *token,
+	return signetdev_priv_send_message(param, *token,
 			INITIALIZE, SIGNETDEV_CMD_BEGIN_INITIALIZE_DEVICE,
 			msg, INITIALIZE_CMD_SIZE, SIGNETDEV_PRIV_GET_RESP);
 }
 
-int signetdev_read_block_async(void *param, int *token, int idx)
+int signetdev_read_block(void *param, int *token, int idx)
 {
 	*token = get_cmd_token();
 	u8 msg[] = {idx};
-	return signetdev_priv_send_message_async(param, *token,
+	return signetdev_priv_send_message(param, *token,
 			READ_BLOCK, SIGNETDEV_CMD_READ_BLOCK,
 			msg, sizeof(msg), SIGNETDEV_PRIV_GET_RESP);
 }
 
-int signetdev_write_block_async(void *param, int *token, int idx, const void *buffer)
+int signetdev_write_block(void *param, int *token, int idx, const void *buffer)
 {
 	*token = get_cmd_token();
 	u8 msg[BLK_SIZE + 1] = {idx};
 	memcpy(msg + 1, buffer, BLK_SIZE);
-	return signetdev_priv_send_message_async(param, *token,
+	return signetdev_priv_send_message(param, *token,
 				WRITE_BLOCK, SIGNETDEV_CMD_WRITE_BLOCK,
 				msg, sizeof(msg), SIGNETDEV_PRIV_GET_RESP);
 }
 
-int signetdev_write_flash_async(void *param, int *token, u32 addr, const void *data, int data_len)
+int signetdev_write_flash(void *param, int *token, u32 addr, const void *data, int data_len)
 {
 	*token = get_cmd_token();
 	uint8_t msg[CMD_PACKET_PAYLOAD_SIZE];
@@ -355,12 +355,12 @@ int signetdev_write_flash_async(void *param, int *token, u32 addr, const void *d
 	msg[2] = (addr >> 16) & 0xff;
 	msg[3] = (addr >> 24) & 0xff;
 	memcpy(msg + 4, data, data_len);
-	return signetdev_priv_send_message_async(param, *token,
+	return signetdev_priv_send_message(param, *token,
 				WRITE_FLASH, SIGNETDEV_CMD_WRITE_FLASH,
 				msg, 4 + data_len, SIGNETDEV_PRIV_GET_RESP);
 }
 
-int signetdev_update_uid_async(void *param, int *token, int uid, int size, const u8 *data, const u8 *mask)
+int signetdev_update_uid(void *param, int *token, int uid, int size, const u8 *data, const u8 *mask)
 {
 	uint8_t msg[CMD_PACKET_PAYLOAD_SIZE];
 	*token = get_cmd_token();
@@ -385,34 +385,34 @@ int signetdev_update_uid_async(void *param, int *token, int uid, int size, const
 		msg[k + m_idx] = (msg[k + m_idx] & ~(1<<(r%8))) | (bit << (r%8));
 	}
 	k += blk_count * SUB_BLK_SIZE;
-	return signetdev_priv_send_message_async(param, *token,
+	return signetdev_priv_send_message(param, *token,
 		UPDATE_UID, SIGNETDEV_CMD_UPDATE_UID,
 		msg, message_size, SIGNETDEV_PRIV_GET_RESP);
 }
 
-int signetdev_read_uid_async(void *param, int *token, int uid, int masked)
+int signetdev_read_uid(void *param, int *token, int uid, int masked)
 {
 	*token = get_cmd_token();
 	uint8_t msg[3];
 	msg[0] = (uid >> 0) & 0xff;
 	msg[1] = (uid >> 8) & 0xff;
 	msg[2] = (masked) & 0xff;
-	return signetdev_priv_send_message_async(param, *token,
+	return signetdev_priv_send_message(param, *token,
 				READ_UID, SIGNETDEV_CMD_READ_UID,
 				msg, sizeof(msg), SIGNETDEV_PRIV_GET_RESP);
 }
 
-int signetdev_read_all_uids_async(void *param, int *token, int masked)
+int signetdev_read_all_uids(void *param, int *token, int masked)
 {
 	*token = get_cmd_token();
 	uint8_t msg[1];
 	msg[0] = masked & 0xff;
-	return signetdev_priv_send_message_async(param, *token,
+	return signetdev_priv_send_message(param, *token,
 				READ_ALL_UIDS, SIGNETDEV_CMD_READ_ALL_UIDS,
 				msg, sizeof(msg), SIGNETDEV_PRIV_GET_RESP);
 }
 
-int signetdev_change_master_password_async(void *param, int *token,
+int signetdev_change_master_password(void *param, int *token,
 		u8 *old_key, u32 old_key_len,
 		u8 *new_key, u32 new_key_len,
 		u8 *hashfn, u32 hashfn_len,
@@ -425,15 +425,15 @@ int signetdev_change_master_password_async(void *param, int *token,
 	memcpy(msg + AES_256_KEY_SIZE, new_key, new_key_len > AES_256_KEY_SIZE ? AES_256_KEY_SIZE : new_key_len);
 	memcpy(msg + AES_256_KEY_SIZE * 2, hashfn, hashfn_len > HASH_FN_SZ ? HASH_FN_SZ : hashfn_len);
 	memcpy(msg + AES_256_KEY_SIZE * 2 + HASH_FN_SZ, salt, salt_len > SALT_SZ_V2 ? SALT_SZ_V2 : salt_len);
-	return signetdev_priv_send_message_async(param, *token, CHANGE_MASTER_PASSWORD,
+	return signetdev_priv_send_message(param, *token, CHANGE_MASTER_PASSWORD,
 			SIGNETDEV_CMD_CHANGE_MASTER_PASSWORD, msg, sizeof(msg),
 			SIGNETDEV_PRIV_GET_RESP);
 }
 
-int signetdev_erase_pages_async(void *param, int *token, int n_pages, const u8 *page_numbers)
+int signetdev_erase_pages(void *param, int *token, int n_pages, const u8 *page_numbers)
 {
 	*token = get_cmd_token();
-	return signetdev_priv_send_message_async(param, *token,
+	return signetdev_priv_send_message(param, *token,
 			ERASE_FLASH_PAGES, SIGNETDEV_CMD_ERASE_PAGES,
 			page_numbers, n_pages,
 			SIGNETDEV_PRIV_GET_RESP);
@@ -643,7 +643,7 @@ void signetdev_priv_handle_command_resp(void *user, int token,
 	}
 }
 
-int signetdev_priv_send_message_async(void *user, int token, int dev_cmd, int api_cmd, const u8 *payload, unsigned int payload_size, int get_resp)
+int signetdev_priv_send_message(void *user, int token, int dev_cmd, int api_cmd, const u8 *payload, unsigned int payload_size, int get_resp)
 {
 	static u8 s_async_resp[CMD_PACKET_PAYLOAD_SIZE];
 	static int s_async_resp_code;
@@ -672,7 +672,7 @@ int signetdev_priv_send_message_async(void *user, int token, int dev_cmd, int ap
 	return 0;
 }
 
-int signetdev_priv_cancel_message_async(int dev_cmd, const u8 *payload, unsigned int payload_size)
+int signetdev_priv_cancel_message(int dev_cmd, const u8 *payload, unsigned int payload_size)
 {
 	struct send_message_req *r = malloc(sizeof(struct send_message_req));
 	r->dev_cmd = dev_cmd;

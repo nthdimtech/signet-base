@@ -58,12 +58,12 @@ extern void *g_device_closed_cb_param;
 #define SIGNETDEV_PRIV_GET_RESP 1
 #define SIGNETDEV_PRIV_NO_RESP 0
 
-int signetdev_priv_send_message_async(void *user, int token,  int dev_cmd, int api_cmd, const u8 *payload, unsigned int payload_size, int get_resp);
+int signetdev_priv_send_message(void *user, int token,  int dev_cmd, int api_cmd, const u8 *payload, unsigned int payload_size, int get_resp);
 void signetdev_priv_message_send_resp(struct send_message_req *msg, int rc, int expected_messages_remaining);
 void signetdev_priv_free_message(struct send_message_req **req);
 void signetdev_priv_finalize_message(struct send_message_req **msg ,int rc);
 void signetdev_priv_process_rx_packet(struct rx_message_state *state, u8 *rx_packet_buf);
-int signetdev_priv_cancel_message_async(int dev_cmd, const u8 *payload, unsigned int payload_size);
+int signetdev_priv_cancel_message(int dev_cmd, const u8 *payload, unsigned int payload_size);
 
 void issue_command_no_resp(int command, void *p);
 int issue_command(int command, void *p);

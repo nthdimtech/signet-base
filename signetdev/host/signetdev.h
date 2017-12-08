@@ -43,40 +43,40 @@ typedef enum signetdev_cmd_id {
 } signetdev_cmd_id_t;
 
 int signetdev_enter_mobile_mode(void *user, int *token);
-int signetdev_logout_async(void *user, int *token);
-int signetdev_login_async(void *user, int *token, u8 *key, unsigned int key_len);
-int signetdev_begin_update_firmware_async(void *user, int *token);
-int signetdev_reset_device_async(void *user, int *token);
-int signetdev_get_progress_async(void *user, int *token, int progress, int state);
-int signetdev_wipe_async(void *user, int *token);
-int signetdev_begin_device_backup_async(void *user, int *token);
-int signetdev_end_device_backup_async(void *user, int *token);
-int signetdev_begin_device_restore_async(void *user, int *token);
-int signetdev_end_device_restore_async(void *user, int *token);
-int signetdev_startup_async(void *param, int *token);
-int signetdev_type_async(void *param, int *token, const u8 *keys, int n_keys);
-int signetdev_delete_id_async(void *param, int *token, int id);
-int signetdev_button_wait_async(void *user, int *token);
-int signetdev_change_master_password_async(void *param, int *token,
+int signetdev_logout(void *user, int *token);
+int signetdev_login(void *user, int *token, u8 *key, unsigned int key_len);
+int signetdev_begin_update_firmware(void *user, int *token);
+int signetdev_reset_device(void *user, int *token);
+int signetdev_get_progress(void *user, int *token, int progress, int state);
+int signetdev_wipe(void *user, int *token);
+int signetdev_begin_device_backup(void *user, int *token);
+int signetdev_end_device_backup(void *user, int *token);
+int signetdev_begin_device_restore(void *user, int *token);
+int signetdev_end_device_restore(void *user, int *token);
+int signetdev_startup(void *param, int *token);
+int signetdev_type(void *param, int *token, const u8 *keys, int n_keys);
+int signetdev_delete_id(void *param, int *token, int id);
+int signetdev_button_wait(void *user, int *token);
+int signetdev_change_master_password(void *param, int *token,
 						u8 *old_key, u32 old_key_len,
 						u8 *new_key, u32 new_key_len,
 						u8 *hashfn, u32 hashfn_len,
 						u8 *salt, u32 salt_len);
-int signetdev_begin_initialize_device_async(void *param, int *token,
+int signetdev_begin_initialize_device(void *param, int *token,
 					const u8 *key, int key_len,
 					const u8 *hashfn, int hashfn_len,
 					const u8 *salt, int salt_len,
 					const u8 *rand_data, int rand_data_len);
-int signetdev_disconnect_async(void *user, int *token);
-int signetdev_read_block_async(void *param, int *token, int idx);
-int signetdev_write_block_async(void *param, int *token, int idx, const void *buffer);
-int signetdev_get_rand_bits_async(void *param, int *token, int sz);
-int signetdev_write_flash_async(void *param, int *token, u32 addr, const void *data, int data_len);
-int signetdev_erase_pages_async(void *param, int *token, int n_pages, const u8 *page_numbers);
+int signetdev_disconnect(void *user, int *token);
+int signetdev_read_block(void *param, int *token, int idx);
+int signetdev_write_block(void *param, int *token, int idx, const void *buffer);
+int signetdev_get_rand_bits(void *param, int *token, int sz);
+int signetdev_write_flash(void *param, int *token, u32 addr, const void *data, int data_len);
+int signetdev_erase_pages(void *param, int *token, int n_pages, const u8 *page_numbers);
 
-int signetdev_update_uid_async(void *user, int *token, int id, int size, const u8 *data, const u8 *mask);
-int signetdev_read_uid_async(void *param, int *token, int uid, int masked);
-int signetdev_read_all_uids_async(void *param, int *token, int masked);
+int signetdev_update_uid(void *user, int *token, int id, int size, const u8 *data, const u8 *mask);
+int signetdev_read_uid(void *param, int *token, int uid, int masked);
+int signetdev_read_all_uids(void *param, int *token, int masked);
 
 struct signetdev_read_all_id_resp_data {
 	int id;
