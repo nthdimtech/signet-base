@@ -1046,6 +1046,12 @@ int uninitialized_state(int cmd, u8 *data, int data_len)
 	case ENTER_MOBILE_MODE:
 		enter_mobile_mode_cmd();
 		break;
+#ifdef FACTORY_MODE
+	case UPDATE_FIRMWARE:
+		finish_command_resp(OKAY);
+		enter_state(FIRMWARE_UPDATE);
+		break;
+#endif
 	default:
 		return -1;
 	}
@@ -1089,6 +1095,12 @@ int logged_out_state(int cmd, u8 *data, int data_len)
 	case ENTER_MOBILE_MODE:
 		enter_mobile_mode_cmd();
 		break;
+#ifdef FACTORY_MODE
+	case UPDATE_FIRMWARE:
+		finish_command_resp(OKAY);
+		enter_state(FIRMWARE_UPDATE);
+		break;
+#endif
 	default:
 		return -1;
 	}
