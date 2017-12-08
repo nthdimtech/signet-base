@@ -17,6 +17,7 @@ typedef enum signetdev_cmd_id {
 	SIGNETDEV_CMD_STARTUP,
 	SIGNETDEV_CMD_LOGOUT,
 	SIGNETDEV_CMD_LOGIN,
+	SIGNETDEV_CMD_LOGIN_TOKEN,
 	SIGNETDEV_CMD_WIPE,
 	SIGNETDEV_CMD_BUTTON_WAIT,
 	SIGNETDEV_CMD_DISCONNECT,
@@ -44,7 +45,8 @@ typedef enum signetdev_cmd_id {
 
 int signetdev_enter_mobile_mode(void *user, int *token);
 int signetdev_logout(void *user, int *token);
-int signetdev_login(void *user, int *token, u8 *key, unsigned int key_len);
+int signetdev_login(void *user, int *token, u8 *key, unsigned int key_len, int gen_token);
+int signetdev_login_token(void *user, int *api_token, u8 *login_token);
 int signetdev_begin_update_firmware(void *user, int *token);
 int signetdev_reset_device(void *user, int *token);
 int signetdev_get_progress(void *user, int *token, int progress, int state);

@@ -197,14 +197,25 @@ int signetdev_disconnect(void *user, int *token)
 		DISCONNECT, SIGNETDEV_CMD_DISCONNECT);
 }
 
-int signetdev_login(void *user, int *token, u8 *key, unsigned int key_len)
+int signetdev_login(void *user, int *token, u8 *key, unsigned int key_len, int gen_token)
 {
 	*token = get_cmd_token();
-	uint8_t msg[AES_256_KEY_SIZE];
+	uint8_t msg[AES_256_KEY_SIZE + 1];
 	memset(msg, 0, sizeof(msg));
-	memcpy(msg, key, key_len > sizeof(msg) ? sizeof(msg) : key_len);
+	memcpy(msg, key, key_len > AES_256_KEY_SIZE ? sizeof(msg) : key_len);
+	msg[AES_256_KEY_SIZE] = gen_token;
 	return signetdev_priv_send_message(user, *token,
 		LOGIN, SIGNETDEV_CMD_LOGIN,
+		msg, sizeof(msg), SIGNETDEV_PRIV_GET_RESP);
+}
+
+int signetdev_login_token(void *user, int *api_token, u8 *token)
+{
+	*api_token = get_cmd_token();
+	uint8_t msg[AES_256_KEY_SIZE];
+	memcpy(msg, token, sizeof(msg));
+	return signetdev_priv_send_message(user, *token,
+		LOGIN_TOKEN, SIGNETDEV_CMD_LOGIN_TOKEN,
 		msg, sizeof(msg), SIGNETDEV_PRIV_GET_RESP);
 }
 
