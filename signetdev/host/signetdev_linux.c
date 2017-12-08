@@ -279,7 +279,6 @@ static void inotify_fd_readable()
 		int idx = 0;
 		while (idx < rc) {
 			struct inotify_event *ev = (struct inotify_event *)(buf + idx);
-			printf("Device added: %d %s\n", ev->len, ev->name);
 			if (!strcmp(ev->name, "signet") && g_opening_connection) {
 				rc = attempt_open_connection();
 				if (rc == 0) {
