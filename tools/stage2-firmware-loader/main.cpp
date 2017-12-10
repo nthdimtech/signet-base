@@ -2,6 +2,7 @@
 #include <QFile>
 #include <QJsonObject>
 #include <QJsonDocument>
+#include <QTimer>
 
 extern "C" {
 #include "signetdev/host/signetdev.h"
@@ -18,6 +19,18 @@ QList<fwSection> fwSections;
 QList<fwSection>::iterator writingSectionIter;
 unsigned int writingAddr;
 unsigned int writingSize;
+
+void deviceClosedS(void *user)
+{
+	printf("Device closed\n");
+	QCoreApplication::quit();
+}
+
+void connectionErrorS(void *this_)
+{
+	printf("Programming complete\n");
+	QCoreApplication::quit();
+}
 
 void sendFirmwareWriteCmd()
 {
@@ -182,9 +195,12 @@ int main(int argc, char *argv[])
 	int rc = ::signetdev_open_connection();
 
 	::signetdev_set_command_resp_cb(signetCmdResponse, NULL);
+	::signetdev_set_device_closed_cb(deviceClosedS, NULL);
+	::signetdev_set_error_handler(connectionErrorS, NULL);
 
 	if (rc == OKAY) {
 		::signetdev_startup(NULL, &token);
 		return a.exec();
 	}
+	::signetdev_deinitialize_api();
 }
