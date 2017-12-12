@@ -374,7 +374,7 @@ void update_uid_cmd_write_finished()
 	if (cmd_data.update_uid.write_count == 1) {
 		//This is the first write completed
 		memcpy(block_info_tbl + cmd_data.update_uid.block_num, &cmd_data.update_uid.blk_info, sizeof(struct block_info));
-		if (cmd_data.update_uid.prev_block_num == cmd_data.update_uid.block_num && cmd_data.update_uid.prev_block_num != INVALID_BLOCK) {
+		if (cmd_data.update_uid.prev_block_num != cmd_data.update_uid.block_num && cmd_data.update_uid.prev_block_num != INVALID_BLOCK) {
 			//Record has moved to a new block. Need to dellocate from original block now
 			struct block *block = (struct block *)cmd_data.update_uid.block;
 			deallocate_uid(cmd_data.update_uid.uid, block, &cmd_data.update_uid.blk_info);
