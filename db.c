@@ -100,7 +100,6 @@ void db2_startup_scan()
 		}
 
 		if (blk_info->occupied) {
-			//TODO: more validity checks
 			blk_info->part_occupancy = blk->header.occupancy;
 			blk_info->part_count = get_part_count(blk->header.part_size);
 			blk_info->part_tbl_offs = get_block_header_size(blk_info->part_count);
@@ -108,8 +107,18 @@ void db2_startup_scan()
 				const struct uid_ent *ent = blk->uid_tbl + j;
 				int uid = ent->uid;
 				if (uid >= MIN_UID && ent->uid <= MAX_UID && ent->first) {
-					//TODO: check if already populated. Should prefer later revisions
-					uid_map[uid] = i;
+					if (uid_map[uid] != INVALID_BLOCK) {
+						int block_num_temp;
+						int index_temp;
+						struct uid_ent *prev_ent = find_uid(uid, &block_num_temp, &index_temp)
+						if ((ent->rev++) & 0x3 == prev_ent->rev) {
+							uid_map[uid] = i;
+						} else {
+							//TODO: reclaim partition entry for previous entry
+						}
+					} else {
+						uid_map[uid] = i;
+					}
 				}
 			}
 		}
