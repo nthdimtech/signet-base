@@ -42,7 +42,12 @@ union cmd_data_u {
 		u8 salt[AES_256_KEY_SIZE];
 		u8 rand[INIT_RAND_DATA_SZ];
 		u8 block[BLK_SIZE];
+		struct block_info blk_info;
 	} init_data;
+	struct {
+		u8 block[BLK_SIZE];
+		struct block_info blk_info;
+	} startup;
 	struct {
 		int block;
 	} wipe_data;

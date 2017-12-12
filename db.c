@@ -43,7 +43,7 @@ struct block {
 
 
 static const struct uid_ent *find_uid(int uid, int *block_num, int *index);
-
+static int deallocate_uid(int uid, struct block *block_temp, struct block_info *blk_info_temp);
 static int block_crc(const struct block *blk)
 {
 	return crc_32((&blk->header.crc) + 1, (BLK_SIZE/4) - 1);
@@ -85,7 +85,7 @@ static u8 *get_part(const struct block *block, const struct block_info *info, in
 }
 
 //Scans blocks on startup to initialize 'block_info_tbl' and 'uid_map'
-void db2_startup_scan()
+int db2_startup_scan(u8 *block_temp, struct block_info *blk_info_temp)
 {
 	int i;
 	for (i = MIN_UID; i <= MAX_UID; i++)
@@ -113,10 +113,15 @@ void db2_startup_scan()
 						int index_temp;
 						const struct uid_ent *prev_ent = find_uid(uid, &block_num_temp, &index_temp);
 						if (((ent->rev + 1) & 0x3) == prev_ent->rev) {
-							uid_map[uid] = i;
-						} else {
-							//TODO: reclaim partition entry for previous entry
+							uid_map[uid] = ent->uid;
 						}
+						struct block *block = (struct block *)block_temp;
+						int block_num = deallocate_uid(uid,  block, blk_info_temp);
+						if (blk_info_temp->occupied) {
+							block->header.crc = block_crc(block);
+						}
+						flash_write_page((u8 *)BLOCK(block_num), (u8 *)block, BLK_SIZE);
+						return 0;
 					} else {
 						uid_map[uid] = i;
 					}
@@ -124,6 +129,7 @@ void db2_startup_scan()
 			}
 		}
 	}
+	return 1;
 }
 
 #define NUM_PART_SIZES 11
@@ -289,6 +295,7 @@ static int deallocate_uid(int uid, struct block *block_temp, struct block_info *
 		blk_info_temp->occupied = 0;
 		block_temp->header.crc = INVALID_CRC;
 		block_temp->header.part_size = INVALID_PART_SIZE;
+		block_temp->header.occupancy = 0;
 	} else {
 		const struct block *blk = BLOCK(block_num);
 		blk_info_temp->part_occupancy--;
@@ -389,7 +396,6 @@ void update_uid_cmd_write_finished()
 		} else {
 			if (!cmd_data.update_uid.sz) {
 				//Record is being deleted
-				//TODO: old rev could take precedence on next load...
 				uid_map[cmd_data.update_uid.uid] = INVALID_BLOCK;
 			} else {
 				//Record is staying in the same block or has been added for the first time

@@ -309,10 +309,14 @@ void cmd_rand_update()
 }
 
 void flash_write_storage_complete();
+void startup_cmd_iter();
 
 void flash_write_complete()
 {
 	switch (device_state) {
+	case STARTUP:
+		startup_cmd_iter();
+		break;
 	case INITIALIZING:
 		cmd_data.init_data.blocks_written++;
 		progress_level[0] = cmd_data.init_data.blocks_written;
@@ -330,8 +334,12 @@ void flash_write_complete()
 			//TODO: fix magic numbers
 			header_version = 2;
 			db_version = 2;
-			db2_startup_scan();
-			enter_state(LOGGED_OUT);
+			if (db2_startup_scan(cmd_data.init_data.block, &cmd_data.init_data.blk_info)) {
+				enter_state(LOGGED_OUT);
+			} else {
+				//Shouldn't be possible to have a INITIAL database in an inconsistent state
+				enter_state(UNINITIALIZED);
+			}
 		}
 		break;
 	case WIPING:
@@ -1227,27 +1235,10 @@ int restoring_device_state(int cmd, u8 *data, int data_len)
 	return 0;
 }
 
-void startup_cmd(u8 *data, int data_len)
+void startup_cmd_iter()
 {
-	dprint_s("STARTUP\r\n");
-	if (device_state != DISCONNECTED) {
-		stop_blinking();
-		end_button_press_wait();
-		end_long_button_press_wait();
-		active_cmd = -1;
-	}
-	test_state = 0;
-	memcpy(&root_page, (u8 *)(&_root_page), BLK_SIZE);
-	if (memcmp(root_page.signature + 1, root_signature + 1, AES_BLK_SIZE - 1)) {
-		dprint_s("STARTUP: uninitialized\r\n");
-		enter_state(UNINITIALIZED);
-	} else {
-		dprint_s("STARTUP: logged out\r\n");
-		enter_state(LOGGED_OUT);
-	}
 	u8 resp[6+(HASH_FN_SZ + SALT_SZ_V2)];
 	memset(resp, 0, sizeof(resp));
-	header_version = root_page.signature[0];
 	resp[0] = SIGNET_MAJOR_VERSION;
 	resp[1] = SIGNET_MINOR_VERSION;
 	resp[2] = SIGNET_STEP_VERSION;
@@ -1272,20 +1263,45 @@ void startup_cmd(u8 *data, int data_len)
 		resp[5] = db_version;
 
 		switch (header_version) {
-		case 1:
 		case 2:
-			finish_command(OKAY, resp, sizeof(resp));
 			break;
 		default:
 			finish_command_resp(UNKNOWN_DB_FORMAT);
-			break;
+			return;
 		}
 		switch (db_version) {
 		case 2:
-			db2_startup_scan();
+			if (db2_startup_scan(cmd_data.startup.block, &cmd_data.startup.blk_info)) {
+				finish_command(OKAY, resp, sizeof(resp));
+			}
 			break;
+		default:
+			finish_command_resp(UNKNOWN_DB_FORMAT);
+			return;
 		}
 	}
+}
+
+void startup_cmd(u8 *data, int data_len)
+{
+	dprint_s("STARTUP\r\n");
+	if (device_state != DISCONNECTED) {
+		stop_blinking();
+		end_button_press_wait();
+		end_long_button_press_wait();
+		active_cmd = -1;
+	}
+	test_state = 0;
+	memcpy(&root_page, (u8 *)(&_root_page), BLK_SIZE);
+	if (memcmp(root_page.signature + 1, root_signature + 1, AES_BLK_SIZE - 1)) {
+		dprint_s("STARTUP: uninitialized\r\n");
+		enter_state(UNINITIALIZED);
+	} else {
+		dprint_s("STARTUP: logged out\r\n");
+		enter_state(LOGGED_OUT);
+	}
+	header_version = root_page.signature[0];
+	startup_cmd_iter();
 	return;
 }
 

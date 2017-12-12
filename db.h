@@ -19,6 +19,6 @@ void read_uid_cmd_complete();
 void update_uid_cmd_complete();
 void update_uid_cmd_write_finished();
 
-void db2_startup_scan();
+int db2_startup_scan(u8 *block_temp, struct block_info *blk_info_temp);
 struct block *db2_initialize_block(int block_num, struct block *block_temp);
 #endif
