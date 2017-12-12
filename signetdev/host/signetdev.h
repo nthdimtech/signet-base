@@ -80,13 +80,6 @@ int signetdev_update_uid(void *user, int *token, int id, int size, const u8 *dat
 int signetdev_read_uid(void *param, int *token, int uid, int masked);
 int signetdev_read_all_uids(void *param, int *token, int masked);
 
-struct signetdev_read_all_id_resp_data {
-	int id;
-	int size;
-	u8 data[CMD_PACKET_PAYLOAD_SIZE];
-	u8 mask[CMD_PACKET_PAYLOAD_SIZE];
-};
-
 struct signetdev_get_rand_bits_resp_data {
 	int size;
 	const u8 *data;
@@ -94,12 +87,6 @@ struct signetdev_get_rand_bits_resp_data {
 
 struct signetdev_read_all_uids_resp_data {
 	int uid;
-	int size;
-	u8 data[CMD_PACKET_PAYLOAD_SIZE];
-	u8 mask[CMD_PACKET_PAYLOAD_SIZE];
-};
-
-struct signetdev_read_id_resp_data {
 	int size;
 	u8 data[CMD_PACKET_PAYLOAD_SIZE];
 	u8 mask[CMD_PACKET_PAYLOAD_SIZE];
