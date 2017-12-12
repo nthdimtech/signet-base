@@ -41,6 +41,9 @@ struct block {
 	struct uid_ent uid_tbl[];
 } __attribute__((__packed__));
 
+
+static const struct uid_ent *find_uid(int uid, int *block_num, int *index);
+
 static int block_crc(const struct block *blk)
 {
 	return crc_32((&blk->header.crc) + 1, (BLK_SIZE/4) - 1);
@@ -108,8 +111,8 @@ void db2_startup_scan()
 					if (uid_map[uid] != INVALID_BLOCK) {
 						int block_num_temp;
 						int index_temp;
-						struct uid_ent *prev_ent = find_uid(uid, &block_num_temp, &index_temp)
-						if ((ent->rev++) & 0x3 == prev_ent->rev) {
+						const struct uid_ent *prev_ent = find_uid(uid, &block_num_temp, &index_temp);
+						if (((ent->rev + 1) & 0x3) == prev_ent->rev) {
 							uid_map[uid] = i;
 						} else {
 							//TODO: reclaim partition entry for previous entry
@@ -197,6 +200,8 @@ static int allocate_uid(int uid, const u8 *data, int sz, int rev, const u8 *iv, 
 		return INVALID_BLOCK;
 	}
 
+	int allocating_block = 0;
+
 	//Try to find a block with the right partition size
 	for (int i = MIN_DATA_BLOCK; i <= MAX_DATA_BLOCK; i++) {
 		struct block_info *blk_info = block_info_tbl + i;
@@ -218,6 +223,7 @@ static int allocate_uid(int uid, const u8 *data, int sz, int rev, const u8 *iv, 
 			blk_info_temp->part_size = part_size;
 			blk_info_temp->part_count = get_part_count(blk_info_temp->part_size);
 			blk_info_temp->part_tbl_offs = get_block_header_size(blk_info_temp->part_count);
+			allocating_block = 1;
 		}
 	}
 
@@ -229,16 +235,15 @@ static int allocate_uid(int uid, const u8 *data, int sz, int rev, const u8 *iv, 
 			struct block_info *blk_info = block_info_tbl + i;
 			if (!blk_info->valid || !blk_info->occupied)
 				continue;
-			if (blk_info->part_size >= part_size && && blk_info->part_size < found_part_size && blk_info->part_occupancy < blk_info->part_count) {
+			if (blk_info->part_size >= part_size && blk_info->part_size < found_part_size && blk_info->part_occupancy < blk_info->part_count) {
 				block_num = i;
 				found_part_size = blk_info->part_size;
 				memcpy(blk_info_temp, block_info_tbl + block_num, sizeof(*blk_info_temp));
-				break;
 			}
 		}
 	}
 
-	if (block_num != INVALID_BLOCK && blk_info_temp->part_occupancy) {
+	if (block_num != INVALID_BLOCK && !allocating_block) {
 		const struct block *blk = BLOCK(block_num);
 		memcpy(block_temp, blk, BLK_SIZE);
 	}
@@ -288,6 +293,7 @@ static int deallocate_uid(int uid, struct block *block_temp, struct block_info *
 		const struct block *blk = BLOCK(block_num);
 		blk_info_temp->part_occupancy--;
 		memcpy(block_temp, blk, BLK_SIZE);
+		block_temp->header.occupancy--;
 		memcpy(get_part(block_temp, blk_info_temp, index),
 		       get_part(block_temp, blk_info_temp, blk_info_temp->part_occupancy),
 		       blk_info_temp->part_size * SUB_BLK_SIZE);
@@ -383,6 +389,7 @@ void update_uid_cmd_write_finished()
 		} else {
 			if (!cmd_data.update_uid.sz) {
 				//Record is being deleted
+				//TODO: old rev could take precedence on next load...
 				uid_map[cmd_data.update_uid.uid] = INVALID_BLOCK;
 			} else {
 				//Record is staying in the same block or has been added for the first time
