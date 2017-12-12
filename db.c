@@ -223,7 +223,26 @@ static int allocate_uid(int uid, const u8 *data, int sz, int rev, const u8 *iv, 
 			blk_info_temp->part_count = get_part_count(blk_info_temp->part_size);
 			blk_info_temp->part_tbl_offs = get_block_header_size(blk_info_temp->part_count);
 		}
-	} else {
+	}
+
+	if (block_num == INVALID_BLOCK) {
+		//Try to find a block with a large enough partition size if
+		//an exact match or new block can't be found
+		int found_part_size = BLK_SIZE;
+		for (int i = MIN_DATA_BLOCK; i <= MAX_DATA_BLOCK; i++) {
+			struct block_info *blk_info = block_info_tbl + i;
+			if (!blk_info->valid || !blk_info->occupied)
+				continue;
+			if (blk_info->part_size >= part_size && && blk_info->part_size < found_part_size && blk_info->part_occupancy < blk_info->part_count) {
+				block_num = i;
+				found_part_size = blk_info->part_size;
+				memcpy(blk_info_temp, block_info_tbl + block_num, sizeof(*blk_info_temp));
+				break;
+			}
+		}
+	}
+
+	if (block_num != INVALID_BLOCK && blk_info_temp->part_occupancy) {
 		const struct block *blk = BLOCK(block_num);
 		memcpy(block_temp, blk, BLK_SIZE);
 	}
