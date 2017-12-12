@@ -19,7 +19,6 @@ extern u8 encrypt_key[AES_256_KEY_SIZE];
 
 struct block_info block_info_tbl[NUM_STORAGE_BLOCKS];
 
-
 static u8 uid_map[MAX_UID + 1]; //0 == invalid, block #
 
 struct uid_ent {
@@ -41,7 +40,6 @@ struct block {
 	struct block_header header;
 	struct uid_ent uid_tbl[];
 } __attribute__((__packed__));
-
 
 static int block_crc(const struct block *blk)
 {
@@ -192,8 +190,6 @@ static void allocate_uid_blk(int uid, const u8 *data, int sz, int rev, const u8 
 
 static int allocate_uid(int uid, const u8 *data, int sz, int rev, const u8 *iv, struct block *block_temp, struct block_info *blk_info_temp)
 {
-	//TODO return error if there is not space for one extra block of the same size
-	// so errors never occur when
 	int part_size = target_part_size(sz);
 	int block_num = INVALID_BLOCK;
 
@@ -282,7 +278,7 @@ static int deallocate_uid(int uid, struct block *block_temp, struct block_info *
 	}
 	struct block_info *blk_info = block_info_tbl + block_num;
 	memcpy(blk_info_temp, blk_info, sizeof(*blk_info_temp));
-	if (blk_info->part_occupancy == 1) {
+	if (blk_info_temp->part_occupancy == 1) {
 		//Free the block
 		blk_info_temp->valid = 1;
 		blk_info_temp->occupied = 0;
@@ -292,15 +288,19 @@ static int deallocate_uid(int uid, struct block *block_temp, struct block_info *
 		const struct block *blk = BLOCK(block_num);
 		blk_info_temp->part_occupancy--;
 		memcpy(block_temp, blk, BLK_SIZE);
-		memcpy(get_part(block_temp, blk_info_temp, index), get_part(block_temp, blk_info_temp, blk_info_temp->part_occupancy), blk_info_temp->part_size * SUB_BLK_SIZE);
-		memcpy(block_temp->uid_tbl + index, block_temp->uid_tbl + blk_info_temp->part_occupancy, sizeof(struct uid_ent));
+		memcpy(get_part(block_temp, blk_info_temp, index),
+		       get_part(block_temp, blk_info_temp, blk_info_temp->part_occupancy),
+		       blk_info_temp->part_size * SUB_BLK_SIZE);
+		memcpy(block_temp->uid_tbl + index,
+			block_temp->uid_tbl + blk_info_temp->part_occupancy,
+			sizeof(struct uid_ent));
 	}
 	return block_num;
 }
 
 static int update_uid(int uid, u8 *data, int sz, int *prev_block_num, const u8 *iv, struct block *block_temp, struct block_info *blk_info_temp)
 {
-	if (sz == 0) {
+	if (!sz) {
 		return deallocate_uid(uid, block_temp, blk_info_temp);
 	} else {
 		int block_num;
