@@ -1383,5 +1383,13 @@ int cmd_packet_recv()
 		dprint_s("INVALID STATE\r\n");
 		finish_command_resp(INVALID_STATE);
 	}
+#ifdef TESTING_MODE
+	if (waiting_for_button_press) {
+		button_press();
+	}
+	if (waiting_for_long_button_press) {
+		long_button_press();
+	}
+#endif
 	return waiting_for_a_button_press;
 }
