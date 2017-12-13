@@ -35,12 +35,15 @@ LDFLAGS=-Wl,"--gc-sections" -nostdlib
 
 CFLAGS+= -DFIRMWARE -Wall
 
+#CFLAGS+= -DFACTORY_MODE
+#CFLAGS+= -DTESTING_MODE
+
 LDFLAGS+= -Wl,"-Tstm32l443xc.ld"
 
 CFLAGS += -DUSE_RAW_HID -I../signet-desktop-client/common
 
 clean:
-	rm -rf *.o *.d signet-fw serial-loader json-encoder dfu-util-loader
+	rm -rf *.o *.d signet-fw serial-loader signet-firmware-encoder dfu-util-loader
 
 %.o: %.c
 	$(HTUPLE)-gcc  $(CFLAGS) $< -c -o $@
