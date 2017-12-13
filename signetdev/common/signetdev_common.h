@@ -76,7 +76,7 @@ enum command_responses {
 
 #define SIGNET_MAJOR_VERSION 1
 #define SIGNET_MINOR_VERSION 1
-#define SIGNET_STEP_VERSION 1
+#define SIGNET_STEP_VERSION 3
 
 #define SIGNET_ERROR_UNKNOWN -1
 #define SIGNET_ERROR_DISCONNECT -2
