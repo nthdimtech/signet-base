@@ -43,7 +43,7 @@ struct block {
 
 
 static const struct uid_ent *find_uid(int uid, int *block_num, int *index);
-static int deallocate_uid(int uid, struct block *block_temp, struct block_info *blk_info_temp);
+static int deallocate_uid(int uid, struct block *block_temp, struct block_info *blk_info_temp, int dellocate_block);
 static int block_crc(const struct block *blk)
 {
 	return crc_32((&blk->header.crc) + 1, (BLK_SIZE/4) - 1);
@@ -116,7 +116,7 @@ int db2_startup_scan(u8 *block_temp, struct block_info *blk_info_temp)
 							uid_map[uid] = ent->uid;
 						}
 						struct block *block = (struct block *)block_temp;
-						int block_num = deallocate_uid(uid,  block, blk_info_temp);
+						int block_num = deallocate_uid(uid,  block, blk_info_temp, 1/* dellocate block */);
 						if (blk_info_temp->occupied) {
 							block->header.crc = block_crc(block);
 						}
@@ -279,7 +279,7 @@ static const struct uid_ent *find_uid(int uid, int *block_num, int *index)
 	return NULL;
 }
 
-static int deallocate_uid(int uid, struct block *block_temp, struct block_info *blk_info_temp)
+static int deallocate_uid(int uid, struct block *block_temp, struct block_info *blk_info_temp, int deallocate_block)
 {
 	int block_num;
         int index;
@@ -289,7 +289,7 @@ static int deallocate_uid(int uid, struct block *block_temp, struct block_info *
 	}
 	struct block_info *blk_info = block_info_tbl + block_num;
 	memcpy(blk_info_temp, blk_info, sizeof(*blk_info_temp));
-	if (blk_info_temp->part_occupancy == 1) {
+	if (blk_info_temp->part_occupancy == 1 && deallocate_block) {
 		//Free the block
 		blk_info_temp->valid = 1;
 		blk_info_temp->occupied = 0;
@@ -301,12 +301,14 @@ static int deallocate_uid(int uid, struct block *block_temp, struct block_info *
 		blk_info_temp->part_occupancy--;
 		memcpy(block_temp, blk, BLK_SIZE);
 		block_temp->header.occupancy--;
-		memcpy(get_part(block_temp, blk_info_temp, index),
-		       get_part(block_temp, blk_info_temp, blk_info_temp->part_occupancy),
-		       blk_info_temp->part_size * SUB_BLK_SIZE);
-		memcpy(block_temp->uid_tbl + index,
-			block_temp->uid_tbl + blk_info_temp->part_occupancy,
-			sizeof(struct uid_ent));
+		if (block_temp->header.occupancy) {
+			memcpy(get_part(block_temp, blk_info_temp, index),
+			       get_part(block_temp, blk_info_temp, blk_info_temp->part_occupancy),
+			       blk_info_temp->part_size * SUB_BLK_SIZE);
+			memcpy(block_temp->uid_tbl + index,
+				block_temp->uid_tbl + blk_info_temp->part_occupancy,
+				sizeof(struct uid_ent));
+		}
 	}
 	return block_num;
 }
@@ -314,7 +316,7 @@ static int deallocate_uid(int uid, struct block *block_temp, struct block_info *
 static int update_uid(int uid, u8 *data, int sz, int *prev_block_num, const u8 *iv, struct block *block_temp, struct block_info *blk_info_temp)
 {
 	if (!sz) {
-		return deallocate_uid(uid, block_temp, blk_info_temp);
+		return deallocate_uid(uid, block_temp, blk_info_temp, 1 /* dellocate block */);
 	} else {
 		int block_num;
 		int index;
@@ -336,7 +338,7 @@ static int update_uid(int uid, u8 *data, int sz, int *prev_block_num, const u8 *
 				const struct block *blk = BLOCK(block_num);
 				memcpy(block_temp, blk, BLK_SIZE);
 				*prev_block_num = block_num;
-				deallocate_uid(uid, block_temp, blk_info_temp);
+				deallocate_uid(uid, block_temp, blk_info_temp, 0 /* deallocate block */);
 				allocate_uid_blk(uid, data, sz, ent->rev, iv, block_temp, blk_info_temp);
 				return block_num;
 			} else {
@@ -390,7 +392,7 @@ void update_uid_cmd_write_finished()
 		if (cmd_data.update_uid.prev_block_num != cmd_data.update_uid.block_num && cmd_data.update_uid.prev_block_num != INVALID_BLOCK) {
 			//Record has moved to a new block. Need to dellocate from original block now
 			struct block *block = (struct block *)cmd_data.update_uid.block;
-			deallocate_uid(cmd_data.update_uid.uid, block, &cmd_data.update_uid.blk_info);
+			deallocate_uid(cmd_data.update_uid.uid, block, &cmd_data.update_uid.blk_info, 1 /* dellocate block*/);
 			block->header.crc = block_crc(block);
 			flash_write_page((u8 *)BLOCK(cmd_data.update_uid.prev_block_num), (u8 *)block, BLK_SIZE);
 		} else {
