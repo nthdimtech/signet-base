@@ -68,31 +68,6 @@ union cmd_data_u {
 		u32 token[AES_256_KEY_SIZE/4];
 	} login_token;
 
-	//V1 commands
-	struct {
-		u8 iv[AES_BLK_SIZE];
-		u8 block[BLK_SIZE];
-		int id;
-		int sub_blk_count;
-
-	} set_data;
-	struct {
-		int id;
-		int sz;
-		u8 iv[AES_BLK_SIZE];
-		u8 block[BLK_SIZE];
-	} get_data;
-	struct {
-		int id;
-		int unmask;
-		u8 iv[AES_BLK_SIZE];
-		u8 block[BLK_SIZE];
-	} get_all_data;
-	struct {
-		int id;
-	} delete_id;
-
-	//V2 commands
 	struct {
 		u8 iv[AES_BLK_SIZE];
 		int uid;

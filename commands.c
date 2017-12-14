@@ -401,14 +401,9 @@ void blink_timeout()
 	}
 }
 
-void get_all_data_iter();
-
 void cmd_packet_sent()
 {
 	switch(active_cmd) {
-	case GET_ALL_DATA:
-		get_all_data_iter();
-		break;
 	case READ_ALL_UIDS:
 		read_all_uids_cmd_iter();
 		break;
@@ -420,11 +415,50 @@ void long_button_press()
 	if (waiting_for_long_button_press) {
 		end_long_button_press_wait();
 		switch(active_cmd) {
-		case GET_ALL_DATA:
-			get_all_data_iter();
-			break;
 		case READ_ALL_UIDS:
 			read_all_uids_cmd_iter();
+			break;
+		case UPDATE_FIRMWARE:
+			finish_command_resp(OKAY);
+			enter_state(FIRMWARE_UPDATE);
+			break;
+		case WIPE: {
+			finish_command_resp(OKAY);
+			cmd_data.wipe_data.block = 0;
+			flash_write_page(ID_BLK(cmd_data.wipe_data.block), NULL, 0);
+			int temp[] = {NUM_STORAGE_BLOCKS};
+			enter_progressing_state(WIPING, 1, temp);
+			} break;
+		case BACKUP_DEVICE:
+			finish_command_resp(OKAY);
+			state_data.backup.prev_state = device_state;
+			enter_state(BACKING_UP_DEVICE);
+			break;
+		case RESTORE_DEVICE:
+			finish_command_resp(OKAY);
+			enter_state(RESTORING_DEVICE);
+			break;
+		case INITIALIZE:
+			initialize_cmd_complete();
+			break;
+		case CHANGE_MASTER_PASSWORD:
+			switch (root_page.signature[0]) {
+			case 1:
+				memcpy(root_page.header.v1.hashfn, cmd_data.change_master_password.hashfn, HASH_FN_SZ);
+				stm_aes_128_encrypt(cmd_data.change_master_password.new_key, encrypt_key, root_page.header.v1.encrypt_key_ct);
+				stm_aes_128_encrypt(cmd_data.change_master_password.new_key, root_page.header.v1.auth_rand, root_page.header.v1.auth_rand_ct);
+				memcpy(root_page.header.v1.salt, cmd_data.change_master_password.salt, SALT_SZ_V1);
+				break;
+			case 2:
+				memcpy(root_page.header.v2.hashfn, cmd_data.change_master_password.hashfn, HASH_FN_SZ);
+				stm_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
+						encrypt_key, root_page.header.v2.encrypt_key_ct);
+				stm_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
+						root_page.header.v2.auth_rand, root_page.header.v2.auth_rand_ct);
+				memcpy(root_page.header.v2.salt, cmd_data.change_master_password.salt, SALT_SZ_V2);
+				break;
+			}
+			flash_write_page(ID_BLK(0), (u8 *)&root_page, sizeof(root_page));
 			break;
 		}
 	}
@@ -511,65 +545,14 @@ void button_press()
 				break;
 			}
 			} break;
-		case DELETE_ID:
-			delete_cmd_complete();
-			break;
-		case GET_DATA:
-			get_data_cmd_complete();
-			break;
-		case SET_DATA:
-			set_data_cmd_complete();
-			break;
 		case UPDATE_UID:
 			update_uid_cmd_complete();
 			break;
 		case READ_UID:
 			read_uid_cmd_complete();
 			break;
-		case INITIALIZE: {
-			initialize_cmd_complete();
-			} break;
-		case WIPE: {
-			finish_command_resp(OKAY);
-			cmd_data.wipe_data.block = 0;
-			flash_write_page(ID_BLK(cmd_data.wipe_data.block), NULL, 0);
-			int temp[] = {NUM_STORAGE_BLOCKS};
-			enter_progressing_state(WIPING, 1, temp);
-			} break;
-		case BACKUP_DEVICE:
-			finish_command_resp(OKAY);
-			state_data.backup.prev_state = device_state;
-			enter_state(BACKING_UP_DEVICE);
-			break;
-		case RESTORE_DEVICE:
-			finish_command_resp(OKAY);
-			enter_state(RESTORING_DEVICE);
-			break;
 		case BUTTON_WAIT:
 			finish_command_resp(OKAY);
-			break;
-		case CHANGE_MASTER_PASSWORD:
-			switch (root_page.signature[0]) {
-			case 1:
-				memcpy(root_page.header.v1.hashfn, cmd_data.change_master_password.hashfn, HASH_FN_SZ);
-				stm_aes_128_encrypt(cmd_data.change_master_password.new_key, encrypt_key, root_page.header.v1.encrypt_key_ct);
-				stm_aes_128_encrypt(cmd_data.change_master_password.new_key, root_page.header.v1.auth_rand, root_page.header.v1.auth_rand_ct);
-				memcpy(root_page.header.v1.salt, cmd_data.change_master_password.salt, SALT_SZ_V1);
-				break;
-			case 2:
-				memcpy(root_page.header.v2.hashfn, cmd_data.change_master_password.hashfn, HASH_FN_SZ);
-				stm_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-						encrypt_key, root_page.header.v2.encrypt_key_ct);
-				stm_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-						root_page.header.v2.auth_rand, root_page.header.v2.auth_rand_ct);
-				memcpy(root_page.header.v2.salt, cmd_data.change_master_password.salt, SALT_SZ_V2);
-				break;
-			}
-			flash_write_page(ID_BLK(0), (u8 *)&root_page, sizeof(root_page));
-			break;
-		case UPDATE_FIRMWARE:
-			finish_command_resp(OKAY);
-			enter_state(FIRMWARE_UPDATE);
 			break;
 		}
 	} else if (!waiting_for_button_press && !waiting_for_long_button_press) {
@@ -611,7 +594,7 @@ void initialize_cmd(u8 *data, int data_len)
 
 	data += INITIALIZE_CMD_SIZE;
 	data_len -= INITIALIZE_CMD_SIZE;
-	begin_button_press_wait();
+	begin_long_button_press_wait();
 }
 
 void initialize_cmd_complete()
@@ -634,7 +617,7 @@ void initialize_cmd_complete()
 void wipe_cmd()
 {
 	dprint_s("WIPE\r\n");
-	begin_button_press_wait();
+	begin_long_button_press_wait();
 }
 
 void get_progress_cmd(u8 *data, int data_len)
@@ -764,179 +747,7 @@ void change_master_password_cmd(u8 *data, int data_len)
 				root_page.header.v2.encrypt_key_ct, encrypt_key);
 		memcpy(cmd_data.change_master_password.new_key, new_key, AES_256_KEY_SIZE);
 	}
-	begin_button_press_wait();
-}
-
-static int decrypt_id(u8 *block, u8 *iv, int id, int masked)
-{
-	unsigned int k = 0;
-	if (!validate_present_id(id)) {
-		dprint_dec(id);
-		dprint_s("\r\n");
-
-		u8 *addr =  ID_BLK(id);
-
-		u16 sz = addr[2] + (addr[3] << 8);
-		int blk_count = SIZE_TO_SUB_BLK_COUNT(sz);
-		derive_iv(id, iv);
-		block[k] = addr[2]; k++;
-		block[k] = addr[3]; k++;
-		switch (root_page.signature[0]) {
-		case 1:
-			stm_aes_128_decrypt_cbc(encrypt_key, blk_count, iv, addr + SUB_BLK_SIZE, block + k);
-			break;
-		case 2:
-			stm_aes_256_decrypt_cbc(encrypt_key, blk_count, iv, addr + SUB_BLK_SIZE, block + k);
-			break;
-		}
-		if (masked) {
-			u8 *sub_block = block + k;
-			for (int i = 0; i < blk_count; i++) {
-				u8 *mask = sub_block;
-				u8 *data = mask + SUB_BLK_MASK_SIZE;
-				for (int j = 0; j < SUB_BLK_DATA_SIZE; j++) {
-					int byte = j / 8;
-					int bit = 1<<(j % 8);
-					if (mask[byte] & bit) {
-						data[j] = 0;
-					}
-				}
-				sub_block += SUB_BLK_SIZE;
-			}
-		}
-		k += SUB_BLK_SIZE * blk_count;
-	}
-	return k;
-}
-
-void get_data_cmd_complete()
-{
-	finish_command(OKAY, cmd_data.get_data.block, cmd_data.get_data.sz);
-}
-
-void get_data_cmd(u8 *data, int data_len)
-{
-	if (data_len < 2) {
-		finish_command_resp(INVALID_INPUT);
-		return;
-	}
-	int id_cmd = data[0];
-	int masked = data[1];
-	dprint_s("GET_DATA ");
-	dprint_dec(id_cmd);
-	dprint_s("\r\n");
-	cmd_data.get_data.id = id_cmd;
-	int sz = decrypt_id(cmd_data.get_data.block, cmd_data.get_data.iv, id_cmd, masked);
-	if (!sz) {
-		finish_command_resp(ID_INVALID);
-		return;
-	}
-	cmd_data.get_data.sz = sz;
-
-	if (!masked) {
-		begin_button_press_wait();
-	} else {
-		get_data_cmd_complete();
-	}
-}
-
-void get_all_data_iter()
-{
-	int id = cmd_data.get_all_data.id;
-	int remaining = MAX_DATA_BLOCK - id;
-	if (remaining >= 0) {
-		u8 *block = cmd_data.get_all_data.block;
-		block[0] = id & 0xff;
-		block[1] = id >> 8;
-		int sz = decrypt_id(block + 2,
-			cmd_data.get_all_data.iv,
-			id,
-			!cmd_data.get_all_data.unmask);
-		cmd_data.get_all_data.id++;
-		finish_command_multi(OKAY, remaining, block, sz + 2);
-	}
-}
-
-void get_all_data_cmd(u8 *data, int data_len)
-{
-	dprint_s("GET_ALL_DATA\r\n");
-	u8 unmask;
-	if (data_len != 1) {
-		finish_command_resp(INVALID_INPUT);
-	}
-	unmask = data[0];
-	cmd_data.get_all_data.id = 1;
-	cmd_data.get_all_data.unmask = unmask;
-	if (unmask) {
-		begin_long_button_press_wait();
-	} else {
-		get_all_data_iter();
-	}
-}
-
-void set_data_cmd_complete()
-{
-	flash_write_page(ID_BLK(cmd_data.set_data.id), cmd_data.set_data.block, (cmd_data.set_data.sub_blk_count + 1) * SUB_BLK_SIZE);
-}
-
-void set_data_cmd(u8 *data, int data_len)
-{
-	if (data_len < 1) {
-		finish_command_resp(INVALID_INPUT);
-		return;
-	}
-	int id_cmd = data[0]; data++; data_len--;
-	if (!validate_id(id_cmd)) {
-		u16 sz = data[0] + (data[1] << 8);
-		data += 2;
-		data_len -= 2;
-		int blk_count = SIZE_TO_SUB_BLK_COUNT(sz);
-		dprint_s("SET_DATA ");
-		dprint_dec(id_cmd);
-		dprint_s("\r\n");
-		if (data_len != (blk_count * SUB_BLK_SIZE)) {
-			finish_command_resp(INVALID_INPUT);
-			return;
-		}
-		cmd_data.set_data.id = id_cmd;
-		cmd_data.set_data.sub_blk_count = blk_count;
-		derive_iv(id_cmd, cmd_data.set_data.iv);
-		memset(cmd_data.set_data.block, 0, AES_BLK_SIZE);
-		cmd_data.set_data.block[2] = sz & 0xff;
-		cmd_data.set_data.block[3] = sz >> 8;
-		switch (root_page.signature[0]) {
-		case 1:
-			stm_aes_128_encrypt_cbc(encrypt_key, blk_count, cmd_data.set_data.iv, data, cmd_data.set_data.block + SUB_BLK_SIZE);
-			break;
-		case 2:
-			stm_aes_256_encrypt_cbc(encrypt_key, blk_count, cmd_data.set_data.iv, data, cmd_data.set_data.block + SUB_BLK_SIZE);
-			break;
-		}
-		begin_button_press_wait();
-	}
-}
-
-void delete_cmd_complete()
-{
-	flash_write_page(ID_BLK(cmd_data.delete_id.id), NULL, 0);
-}
-
-void delete_cmd(u8 *data, int data_len)
-{
-	if (data_len < 1) {
-		finish_command_resp(INVALID_INPUT);
-		return;
-	}
-	int id_cmd = data[0];
-	cmd_data.delete_id.id = id_cmd;
-	if (!validate_present_id(id_cmd)) {
-		dprint_s("DELETE_ID ");
-		dprint_dec(id_cmd);
-		dprint_s("\r\n");
-		begin_button_press_wait();
-	} else {
-		finish_command_resp(ID_INVALID);
-	}
+	begin_long_button_press_wait();
 }
 
 void cmd_disconnect()
@@ -1036,6 +847,17 @@ void enter_mobile_mode_cmd()
 	usb_reset_device();
 }
 
+int is_device_wiped()
+{
+	u32 *data_area = (u32 *)(&_root_page);
+	for (int i = 0; i < (NUM_STORAGE_BLOCKS*BLK_SIZE)/4; i++) {
+		if (data_area[i] != 0xffffffff) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
 int uninitialized_state(int cmd, u8 *data, int data_len)
 {
 	switch(cmd) {
@@ -1043,7 +865,7 @@ int uninitialized_state(int cmd, u8 *data, int data_len)
 		get_progress_cmd(data, data_len);
 		break;
 	case RESTORE_DEVICE:
-		begin_button_press_wait();
+		begin_long_button_press_wait();
 		break;
 	case INITIALIZE:
 		initialize_cmd(data, data_len);
@@ -1058,6 +880,14 @@ int uninitialized_state(int cmd, u8 *data, int data_len)
 	case UPDATE_FIRMWARE:
 		finish_command_resp(OKAY);
 		enter_state(FIRMWARE_UPDATE);
+		break;
+#else
+	case UPDATE_FIRMWARE:
+		if (is_device_wiped()) {
+			begin_long_button_press_wait();
+		} else {
+			finish_command_resp(DEVICE_NOT_WIPED);
+		}
 		break;
 #endif
 	default:
@@ -1083,7 +913,7 @@ int logged_out_state(int cmd, u8 *data, int data_len)
 		break;
 	case BACKUP_DEVICE:
 		dprint_s("BACKUP DEVICE\r\n");
-		begin_button_press_wait();
+		begin_long_button_press_wait();
 		break;
 	case RESTORE_DEVICE:
 		dprint_s("RESTORE DEVICE\r\n");
@@ -1126,24 +956,11 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		break;
 	case BACKUP_DEVICE:
 		dprint_s("Backup device\r\n");
-		begin_button_press_wait();
+		begin_long_button_press_wait();
 		break;
-	case GET_DATA:
-		get_data_cmd(data, data_len);
-		break;
-	case GET_ALL_DATA:
-		get_all_data_cmd(data, data_len);
-		break;
-	case SET_DATA:
-		set_data_cmd(data, data_len);
-		break;
-	case DELETE_ID: {
-		delete_cmd(data, data_len);
-		break;
-	} break;
-	case GET_RAND_BITS: {
+	case GET_RAND_BITS:
 		get_rand_bits_cmd(data, data_len);
-	} break;
+		break;
 	case READ_UID: {
 		if (data_len < 3) {
 			finish_command_resp(INVALID_INPUT);
@@ -1152,7 +969,6 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		int uid = data[0] + (data[1] << 8);
 		int masked = data[2];
 		read_uid_cmd(uid, masked);
-		
 	} break;
 	case UPDATE_UID: {
 		if (data_len < 4) {
@@ -1192,7 +1008,7 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		finish_command_resp(OKAY);
 		break;
 	case UPDATE_FIRMWARE:
-		begin_button_press_wait();
+		begin_long_button_press_wait();
 		break;
 	default:
 		return -1;
