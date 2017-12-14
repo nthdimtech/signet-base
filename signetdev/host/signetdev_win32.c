@@ -36,10 +36,28 @@ struct send_message_req *g_head_message;
 struct send_message_req *g_tail_cancel_message;
 struct send_message_req *g_head_cancel_message;
 
+static struct send_message_req **pending_message()
+{
+	struct send_message_req **msg = NULL;
+	if (g_rx_state.message) {
+		msg = &g_rx_state.message;
+	} else if (g_tx_state.message && !g_tx_state.message->interrupt) {
+		msg = &g_tx_state.message;
+	}
+	return msg;
+}
+
 void signetdev_priv_handle_error()
 {
 	rawhid_close(0);
 	g_device_handle = INVALID_HANDLE_VALUE;
+
+	struct send_message_req **msg = pending_message();
+	if (msg) {
+		signetdev_priv_finalize_message(msg, SIGNET_ERROR_DISCONNECT);
+	}
+	g_tx_state.message = NULL;
+	g_rx_state.message = NULL;
 	if (g_error_handler) {
 		g_error_handler(g_error_handler_param);
 	}
@@ -93,17 +111,19 @@ static void state_iter()
 					 g_tx_state.message->dev_cmd,
 					 g_tx_state.message->payload,
 					 g_tx_state.message->payload_size);
-		}
-	}
 
-	if (g_tx_state.message) {
-		if (send_next_packet()) {
-			signetdev_priv_handle_error();
-		}
-	}
-	if (g_tx_state.message && g_tx_state.message->resp) {
-		if (request_next_packet()) {
-			signetdev_priv_handle_error();
+			if (g_tx_state.message) {
+				if (send_next_packet()) {
+					signetdev_priv_handle_error();
+					return;
+				}
+			}
+			if (g_tx_state.message && g_tx_state.message->resp) {
+				if (request_next_packet()) {
+					signetdev_priv_handle_error();
+					return;
+				}
+			}
 		}
 	}
 }
@@ -209,6 +229,7 @@ static DWORD WINAPI transaction_thread(LPVOID lpParameter)
 			signetdev_priv_process_rx_packet(&g_rx_state, g_rx_packet + 1);
 			if (request_next_packet()) {
 				signetdev_priv_handle_error();
+				break;
 			}
 		} break;
 		case 1: {
@@ -225,16 +246,19 @@ static DWORD WINAPI transaction_thread(LPVOID lpParameter)
 				//Finalize or move to reading phase
 				if (!g_tx_state.message->resp) {
 					signetdev_priv_finalize_message(&g_tx_state.message, g_tx_state.msg_size);
+					g_rx_state.message = NULL;
 				} else {
 					g_tx_state.message = NULL;
 				}
 			} else {
 				if (send_next_packet()) {
 					signetdev_priv_handle_error();
+					break;
 				}
 				if (!g_read_requested) {
 					if (request_next_packet()) {
 						signetdev_priv_handle_error();
+						break;
 					}
 				}
 			}
