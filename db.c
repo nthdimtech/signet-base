@@ -422,7 +422,7 @@ static void mask_uid_data(u8 *data, int blk_count)
 			int byte = j / 8;
 			int bit = 1<<(j % 8);
 			if (mask[byte] & bit) {
-				data[i * SUB_BLK_DATA_SIZE + j] = 0;
+				data[j] = 0;
 			}
 		}
 		sub_block += SUB_BLK_SIZE;
