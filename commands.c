@@ -639,7 +639,7 @@ void backup_device_cmd(u8 *data, int data_len)
 	begin_button_press_wait();
 }
 
-void restore_device_cmd(u8 *data, int data_len)
+void restore_device_cmd()
 {
 	dprint_s("RESTORE DEVICE\r\n");
 	begin_long_button_press_wait();
