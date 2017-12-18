@@ -562,7 +562,7 @@ void signetdev_priv_handle_command_resp(void *user, int token,
 		if (resp_code == OKAY && resp_len < (HASH_FN_SZ + SALT_SZ_V2 + 6)) {
 			signetdev_priv_handle_error();
 			break;
-		} else if (resp_code == OKAY) {
+		} else if (resp_code == OKAY || resp_code == UNKNOWN_DB_FORMAT) {
 			cb_resp.fw_major_version = resp[0];
 			cb_resp.fw_minor_version = resp[1];
 			cb_resp.fw_step_version = resp[2];
