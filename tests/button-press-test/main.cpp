@@ -36,7 +36,7 @@ void eventS(void *cb_param, int event_type, void *resp_data, int resp_len)
 	button_presses++;
 	if (event_type == 1) {
 		printf(" %d", button_presses);
-		if (button_presses == 5) {
+		if (button_presses == 10) {
 			printf(" DONE\n");
 			QCoreApplication::quit();
 		}
