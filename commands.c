@@ -1081,7 +1081,7 @@ void startup_cmd_iter()
 		case 2:
 			break;
 		default:
-			finish_command_resp(UNKNOWN_DB_FORMAT);
+			finish_command(UNKNOWN_DB_FORMAT, resp, sizeof(resp));
 			return;
 		}
 		switch (db_version) {
