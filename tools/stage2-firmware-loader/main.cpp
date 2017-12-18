@@ -69,6 +69,12 @@ void signetCmdResponse(void *cb_param, void *cmd_user_param, int cmd_token, int 
 		QByteArray erase_pages_;
 		QByteArray page_mask(512, 0);
 
+		if (resp_code != OKAY) {
+			printf("Begin firmware update failed. Code %d\n", resp_code);
+			QCoreApplication::quit();
+			return;
+		}
+
 		for (auto iter = fwSections.begin(); iter != fwSections.end(); iter++) {
 			const fwSection &section = (*iter);
 			unsigned int lma = section.lma;
