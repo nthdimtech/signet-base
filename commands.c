@@ -642,7 +642,7 @@ void backup_device_cmd(u8 *data, int data_len)
 void restore_device_cmd(u8 *data, int data_len)
 {
 	dprint_s("RESTORE DEVICE\r\n");
-	begin_button_press_wait();
+	begin_long_button_press_wait();
 }
 
 void read_block_cmd(u8 *data, int data_len)
@@ -865,7 +865,7 @@ int uninitialized_state(int cmd, u8 *data, int data_len)
 		get_progress_cmd(data, data_len);
 		break;
 	case RESTORE_DEVICE:
-		begin_long_button_press_wait();
+		restore_device_cmd();
 		break;
 	case INITIALIZE:
 		initialize_cmd(data, data_len);
@@ -916,8 +916,7 @@ int logged_out_state(int cmd, u8 *data, int data_len)
 		begin_long_button_press_wait();
 		break;
 	case RESTORE_DEVICE:
-		dprint_s("RESTORE DEVICE\r\n");
-		begin_button_press_wait();
+		restore_device_cmd();
 		break;
 	case LOGIN:
 		dprint_s("LOGIN\r\n");
