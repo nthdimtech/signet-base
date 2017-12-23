@@ -260,6 +260,12 @@ int signetdev_end_device_restore(void *user, int *token)
 		RESTORE_DEVICE_DONE, SIGNETDEV_CMD_END_DEVICE_RESTORE);
 }
 
+int signetdev_get_device_state(void *user, int *token)
+{
+	*token = get_cmd_token();
+	return execute_command(user, *token, GET_DEVICE_STATE, SIGNETDEV_CMD_GET_DEVICE_STATE);
+}
+
 int signetdev_begin_update_firmware(void *user, int *token)
 {
 	*token = get_cmd_token();
