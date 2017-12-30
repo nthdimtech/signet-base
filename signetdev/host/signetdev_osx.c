@@ -25,8 +25,6 @@ static struct send_message_req *g_current_write_message = NULL;
 
 static struct rx_message_state g_rx_message_state;
 
-struct signetdev_connection g_connection;
-
 static void handle_error()
 {
     if (g_error_handler) {
@@ -63,9 +61,9 @@ static void command_response(int rc)
 static int send_hid_command(int cmd, u8 *payload, int payload_size)
 {
 	struct tx_message_state msg;
-	signetdev_priv_prepare_message(&msg, cmd, payload, payload_size);
+	signetdev_priv_prepare_message_state(&msg, cmd, payload, payload_size);
 	for (int i = 0; i < msg.msg_packet_count; i++) {
-		signetdev_priv_advance_message_state(msg);
+		signetdev_priv_advance_message_state(&msg);
 		IOHIDDeviceSetReport(hid_dev, kIOHIDReportTypeOutput, 0, msg.packet_buf + 1, RAW_HID_PACKET_SIZE);
 		//TODO: validate return
 	}
@@ -222,7 +220,7 @@ static void attach_callback(void *context, IOReturn r, void *hid_mgr, IOHIDDevic
 	    }
 	}
 }
-g_rx_message_state
+
 static int process_hid_input()
 {
 	if (hid_packet_first == NULL)
@@ -251,7 +249,7 @@ void *transaction_thread(void *arg)
 	CFDictionarySetValue(dict, CFSTR(kIOHIDVendorIDKey), num);
 	CFRelease(num);
 
-	int pid = USB_PRODUCT_ID;
+	int pid = USB_SIGNET_DESKTOP_PRODUCT_ID;
 	num = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &pid);
 	CFDictionarySetValue(dict, CFSTR(kIOHIDProductIDKey), num);
 	CFRelease(num);
@@ -306,7 +304,7 @@ void *transaction_thread(void *arg)
 						 g_current_write_message->payload,
 						 g_current_write_message->payload_size);
 				if (!g_current_write_message->resp && !g_current_write_message->resp_code) {
-					signetdev_priv_message_send_resp(g_current_write_message, 0);
+					signetdev_priv_message_send_resp(g_current_write_message, 0, 0);
 				}
 				g_current_write_message = NULL;
 			}
