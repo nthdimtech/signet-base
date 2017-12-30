@@ -86,7 +86,7 @@ static const u8 keyboard_hid_descriptor[] = {
 	9 ,
 	0x21, //HID descriptor
 	WTB(0x101), //BCD HID
-	0, //No target country
+	33, //Target country US
 	1, //num HID decriptors
 	0x22, //Report decriptor
 	sizeof(keyboard_hid_report_descriptor), //report decriptor size
