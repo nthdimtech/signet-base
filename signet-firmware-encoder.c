@@ -96,5 +96,6 @@ int main(int argc, char **argv)
 	fprintf(out_file,"%s\n",json_object_to_json_string_ext(doc, JSON_C_TO_STRING_PRETTY));
 	fclose(out_file);
 	bfd_close(b);
+	printf("Done\n");
 	return 0;
 }
