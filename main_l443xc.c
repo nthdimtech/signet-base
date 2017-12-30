@@ -137,25 +137,12 @@ void button_release();
 void long_button_press();
 extern volatile int typing;
 
-#define ENABLE_TEST_STATE 0
+int press_pending = 0;
 
 void BUTTON_HANDLER()
 {
-	int current_button_state = (BUTTON_PORT->IDR & (1<<BUTTON_PIN)) ? 0 : 1;
-	if (current_button_state) {
-		ms_last_pressed = ms_count;
-#if ENABLE_TEST_STATE
-		if (test_state) {
-			if (!blink_period) {
-				start_blinking(500,10000);
-			}
-		}
-#endif
-		button_press();
-	} else {
-		button_release();
-	}
-	button_state = current_button_state;
+	ms_last_pressed = ms_count;
+	press_pending = 1;
 	EXTI_PR = (1<<BUTTON_PIN);
 }
 
@@ -221,7 +208,7 @@ int main()
 	apb2enr_val |= RCC_APB2ENR_SDMMCEN;
 #endif
 
-	set_irq_priority(BUTTON_IRQ, 128);
+	set_irq_priority(BUTTON_IRQ, 64);
 	enable_irq(BUTTON_IRQ);
 
 #if USE_FLASH
@@ -275,7 +262,7 @@ int main()
 	SYSCFG_EXTICR(BUTTON_PIN/4) = (BUTTON_PORT_NUM << (4*(BUTTON_PIN % 4)));
 	gpio_set_in(BUTTON_PORT, BUTTON_PIN, 1);
 	EXTI_FTSR |= (1<<BUTTON_PIN);
-	EXTI_RTSR |= (1<<BUTTON_PIN);
+	//EXTI_RTSR |= (1<<BUTTON_PIN);
 	EXTI_IMR |= (1<<BUTTON_PIN);
 
 	//Led pins
@@ -330,12 +317,24 @@ int main()
 #endif
 	dprint_s("Entering main loop\r\n");
 	while(1) {
-		if (!flash_writing()) {
+		if (!flash_writing() && !button_state) {
 			__asm__("wfi");
 		}
 		__asm__("cpsid i");
 		blink_idle();
 		flash_idle();
+		if (press_pending) {
+			press_pending = 0;
+			if (!button_state) {
+				button_press();
+				button_state = 1;
+			}
+		}
+		int current_button_state = (BUTTON_PORT->IDR & (1<<BUTTON_PIN)) ? 0 : 1;
+		if (!current_button_state && button_state && (ms_count - ms_last_pressed) > 100) {
+			button_release();
+			button_state = 0;
+		}
 		if (button_state && ((ms_count - ms_last_pressed) > 2000)) {
 			button_state = 0;
 			long_button_press();
