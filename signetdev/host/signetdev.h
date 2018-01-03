@@ -6,9 +6,18 @@
 
 void signetdev_initialize_api();
 
+struct signetdev_key {
+	u16 key;
+	u8 scancode;
+	u8 modifier;
+};
+
 void signetdev_deinitialize_api();
 int signetdev_open_connection();
 void signetdev_close_connection();
+void signetdev_set_keymap(const struct signetdev_key *keys, int n_keys);
+const struct signetdev_key *signetdev_get_keymap(int *n_keys);
+
 typedef void (*signetdev_conn_err_t)(void *);
 
 void signetdev_set_error_handler(signetdev_conn_err_t handler, void *param);
@@ -59,6 +68,8 @@ int signetdev_begin_device_restore(void *user, int *token);
 int signetdev_end_device_restore(void *user, int *token);
 int signetdev_startup(void *param, int *token);
 int signetdev_type(void *param, int *token, const u8 *keys, int n_keys);
+int signetdev_type_w(void *param, int *token, const u16 *keys, int n_keys);
+int signetdev_type_raw(void *param, int *token, const u8 *codes, int n_keys);
 int signetdev_delete_id(void *param, int *token, int id);
 int signetdev_button_wait(void *user, int *token);
 int signetdev_change_master_password(void *param, int *token,
