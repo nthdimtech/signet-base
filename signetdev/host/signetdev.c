@@ -321,7 +321,7 @@ int signetdev_type(void *param, int *token, const u8 *keys, int n_keys)
 		struct signetdev_key *key = keymap_inv + c;
 		if (key->phy_key[0].scancode) {
 			if (key->phy_key[1].scancode) {
-				message_size += 6;
+				message_size += 8;
 			} else {
 				message_size += 4;
 			}
@@ -329,13 +329,15 @@ int signetdev_type(void *param, int *token, const u8 *keys, int n_keys)
 				return SIGNET_ERROR_OVERFLOW;
 
 			if (key->phy_key[1].scancode) {
-				msg[j * 2 + 1] = key->phy_key[0].scancode;
 				msg[j * 2 + 0] = key->phy_key[0].modifier;
-				msg[j * 2 + 3] = key->phy_key[1].scancode;
-				msg[j * 2 + 2] = key->phy_key[1].modifier;
-				msg[j * 2 + 3] = 0;
+				msg[j * 2 + 1] = key->phy_key[0].scancode;
 				msg[j * 2 + 2] = 0;
-				j += 3;
+				msg[j * 2 + 3] = 0;
+				msg[j * 2 + 4] = key->phy_key[1].modifier;
+				msg[j * 2 + 5] = key->phy_key[1].scancode;
+				msg[j * 2 + 6] = 0;
+				msg[j * 2 + 7] = 0;
+				j += 4;
 			} else {
 				msg[j * 2 + 1] = key->phy_key[0].scancode;
 				msg[j * 2 + 0] = key->phy_key[0].modifier;
@@ -363,7 +365,7 @@ int signetdev_type_w(void *param, int *token, const u16 *keys, int n_keys)
 		struct signetdev_key *key = keymap_inv + c;
 		if (key->phy_key[0].scancode) {
 			if (key->phy_key[1].scancode) {
-				message_size += 6;
+				message_size += 8;
 			} else {
 				message_size += 4;
 			}
@@ -371,13 +373,15 @@ int signetdev_type_w(void *param, int *token, const u16 *keys, int n_keys)
 				return SIGNET_ERROR_OVERFLOW;
 
 			if (key->phy_key[1].scancode) {
-				msg[j * 2 + 1] = key->phy_key[0].scancode;
 				msg[j * 2 + 0] = key->phy_key[0].modifier;
-				msg[j * 2 + 3] = key->phy_key[1].scancode;
-				msg[j * 2 + 2] = key->phy_key[1].modifier;
-				msg[j * 2 + 3] = 0;
+				msg[j * 2 + 1] = key->phy_key[0].scancode;
 				msg[j * 2 + 2] = 0;
-				j += 3;
+				msg[j * 2 + 3] = 0;
+				msg[j * 2 + 4] = key->phy_key[1].modifier;
+				msg[j * 2 + 5] = key->phy_key[1].scancode;
+				msg[j * 2 + 6] = 0;
+				msg[j * 2 + 7] = 0;
+				j += 4;
 			} else {
 				msg[j * 2 + 1] = key->phy_key[0].scancode;
 				msg[j * 2 + 0] = key->phy_key[0].modifier;
