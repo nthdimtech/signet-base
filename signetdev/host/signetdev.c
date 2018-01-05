@@ -52,70 +52,65 @@ void signetdev_set_error_handler(signetdev_conn_err_t handler, void *param)
 	g_error_handler_param = param;
 }
 
-static u8 keymap_inv[1<<16][2];
+static struct signetdev_key keymap_inv[1<<16];
 static struct signetdev_key keymap[1<<16];
 static int keymap_num_keys;
 
 static struct signetdev_key keymap_en_us[] = {
-	{'a', 4, 0}, {'A', 4, 2},
-	{'b', 5, 0}, {'B', 5, 2},
-	{'c', 6, 0}, {'C', 6, 2},
-	{'d', 7, 0}, {'D', 7, 2},
-	{'e', 8, 0}, {'E', 8, 2},
 
-	{'f', 9, 0}, {'F', 9, 2},
-	{'g', 10, 0}, {'G', 10, 2},
-	{'h', 11, 0}, {'H', 11, 2},
-	{'i', 12, 0}, {'I', 12, 2},
-	{'j', 13, 0}, {'J', 13, 2},
+{'a', {{4 , 0} ,{0, 0}}}, {'A', {{4 , 2},{0, 0}}},
+{'b', {{5 , 0} ,{0, 0}}}, {'B', {{5 , 2},{0, 0}}},
+{'c', {{6 , 0} ,{0, 0}}}, {'C', {{6 , 2},{0, 0}}},
+{'d', {{7 , 0} ,{0, 0}}}, {'D', {{7 , 2},{0, 0}}},
+{'e', {{8 , 0} ,{0, 0}}}, {'E', {{8 , 2},{0, 0}}},
+{'f', {{9 , 0} ,{0, 0}}}, {'F', {{9 , 2},{0, 0}}},
+{'g', {{10, 0} ,{0, 0}}}, {'G', {{10, 2},{0, 0}}},
+{'h', {{11, 0} ,{0, 0}}}, {'H', {{11, 2},{0, 0}}},
+{'i', {{12, 0} ,{0, 0}}}, {'I', {{12, 2},{0, 0}}},
+{'j', {{13, 0} ,{0, 0}}}, {'J', {{13, 2},{0, 0}}},
+{'k', {{14, 0} ,{0, 0}}}, {'K', {{14, 2},{0, 0}}},
+{'l', {{15, 0} ,{0, 0}}}, {'L', {{15, 2},{0, 0}}},
+{'m', {{16, 0} ,{0, 0}}}, {'M', {{16, 2},{0, 0}}},
+{'n', {{17, 0} ,{0, 0}}}, {'N', {{17, 2},{0, 0}}},
+{'o', {{18, 0} ,{0, 0}}}, {'O', {{18, 2},{0, 0}}},
+{'p', {{19, 0} ,{0, 0}}}, {'P', {{19, 2},{0, 0}}},
+{'q', {{20, 0} ,{0, 0}}}, {'Q', {{20, 2},{0, 0}}},
+{'r', {{21, 0} ,{0, 0}}}, {'R', {{21, 2},{0, 0}}},
+{'s', {{22, 0} ,{0, 0}}}, {'S', {{22, 2},{0, 0}}},
+{'t', {{23, 0} ,{0, 0}}}, {'T', {{23, 2},{0, 0}}},
+{'u', {{24, 0} ,{0, 0}}}, {'U', {{24, 2},{0, 0}}},
+{'v', {{25, 0} ,{0, 0}}}, {'V', {{25, 2},{0, 0}}},
+{'w', {{26, 0} ,{0, 0}}}, {'W', {{26, 2},{0, 0}}},
+{'x', {{27, 0} ,{0, 0}}}, {'X', {{27, 2},{0, 0}}},
+{'y', {{28, 0} ,{0, 0}}}, {'Y', {{28, 2},{0, 0}}},
+{'z', {{29, 0} ,{0, 0}}}, {'Z', {{29, 2},{0, 0}}},
 
-	{'k', 14, 0}, {'K', 14, 2},
-	{'l', 15, 0}, {'L', 15, 2},
-	{'m', 16, 0}, {'M', 16, 2},
-	{'n', 17, 0}, {'N', 17, 2},
-	{'o', 18, 0}, {'O', 18, 2},
+{'1', {{30, 0} ,{0, 0}}}, {'!', {{30, 2},{0, 0}}},
+{'2', {{31, 0} ,{0, 0}}}, {'@', {{31, 2},{0, 0}}},
+{'3', {{32, 0} ,{0, 0}}}, {'#', {{32, 2},{0, 0}}},
+{'4', {{33, 0} ,{0, 0}}}, {'$', {{33, 2},{0, 0}}},
+{'5', {{34, 0} ,{0, 0}}}, {'%', {{34, 2},{0, 0}}},
+{'6', {{35, 0} ,{0, 0}}}, {'^', {{35, 2},{0, 0}}},
+{'7', {{36, 0} ,{0, 0}}}, {'&', {{36, 2},{0, 0}}},
+{'8', {{37, 0} ,{0, 0}}}, {'*', {{37, 2},{0, 0}}},
+{'9', {{38, 0} ,{0, 0}}}, {'(', {{38, 2},{0, 0}}},
+{'0', {{39, 0} ,{0, 0}}}, {')', {{39, 2},{0, 0}}},
+{'\n', {{40, 0} ,{0, 0}}},
 
-	{'p', 19, 0}, {'P', 19, 2},
-	{'q', 20, 0}, {'Q', 20, 2},
-	{'r', 21, 0}, {'R', 21, 2},
-	{'s', 22, 0}, {'S', 22, 2},
-	{'t', 23, 0}, {'T', 23, 2},
+{'\t', {{43, 0} ,{0, 0}}},
+{' ' , {{44, 0} ,{0, 0}}},
+{'-' , {{45, 0},{0, 0}}}, {'_', {{45, 2},{0,0}}},
+{'=' , {{46, 0},{0, 0}}}, {'+', {{46, 2},{0,0}}},
+{'[' , {{47, 0},{0, 0}}}, {'{', {{47, 2},{0,0}}},
+{']' , {{48, 0},{0, 0}}}, {'}', {{48, 2},{0,0}}},
+{'\\', {{49, 0},{0, 0}}}, {'|', {{49, 2},{0,0}}},
 
-	{'u', 24, 0}, {'U', 24, 2},
-	{'v', 25, 0}, {'V', 25, 2},
-	{'w', 26, 0}, {'W', 26, 2},
-	{'x', 27, 0}, {'X', 27, 2},
-	{'y', 28, 0}, {'Y', 28, 2},
-
-	{'z', 29, 0}, {'Z', 29, 2},
-
-	{'1', 30, 0}, {'!', 30, 2},
-	{'2', 31, 0}, {'@', 31, 2},
-	{'3', 32, 0}, {'#', 32, 2},
-	{'4', 33, 0}, {'$', 33, 2},
-	{'5', 34, 0}, {'%', 34, 2},
-	{'6', 35, 0}, {'^', 35, 2},
-	{'7', 36, 0}, {'&', 36, 2},
-	{'8', 37, 0}, {'*', 37, 2},
-	{'9', 38, 0}, {'(', 38, 2},
-	{'0', 39, 0}, {')', 39, 2},
-
-	{'\n', 40, 0},
-	{'\t', 43, 0},
-	{' ', 44, 0},
-
-	{'-' , 45, 0}, {'_', 45, 2},
-	{'=' , 46, 0}, {'+', 46, 2},
-	{'[' , 47, 0}, {'{', 47, 2},
-	{']' , 48, 0}, {'}', 48, 2},
-	{'\\', 49, 0}, {'|', 49, 2},
-	{';' , 51, 0}, {':', 51, 2},
-	{'\'', 52, 0}, {'"', 52, 2},
-	{'`' , 53, 0}, {'~', 53, 2},
-
-	{',', 54, 0},  {'<', 54, 2},
-	{'.' , 55, 0}, {'>', 55, 2},
-	{'/', 56, 0},  {'?', 56, 2},
+{';' , {{51, 0},{0, 0}}}, {':', {{51, 2},{0,0}}},
+{'\'', {{52, 0},{0, 0}}}, {'"', {{52, 2},{0,0}}},
+{'`' , {{53, 0},{0, 0}}}, {'~', {{53, 2},{0,0}}},
+{',', {{54, 0},{0, 0}}},  {'<', {{54, 2},{0,0}}},
+{'.', {{55, 0},{0, 0}}},  {'>', {{55, 2},{0,0}}},
+{'/', {{56, 0},{0, 0}}},  {'?', {{56, 2},{0,0}}}
 };
 
 static int keymap_en_us_n_keys = sizeof(keymap_en_us) / sizeof (struct signetdev_key);
@@ -129,13 +124,13 @@ void signetdev_initialize_api()
 void signetdev_set_keymap(const struct signetdev_key *keys, int n_keys)
 {
 	for (int i = 0; i < (1<<16); i++) {
-		keymap_inv[i][0] = 0;
-		keymap_inv[i][1] = 0;
+		keymap_inv[i].key = i;
+		keymap_inv[i].phy_key[0].scancode = 0;
+		keymap_inv[i].phy_key[0].modifier = 0;
 	}
-	for (int i = 0; i < n_keys; i++) {
+	for (int i = n_keys - 1; i >= 0; i--) {
 		keymap[i] = keys[i];
-		keymap_inv[keys[i].key][0] = keys[i].modifier;
-		keymap_inv[keys[i].key][1] = keys[i].scancode;
+		keymap_inv[keys[i].key] = keys[i];
 	}
 	keymap_num_keys = n_keys;
 }
@@ -318,17 +313,37 @@ int signetdev_type(void *param, int *token, const u8 *keys, int n_keys)
 {
 	*token = get_cmd_token();
 	u8 msg[CMD_PACKET_PAYLOAD_SIZE];
-	unsigned int message_size = n_keys * 4;
-	if (message_size >= sizeof(msg))
-		return SIGNET_ERROR_OVERFLOW;
 	int i;
+	int j = 0;
+	unsigned int message_size = 0;
 	for (i = 0; i < n_keys; i++) {
-		int j = 4 * i;
 		u8 c = keys[i];
-		msg[j + 0] = keymap_inv[c][0];
-		msg[j + 1] = keymap_inv[c][1];
-		msg[j + 2] = 0;
-		msg[j + 3] = 0;
+		struct signetdev_key *key = keymap_inv + c;
+		if (key->phy_key[0].scancode) {
+			if (key->phy_key[1].scancode) {
+				message_size += 6;
+			} else {
+				message_size += 4;
+			}
+			if (message_size >= sizeof(msg))
+				return SIGNET_ERROR_OVERFLOW;
+
+			if (key->phy_key[1].scancode) {
+				msg[j * 2 + 1] = key->phy_key[0].scancode;
+				msg[j * 2 + 0] = key->phy_key[0].modifier;
+				msg[j * 2 + 3] = key->phy_key[1].scancode;
+				msg[j * 2 + 2] = key->phy_key[1].modifier;
+				msg[j * 2 + 3] = 0;
+				msg[j * 2 + 2] = 0;
+				j += 3;
+			} else {
+				msg[j * 2 + 1] = key->phy_key[0].scancode;
+				msg[j * 2 + 0] = key->phy_key[0].modifier;
+				msg[j * 2 + 2] = 0;
+				msg[j * 2 + 3] = 0;
+				j += 2;
+			}
+		}
 	}
 	return signetdev_priv_send_message(param, *token,
 			TYPE, SIGNETDEV_CMD_TYPE,
@@ -340,17 +355,37 @@ int signetdev_type_w(void *param, int *token, const u16 *keys, int n_keys)
 {
 	*token = get_cmd_token();
 	u8 msg[CMD_PACKET_PAYLOAD_SIZE];
-	unsigned int message_size = n_keys * 4;
-	if (message_size >= sizeof(msg))
-		return SIGNET_ERROR_OVERFLOW;
 	int i;
+	int j = 0;
+	unsigned int message_size = 0;
 	for (i = 0; i < n_keys; i++) {
-		int j = 4 * i;
 		u16 c = keys[i];
-		msg[j + 0] = keymap_inv[c][0];
-		msg[j + 1] = keymap_inv[c][1];
-		msg[j + 2] = 0;
-		msg[j + 3] = 0;
+		struct signetdev_key *key = keymap_inv + c;
+		if (key->phy_key[0].scancode) {
+			if (key->phy_key[1].scancode) {
+				message_size += 6;
+			} else {
+				message_size += 4;
+			}
+			if (message_size >= sizeof(msg))
+				return SIGNET_ERROR_OVERFLOW;
+
+			if (key->phy_key[1].scancode) {
+				msg[j * 2 + 1] = key->phy_key[0].scancode;
+				msg[j * 2 + 0] = key->phy_key[0].modifier;
+				msg[j * 2 + 3] = key->phy_key[1].scancode;
+				msg[j * 2 + 2] = key->phy_key[1].modifier;
+				msg[j * 2 + 3] = 0;
+				msg[j * 2 + 2] = 0;
+				j += 3;
+			} else {
+				msg[j * 2 + 1] = key->phy_key[0].scancode;
+				msg[j * 2 + 0] = key->phy_key[0].modifier;
+				msg[j * 2 + 2] = 0;
+				msg[j * 2 + 3] = 0;
+				j += 2;
+			}
+		}
 	}
 	return signetdev_priv_send_message(param, *token,
 			TYPE, SIGNETDEV_CMD_TYPE,
@@ -362,16 +397,13 @@ int signetdev_type_raw(void *param, int *token, const u8 *codes, int n_keys)
 {
 	*token = get_cmd_token();
 	u8 msg[CMD_PACKET_PAYLOAD_SIZE];
-	unsigned int message_size = n_keys * 4;
+	unsigned int message_size = (n_keys) * 2;
 	if (message_size >= sizeof(msg))
 		return SIGNET_ERROR_OVERFLOW;
 	int i;
 	for (i = 0; i < n_keys; i++) {
-		int j = 4 * i;
-		msg[j + 0] = codes[i * 2];
-		msg[j + 1] = codes[i * 2 + 1];
-		msg[j + 2] = 0;
-		msg[j + 3] = 0;
+		msg[i * 2 + 0] = codes[i * 2];
+		msg[i * 2 + 1] = codes[i * 2 + 1];
 	}
 	return signetdev_priv_send_message(param, *token,
 			TYPE, SIGNETDEV_CMD_TYPE,

@@ -6,16 +6,22 @@
 
 void signetdev_initialize_api();
 
-struct signetdev_key {
-	u16 key;
+struct signetdev_phy_key {
 	u8 scancode;
 	u8 modifier;
+};
+
+struct signetdev_key {
+	u16 key;
+	struct signetdev_phy_key phy_key[2];
 };
 
 void signetdev_deinitialize_api();
 int signetdev_open_connection();
 void signetdev_close_connection();
+
 void signetdev_set_keymap(const struct signetdev_key *keys, int n_keys);
+
 const struct signetdev_key *signetdev_get_keymap(int *n_keys);
 
 typedef void (*signetdev_conn_err_t)(void *);
