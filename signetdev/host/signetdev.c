@@ -309,6 +309,32 @@ int signetdev_enter_mobile_mode(void *param, int *token)
 			SIGNETDEV_PRIV_NO_RESP);
 }
 
+
+int signetdev_can_type(const u8 *keys, int n_keys)
+{
+	for (int i = 0; i < n_keys; i++) {
+		u8 c = keys[i];
+		struct signetdev_key *key = keymap_inv + c;
+		if (!key->phy_key[0].scancode) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+int signetdev_can_type_w(const u16 *keys, int n_keys)
+{
+	for (int i = 0; i < n_keys; i++) {
+		u16 c = keys[i];
+		struct signetdev_key *key = keymap_inv + c;
+		if (!key->phy_key[0].scancode) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+
 int signetdev_type(void *param, int *token, const u8 *keys, int n_keys)
 {
 	*token = get_cmd_token();

@@ -22,6 +22,9 @@ void signetdev_close_connection();
 
 void signetdev_set_keymap(const struct signetdev_key *keys, int n_keys);
 
+int signetdev_can_type(const u8 *keys, int n_keys);
+int signetdev_can_type_w(const u16 *keys, int n_keys);
+
 const struct signetdev_key *signetdev_get_keymap(int *n_keys);
 
 typedef void (*signetdev_conn_err_t)(void *);
