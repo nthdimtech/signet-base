@@ -16,8 +16,6 @@ cd .. &&
 chmod u+w -R $ARM_NONE_SYSROOT &&
 mkdir -p $ARM_NONE_SYSROOT/usr/include &&
 cp -r sysinclude/* $ARM_NONE_SYSROOT/usr/include &&
-cd libaeabi-cortexm0 &&
-make &&
 cd .. &&
 cd nettle &&
 autoconf &&
