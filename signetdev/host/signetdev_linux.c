@@ -12,7 +12,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "common/signetdev_common.h"
+#include "../common/signetdev_common.h"
 
 extern signetdev_conn_err_t g_error_handler;
 extern void *g_error_handler_param;

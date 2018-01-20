@@ -1,6 +1,6 @@
 #include "signetdev.h"
 #include "signetdev_priv.h"
-#include "common/signetdev_common.h"
+#include "../common/signetdev_common.h"
 #include <stdint.h>
 #include <memory.h>
 #include <string.h>

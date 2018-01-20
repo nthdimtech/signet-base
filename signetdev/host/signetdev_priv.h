@@ -1,5 +1,5 @@
 #ifndef SIGNETDEV_PRIV_H
-#include "common/signetdev_common.h"
+#include "../common/signetdev_common.h"
 void signetdev_priv_platform_init();
 void signetdev_priv_platform_deinit();
 void signetdev_priv_handle_error();

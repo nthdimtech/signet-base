@@ -1,4 +1,4 @@
-#include "host/rawhid/hid.h"
+#include "rawhid/hid.h"
 #include "../common/signetdev_common.h"
 #include <windows.h>
 #include <dbt.h>
