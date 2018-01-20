@@ -1,7 +1,7 @@
 #ifndef SIGNETDEV_UNIX_H
 #define SIGNETDEV_UNIX_H
 
-#include "common/signetdev_common.h"
+#include "../common/signetdev_common.h"
 #include <pthread.h>
 
 //Platform specific
