@@ -967,7 +967,7 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		}
 		int uid = data[0] + (data[1] << 8);
 		int masked = data[2];
-		if (uid <= MIN_UID || uid > MAX_UID)
+		if (uid <= MIN_UID || uid > MAX_UID) {
 			finish_command_resp(INVALID_INPUT);
 			return 0;
 		}
