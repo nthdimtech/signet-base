@@ -3,21 +3,21 @@ all: signet-fw serial-loader dfu-util-loader signet-firmware-encoder
 BTUPLE:=$(shell echo $(shell ./config.guess) | sed -e 's/\([a-z_09A-Z]\)*-/\1-build_/')
 HTUPLE:=arm-none-eabi
 
-LIBBDF_INSTALLDIR=$(HOME)/x-tools/$(HTUPLE)/$(BTUPLE)
+LIBBDF_INSTALLDIR=$(HOME)/x-tools/$(HTUPLE)/$(BTUPLE)/$(HTUPLE)
 
-HOST_CFLAGS=-I..
+HOST_CFLAGS=-I.. -std=c99
 
 SERIAL_LOADER_LDFLAGS=-L$(LIBBDF_INSTALLDIR)/lib
 SERIAL_LOADER_INCLUDES=-I$(LIBBDF_INSTALLDIR)/include
-SERIAL_LOADER_LIBS=-lbfd -lz -ldl
+SERIAL_LOADER_LIBS=-lbfd -lz -ldl -liberty
 SERIAL_LOADER_CPPFLAGS=-DPACKAGE
-
+ 
 serial-loader: serial-loader.c
 	gcc $< $(HOST_CFLAGS) $(SERIAL_LOADER_LDFLAGS) $(SERIAL_LOADER_INCLUDES) $(SERIAL_LOADER_CPPFLAGS) $(SERIAL_LOADER_LIBS) -o $@
 
 FIRMWARE_ENCODER_LDFLAGS=-L$(LIBBDF_INSTALLDIR)/lib
 FIRMWARE_ENCODER_INCLUDES=-I$(LIBBDF_INSTALLDIR)/include -Ilibb64-1.2.1/include
-FIRMWARE_ENCODER_LIBS=-lbfd -lz -ldl -ljson-c libb64-1.2.1/src/libb64.a
+FIRMWARE_ENCODER_LIBS=-lbfd -lz -ldl -ljson-c -liberty libb64-1.2.1/src/libb64.a
 FIRMWARE_ENCODER_CPPFLAGS=-DPACKAGE
 
 signet-firmware-encoder: signet-firmware-encoder.c
@@ -25,7 +25,7 @@ signet-firmware-encoder: signet-firmware-encoder.c
 
 DFU_UTIL_LOADER_LDFLAGS=-L$(LIBBDF_INSTALLDIR)/lib
 DFU_UTIL_LOADER_INCLUDES=-I$(LIBBDF_INSTALLDIR)/include
-DFU_UTIL_LOADER_LIBS=-lbfd -lz -ldl
+DFU_UTIL_LOADER_LIBS=-lbfd -lz -ldl -liberty
 DFU_UTIL_LOADER_CPPFLAGS=-DPACKAGE
 
 dfu-util-loader: dfu-util-loader.c
