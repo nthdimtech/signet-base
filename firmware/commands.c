@@ -1095,7 +1095,7 @@ void startup_cmd_iter()
 			}
 			break;
 		default:
-			finish_command_resp(UNKNOWN_DB_FORMAT);
+			finish_command(UNKNOWN_DB_FORMAT, resp, sizeof(resp));
 			return;
 		}
 	}
