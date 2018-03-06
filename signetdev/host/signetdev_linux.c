@@ -251,9 +251,9 @@ static int raw_hid_io(struct signetdev_connection *conn)
 		}
 		if (conn->tx_state.message) {
 			signetdev_priv_prepare_message_state(&conn->tx_state,
-					 conn->tx_state.message->dev_cmd,
-					 conn->tx_state.message->payload,
-					 conn->tx_state.message->payload_size);
+			                 conn->tx_state.message->dev_cmd,
+			                 conn->tx_state.message->payload,
+			                 conn->tx_state.message->payload_size);
 		}
 	}
 
@@ -345,7 +345,7 @@ void *transaction_thread(void *arg)
 	return NULL;
 }
 
-int issue_command(int command, void *p)
+int signetdev_priv_issue_command(int command, void *p)
 {
 	intptr_t v[2] = {command, (intptr_t)p};
 	write(g_command_pipe[1], v, sizeof(intptr_t) * 2);

@@ -300,6 +300,11 @@ int signetdev_startup(void *param, int *token)
 			SIGNETDEV_PRIV_GET_RESP);
 }
 
+int signetdev_has_keyboard()
+{
+	return signetdev_priv_issue_command(SIGNETDEV_CMD_HAS_KEYBOARD, NULL);
+}
+
 int signetdev_enter_mobile_mode(void *param, int *token)
 {
 	*token = get_cmd_token();
@@ -805,7 +810,7 @@ int signetdev_priv_send_message(void *user, int token, int dev_cmd, int api_cmd,
 		r->resp_code = NULL;
 	}
 	r->interrupt = 0;
-	issue_command_no_resp(SIGNETDEV_CMD_MESSAGE, r);
+	signetdev_priv_issue_command_no_resp(SIGNETDEV_CMD_MESSAGE, r);
 	return 0;
 }
 
@@ -823,7 +828,7 @@ int signetdev_priv_cancel_message(int dev_cmd, const u8 *payload, unsigned int p
 	r->resp = NULL;
 	r->resp_code = NULL;
 	r->interrupt = 1;
-	issue_command_no_resp(SIGNETDEV_CMD_CANCEL_MESSAGE, r);
+	signetdev_priv_issue_command_no_resp(SIGNETDEV_CMD_CANCEL_MESSAGE, r);
 	return 0;
 }
 
