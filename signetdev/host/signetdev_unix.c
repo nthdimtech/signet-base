@@ -13,17 +13,17 @@ int g_command_resp_pipe[2];
 
 int signetdev_open_connection()
 {
-	return issue_command(SIGNETDEV_CMD_OPEN, NULL);
+	return signetdev_priv_issue_command(SIGNETDEV_CMD_OPEN, NULL);
 }
 
 void signetdev_close_connection()
 {
-	issue_command_no_resp(SIGNETDEV_CMD_CLOSE, NULL);
+	signetdev_priv_issue_command_no_resp(SIGNETDEV_CMD_CLOSE, NULL);
 }
 
 void signetdev_cancel_close_connection()
 {
-	issue_command_no_resp(SIGNETDEV_CMD_CANCEL_OPEN, NULL);
+	signetdev_priv_issue_command_no_resp(SIGNETDEV_CMD_CANCEL_OPEN, NULL);
 }
 
 void signetdev_priv_platform_init()
@@ -37,6 +37,6 @@ void signetdev_priv_platform_init()
 void signetdev_priv_platform_deinit()
 {
 	void *ret = NULL;
-	issue_command_no_resp(SIGNETDEV_CMD_QUIT, NULL);
+	signetdev_priv_issue_command_no_resp(SIGNETDEV_CMD_QUIT, NULL);
 	pthread_join(worker_thread, &ret);
 }

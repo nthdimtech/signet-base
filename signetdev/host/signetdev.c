@@ -805,7 +805,7 @@ int signetdev_priv_send_message(void *user, int token, int dev_cmd, int api_cmd,
 		r->resp_code = NULL;
 	}
 	r->interrupt = 0;
-	issue_command_no_resp(SIGNETDEV_CMD_MESSAGE, r);
+	signetdev_priv_issue_command_no_resp(SIGNETDEV_CMD_MESSAGE, r);
 	return 0;
 }
 
@@ -823,7 +823,7 @@ int signetdev_priv_cancel_message(int dev_cmd, const u8 *payload, unsigned int p
 	r->resp = NULL;
 	r->resp_code = NULL;
 	r->interrupt = 1;
-	issue_command_no_resp(SIGNETDEV_CMD_CANCEL_MESSAGE, r);
+	signetdev_priv_issue_command_no_resp(SIGNETDEV_CMD_CANCEL_MESSAGE, r);
 	return 0;
 }
 

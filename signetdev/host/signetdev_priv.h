@@ -65,7 +65,7 @@ void signetdev_priv_finalize_message(struct send_message_req **msg ,int rc);
 void signetdev_priv_process_rx_packet(struct rx_message_state *state, u8 *rx_packet_buf);
 int signetdev_priv_cancel_message(int dev_cmd, const u8 *payload, unsigned int payload_size);
 
-void issue_command_no_resp(int command, void *p);
-int issue_command(int command, void *p);
+void signetdev_priv_issue_command_no_resp(int command, void *p);
+int signetdev_priv_issue_command(int command, void *p);
 
 #endif

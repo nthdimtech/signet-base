@@ -165,7 +165,7 @@ int g_command_queue_head = 0;
 int g_command_queue_tail = 0;
 int g_command_resp;
 
-void issue_command_no_resp(int cmd, void *data)
+void signetdev_priv_issue_command_no_resp(int cmd, void *data)
 {
 	struct command *c;
 	WaitForSingleObject(g_command_mutex, -1);
@@ -177,7 +177,7 @@ void issue_command_no_resp(int cmd, void *data)
 	ReleaseMutex(g_command_mutex);
 }
 
-int issue_command(int cmd, void *data)
+int signetdev_priv_issue_command(int cmd, void *data)
 {
 	issue_command_no_resp(cmd, data);
 	WaitForSingleObject(g_command_resp_event, -1);
