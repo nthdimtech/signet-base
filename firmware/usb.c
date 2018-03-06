@@ -357,16 +357,16 @@ static const u8 *device_configuration_desktop[] = {
 			cdc_acm_endpoint_descriptor,
 		cdc_acm_data_interface,
 			cdc_acm_rx_endpoint,
-	cdc_acm_tx_endpoint,
-
-	keyboard_interface, //9
-		keyboard_hid_descriptor, //9
-		keyboard_endpoint, //7
+			cdc_acm_tx_endpoint,
 
 	raw_hid_interface, //9
 		raw_hid_descriptor, //9
 		raw_hid_tx_endpoint, //7
 		raw_hid_rx_endpoint,//7
+
+	keyboard_interface, //9
+		keyboard_hid_descriptor, //9
+		keyboard_endpoint, //7
 };
 
 static const u8 device_config_mobile[];
@@ -383,7 +383,7 @@ static const u8 *device_configuration_mobile[] = {
 			cdc_acm_endpoint_descriptor,
 		cdc_acm_data_interface,
 			cdc_acm_rx_endpoint,
-	cdc_acm_tx_endpoint,
+			cdc_acm_tx_endpoint,
 
 	raw_hid_interface, //9
 		raw_hid_descriptor, //9

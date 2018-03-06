@@ -9,17 +9,17 @@ void usb_send_bytes(int ep, const u8 *data, int length);
 
 #define CDC_STATUS_INTERFACE 0
 #define CDC_DATA_INTERFACE 1
-#define KEYBOARD_INTERFACE 2
-#define RAW_HID_INTERFACE 3
+#define RAW_HID_INTERFACE 2
+#define KEYBOARD_INTERFACE 3
 #define NUM_INTERFACES 4
 
 #define CONTROL_ENDPOINT 0
 #define CDC_ACM_ENDPOINT 1
 #define CDC_TX_ENDPOINT 2
 #define CDC_RX_ENDPOINT 3
-#define KEYBOARD_ENDPOINT 4
-#define RAW_HID_TX_ENDPOINT 5
-#define RAW_HID_RX_ENDPOINT 6
+#define RAW_HID_TX_ENDPOINT 4
+#define RAW_HID_RX_ENDPOINT 5
+#define KEYBOARD_ENDPOINT 6
 
 #define CDC_ACM_PACKET_SIZE 16
 #define CDC_TX_SIZE 64
