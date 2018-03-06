@@ -300,6 +300,11 @@ int signetdev_startup(void *param, int *token)
 			SIGNETDEV_PRIV_GET_RESP);
 }
 
+int signetdev_has_keyboard()
+{
+	return signetdev_priv_issue_command(SIGNETDEV_CMD_HAS_KEYBOARD, NULL);
+}
+
 int signetdev_enter_mobile_mode(void *param, int *token)
 {
 	*token = get_cmd_token();

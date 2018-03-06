@@ -82,15 +82,15 @@ int signetdev_type_raw(void *param, int *token, const u8 *codes, int n_keys);
 int signetdev_delete_id(void *param, int *token, int id);
 int signetdev_button_wait(void *user, int *token);
 int signetdev_change_master_password(void *param, int *token,
-						u8 *old_key, u32 old_key_len,
-						u8 *new_key, u32 new_key_len,
-						u8 *hashfn, u32 hashfn_len,
-						u8 *salt, u32 salt_len);
+                                                u8 *old_key, u32 old_key_len,
+                                                u8 *new_key, u32 new_key_len,
+                                                u8 *hashfn, u32 hashfn_len,
+                                                u8 *salt, u32 salt_len);
 int signetdev_begin_initialize_device(void *param, int *token,
-					const u8 *key, int key_len,
-					const u8 *hashfn, int hashfn_len,
-					const u8 *salt, int salt_len,
-					const u8 *rand_data, int rand_data_len);
+                                        const u8 *key, int key_len,
+                                        const u8 *hashfn, int hashfn_len,
+                                        const u8 *salt, int salt_len,
+                                        const u8 *rand_data, int rand_data_len);
 int signetdev_disconnect(void *user, int *token);
 int signetdev_read_block(void *param, int *token, int idx);
 int signetdev_write_block(void *param, int *token, int idx, const void *buffer);
@@ -101,6 +101,7 @@ int signetdev_erase_pages(void *param, int *token, int n_pages, const u8 *page_n
 int signetdev_update_uid(void *user, int *token, int id, int size, const u8 *data, const u8 *mask);
 int signetdev_read_uid(void *param, int *token, int uid, int masked);
 int signetdev_read_all_uids(void *param, int *token, int masked);
+int signetdev_has_keyboard();
 
 struct signetdev_get_rand_bits_resp_data {
 	int size;

@@ -7,12 +7,16 @@ void signetdev_priv_handle_command_resp(void *user, int token, int dev_cmd, int 
 void signetdev_priv_handle_device_event(int event_type, const u8 *resp, int resp_len);
 
 enum signetdev_commands {
-    SIGNETDEV_CMD_OPEN,
-    SIGNETDEV_CMD_CANCEL_OPEN,
-    SIGNETDEV_CMD_CLOSE,
-    SIGNETDEV_CMD_QUIT,
-    SIGNETDEV_CMD_MESSAGE,
-    SIGNETDEV_CMD_CANCEL_MESSAGE
+	SIGNETDEV_CMD_OPEN,
+	SIGNETDEV_CMD_CANCEL_OPEN,
+	SIGNETDEV_CMD_CLOSE,
+	SIGNETDEV_CMD_QUIT,
+	SIGNETDEV_CMD_MESSAGE,
+	SIGNETDEV_CMD_CANCEL_MESSAGE,
+	SIGNETDEV_CMD_FD_ATTACHED,
+	SIGNETDEV_CMD_FD_DETACHED,
+	SIGNETDEV_CMD_RESET_CONNECTION,
+	SIGNETDEV_CMD_HAS_KEYBOARD
 };
 
 struct send_message_req {
@@ -27,6 +31,13 @@ struct send_message_req {
 	int interrupt;
 	int end_device_state;
 	struct send_message_req *next;
+};
+
+struct attach_message {
+	int fd;
+	int rx_endpoint;
+	int tx_endpoint;
+	int has_keyboard;
 };
 
 struct tx_message_state {
