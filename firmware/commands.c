@@ -844,7 +844,7 @@ void enter_mobile_mode_cmd()
 {
 	cmd_disconnect();
 	usb_set_mobile_mode();
-	usb_reset_device();
+	usb_reconnect_device();
 }
 
 int is_device_wiped()

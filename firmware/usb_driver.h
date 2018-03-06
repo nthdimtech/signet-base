@@ -11,4 +11,5 @@ void usb_valid_rx(int ep);
 void usb_stall_tx(int ep);
 void usb_stall_rx(int ep);
 void usb_reset_device();
+void usb_reconnect_device();
 #endif

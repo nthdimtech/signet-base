@@ -276,9 +276,21 @@ int usb_tx_pending(int ep)
 	return tx_pending[ep];
 }
 
+
 void usb_reset_device()
 {
 	USB_CNTR = USB_CNTR_FRES; //Power on + reset
+	USB_ISTR = 0;
+	USB_CNTR = USB_CNTR_RESETM; //Handle reset ISR disable force reset
+}
+
+void delay(int ms);
+
+void usb_reconnect_device()
+{
+	USB_BCDR &= ~USB_BCDR_DPPU; //Disable internal pullup
+	delay(100);
+	USB_BCDR |= USB_BCDR_DPPU; //Disable internal pullup
 	USB_ISTR = 0;
 	USB_CNTR = USB_CNTR_RESETM; //Handle reset ISR disable force reset
 }
