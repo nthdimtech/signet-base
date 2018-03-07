@@ -41,7 +41,7 @@ int signetdev_priv_issue_command(int command, void *p)
     return cmd_resp;
 }
 
-void issue_command_no_resp(int command, void *p)
+void signetdev_priv_issue_command_no_resp(int command, void *p)
 {
     intptr_t v[2] = {command, (intptr_t)p};
     write(g_command_pipe[1], v, sizeof(intptr_t) * 2);
