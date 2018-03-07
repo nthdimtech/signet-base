@@ -179,7 +179,7 @@ void signetdev_priv_issue_command_no_resp(int cmd, void *data)
 
 int signetdev_priv_issue_command(int cmd, void *data)
 {
-	issue_command_no_resp(cmd, data);
+	signetdev_priv_issue_command_no_resp(cmd, data);
 	WaitForSingleObject(g_command_resp_event, -1);
 	return g_command_resp;
 }
