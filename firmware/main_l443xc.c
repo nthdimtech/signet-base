@@ -154,6 +154,8 @@ void BUTTON_HANDLER()
 #define USE_UART 1
 #define USE_CRC 1
 
+void cmd_init();
+
 int main()
 {
 	RCC_CFGR = (RCC_CFGR & ~(RCC_CFGR_HPRE_MASK)) |
@@ -307,6 +309,7 @@ int main()
 	SDMMC_POWER = SDMMC_POWER_PWRCTRL_ON;
 	SDMMC_CLKCR = SDMMC_CLKCR_CLKEN | SDMMC_CLKCR_WIDBUS_4BIT;
 #endif
+	cmd_init();
 
 #if USE_USB
 	PWR_CR2 |= PWR_CR2_USV;

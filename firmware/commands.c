@@ -43,6 +43,16 @@ static const u8 root_signature[AES_BLK_SIZE] = {2 /*root block format */,3,4,5, 
 
 static union state_data_u state_data;
 
+struct cleartext_pass {
+	u8 format;
+	u8 length;
+	u8 data[126];
+};
+
+#define NUM_CLEARTEXT_PASS 4
+void long_button_press_disconnected();
+void button_press_disconnected();
+
 struct root_page
 {
 	u8 signature[AES_BLK_SIZE];
@@ -64,7 +74,7 @@ struct root_page
 			u8 cbc_iv[AES_BLK_SIZE];
 			u8 salt[SALT_SZ_V2];
 			u8 hashfn[HASH_FN_SZ];
-			u8 title[256];
+			struct cleartext_pass cleartext_passwords[NUM_CLEARTEXT_PASS];
 		} v2;
 	} header;
 } __attribute__((__packed__)) root_page;
@@ -378,7 +388,7 @@ void flash_write_complete()
 		break;
 	case UPDATE_UID:
 		update_uid_cmd_write_finished();
-	        break;	
+	        break;
 	default:
 		break;
 	}
@@ -461,6 +471,8 @@ void long_button_press()
 			flash_write_page(ID_BLK(0), (u8 *)&root_page, sizeof(root_page));
 			break;
 		}
+	} else if (device_state == DISCONNECTED) {
+		long_button_press_disconnected();
 	}
 }
 
@@ -497,6 +509,27 @@ void login_cmd_iter()
 			finish_command(OKAY, (u8 *)cmd_data.login.gen_token, AES_256_KEY_SIZE);
 			enter_state(LOGGED_IN);
 		}
+	}
+}
+
+static int cleartext_pass_index = NUM_CLEARTEXT_PASS - 1;
+
+void button_press_disconnected()
+{
+	cleartext_pass_index = (cleartext_pass_index + 1) % NUM_CLEARTEXT_PASS;
+}
+
+void long_button_press_disconnected()
+{
+	switch (root_page.signature[0]) {
+	case 2: {
+		int index = cleartext_pass_index;
+		cleartext_pass_index = NUM_CLEARTEXT_PASS - 1;
+		struct cleartext_pass *p = root_page.header.v2.cleartext_passwords + index;
+		if (p->format != 0xff && p->format && p->length <= 126) {
+			usb_keyboard_type(p->data, p->length);
+		}
+	} break;
 	}
 }
 
@@ -556,7 +589,13 @@ void button_press()
 			break;
 		}
 	} else if (!waiting_for_button_press && !waiting_for_long_button_press) {
-		cmd_event_send(1, NULL, 0);
+		switch (device_state) {
+			case DISCONNECTED:
+				button_press_disconnected();
+				break;
+			default:
+				cmd_event_send(1, NULL, 0);
+		}
 	} else if (waiting_for_long_button_press) {
 		pause_blinking();
 	}
@@ -1101,6 +1140,11 @@ void startup_cmd_iter()
 	}
 }
 
+void cmd_init()
+{
+	memcpy(&root_page, (u8 *)(&_root_page), BLK_SIZE);
+}
+
 void startup_cmd(u8 *data, int data_len)
 {
 	dprint_s("STARTUP\r\n");
@@ -1111,7 +1155,7 @@ void startup_cmd(u8 *data, int data_len)
 		active_cmd = -1;
 	}
 	test_state = 0;
-	memcpy(&root_page, (u8 *)(&_root_page), BLK_SIZE);
+	cmd_init();
 	if (memcmp(root_page.signature + 1, root_signature + 1, AES_BLK_SIZE - 1)) {
 		dprint_s("STARTUP: uninitialized\r\n");
 		enter_state(UNINITIALIZED);
