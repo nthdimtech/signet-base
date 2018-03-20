@@ -43,13 +43,6 @@ static const u8 root_signature[AES_BLK_SIZE] = {2 /*root block format */,3,4,5, 
 
 static union state_data_u state_data;
 
-struct cleartext_pass {
-	u8 format;
-	u8 length;
-	u8 data[126];
-};
-
-#define NUM_CLEARTEXT_PASS 4
 void long_button_press_disconnected();
 void button_press_disconnected();
 
@@ -377,6 +370,7 @@ void flash_write_complete()
 		break;
 	}
 	switch (active_cmd) {
+	case WRITE_CLEARTEXT_PASSWORDS:
 	case CHANGE_MASTER_PASSWORD:
 	case WRITE_BLOCK:
 	case ERASE_BLOCK:
@@ -450,6 +444,15 @@ void long_button_press()
 			break;
 		case INITIALIZE:
 			initialize_cmd_complete();
+			break;
+		case READ_CLEARTEXT_PASSWORDS:
+			finish_command(OKAY, root_page.header.v2.cleartext_passwords,
+				NUM_CLEARTEXT_PASS * CLEARTEXT_PASS_SIZE);
+			break;
+		case WRITE_CLEARTEXT_PASSWORDS:
+			memcpy(root_page.header.v2.cleartext_passwords, cmd_data.write_cleartext_passwords.data,
+					NUM_CLEARTEXT_PASS * CLEARTEXT_PASS_SIZE);
+			flash_write_page(ID_BLK(0), (u8 *)&root_page, sizeof(root_page));
 			break;
 		case CHANGE_MASTER_PASSWORD:
 			switch (root_page.signature[0]) {
@@ -983,6 +986,16 @@ int logged_out_state(int cmd, u8 *data, int data_len)
 	return 0;
 }
 
+void write_cleartext_passwords(u8 *data, int data_len)
+{
+	if (data_len != (NUM_CLEARTEXT_PASS * CLEARTEXT_PASS_SIZE)) {
+		finish_command_resp(INVALID_INPUT);
+		return;
+	}
+	memcpy(cmd_data.write_cleartext_passwords.data, data, data_len);
+	begin_long_button_press_wait();
+}
+
 int logged_in_state(int cmd, u8 *data, int data_len)
 {
 	switch (active_cmd) {
@@ -1051,6 +1064,12 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		break;
 	case UPDATE_FIRMWARE:
 		begin_long_button_press_wait();
+		break;
+	case READ_CLEARTEXT_PASSWORDS:
+		begin_long_button_press_wait();
+		break;
+	case WRITE_CLEARTEXT_PASSWORDS:
+		write_cleartext_passwords(data, data_len);
 		break;
 	default:
 		return -1;

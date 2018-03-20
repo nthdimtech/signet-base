@@ -16,6 +16,14 @@ extern u8 cmd_resp[];
 
 extern enum device_state device_state;
 
+struct cleartext_pass {
+	u8 format;
+	u8 length;
+	u8 data[126];
+};
+#define NUM_CLEARTEXT_PASS 4
+#define CLEARTEXT_PASS_SIZE 128
+
 union state_data_u {
 	struct {
 		int prev_state;
@@ -98,6 +106,9 @@ union cmd_data_u {
 		u16 sz;
 		u8 block[BLK_SIZE];
 	} get_rand_bits;
+	struct {
+		u8 data[NUM_CLEARTEXT_PASS * CLEARTEXT_PASS_SIZE];
+	} write_cleartext_passwords;
 };
 
 extern union cmd_data_u cmd_data;
