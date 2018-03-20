@@ -156,6 +156,20 @@ void BUTTON_HANDLER()
 
 void cmd_init();
 
+static int timer_target;
+
+void timer_start(int ms)
+{
+	timer_target = ms_count + ms;
+}
+
+void timer_stop()
+{
+	timer_target = 0;
+}
+
+void timer_timeout();
+
 int main()
 {
 	RCC_CFGR = (RCC_CFGR & ~(RCC_CFGR_HPRE_MASK)) |
@@ -324,6 +338,10 @@ int main()
 			__asm__("wfi");
 		}
 		__asm__("cpsid i");
+		if (ms_count > timer_target && timer_target != 0) {
+			timer_timeout();
+			timer_target = 0;
+		}
 		blink_idle();
 		flash_idle();
 		if (press_pending) {

@@ -43,8 +43,9 @@ static const u8 root_signature[AES_BLK_SIZE] = {2 /*root block format */,3,4,5, 
 
 static union state_data_u state_data;
 
-void long_button_press_disconnected();
-void button_press_disconnected();
+static void long_button_press_disconnected();
+static void button_press_disconnected();
+static void button_release_disconnected();
 
 struct root_page
 {
@@ -446,7 +447,7 @@ void long_button_press()
 			initialize_cmd_complete();
 			break;
 		case READ_CLEARTEXT_PASSWORDS:
-			finish_command(OKAY, root_page.header.v2.cleartext_passwords,
+			finish_command(OKAY, (u8 *)root_page.header.v2.cleartext_passwords,
 				NUM_CLEARTEXT_PASS * CLEARTEXT_PASS_SIZE);
 			break;
 		case WRITE_CLEARTEXT_PASSWORDS:
@@ -483,6 +484,8 @@ void button_release()
 {
 	if (waiting_for_long_button_press) {
 		resume_blinking();
+	} else if (device_state == DISCONNECTED) {
+		button_release_disconnected();
 	}
 }
 
@@ -515,22 +518,79 @@ void login_cmd_iter()
 	}
 }
 
-static int cleartext_pass_index = NUM_CLEARTEXT_PASS - 1;
+static int cleartext_pass_index = -1;
+static int cleartext_pass_chars_typed = 0;
+static u8 cleartext_type_buf[128+4*4];
+static int cleartext_pass_typing;
 
-void button_press_disconnected()
+void timer_stop();
+void timer_start(int ms);
+
+static void button_press_disconnected()
 {
-	cleartext_pass_index = (cleartext_pass_index + 1) % NUM_CLEARTEXT_PASS;
+	timer_stop();
 }
 
-void long_button_press_disconnected()
+static void generate_backspaces(u8 *buf, int n)
+{
+	int i;
+	for (i = 0; i < n; i++) {
+		buf[i*4 + 0] = 0;
+		buf[i*4 + 1] = 42;
+		buf[i*4 + 2] = 0;
+		buf[i*4 + 3] = 0;
+	}
+}
+
+void timer_timeout()
+{
+	int index = cleartext_pass_index;
+	cleartext_pass_index = -1;
+	if (index >= 0) {
+		generate_backspaces(cleartext_type_buf, index+1);
+		cleartext_pass_typing = 1;
+		usb_keyboard_type(cleartext_type_buf, (index + 1)*2);
+	}
+}
+
+static void button_release_disconnected()
+{
+	if (!cleartext_pass_typing) {
+		cleartext_pass_index = (cleartext_pass_index + 1);
+		if (cleartext_pass_index == NUM_CLEARTEXT_PASS) {
+			timer_timeout();
+			timer_stop();
+			return;
+		}
+		cleartext_pass_typing = 1;
+		int i = cleartext_pass_chars_typed;
+		generate_backspaces(cleartext_type_buf, cleartext_pass_chars_typed);
+		cleartext_type_buf[i*4 + 0] = 0;
+		cleartext_type_buf[i*4 + 1] = 30 + cleartext_pass_index;
+		cleartext_type_buf[i*4 + 2] = 0;
+		cleartext_type_buf[i*4 + 3] = 0;
+		usb_keyboard_type(cleartext_type_buf, cleartext_pass_chars_typed*2 + 2);
+		cleartext_pass_chars_typed = 0;
+		timer_start(2000);
+	}
+}
+
+static void long_button_press_disconnected()
 {
 	switch (root_page.signature[0]) {
 	case 2: {
 		int index = cleartext_pass_index;
-		cleartext_pass_index = NUM_CLEARTEXT_PASS - 1;
 		struct cleartext_pass *p = root_page.header.v2.cleartext_passwords + index;
 		if (p->format != 0xff && p->format && p->length <= 126) {
-			usb_keyboard_type(p->data, p->length);
+			cleartext_pass_index = -1;
+			generate_backspaces(cleartext_type_buf, index+1);
+			memcpy(cleartext_type_buf + (index+1)*4, p->data, p->length*2);
+			cleartext_pass_typing = 1;
+			cleartext_pass_chars_typed = p->length;
+			usb_keyboard_type(cleartext_type_buf, p->length + (index + 1)*2);
+		} else {
+			timer_timeout();
+			timer_stop();
 		}
 	} break;
 	}
@@ -608,6 +668,9 @@ void usb_keyboard_typing_done()
 {
 	if (active_cmd == TYPE) {
 		finish_command_resp(OKAY);
+	}
+	if (device_state == DISCONNECTED) {
+		cleartext_pass_typing = 0;
 	}
 }
 
@@ -937,6 +1000,8 @@ int uninitialized_state(int cmd, u8 *data, int data_len)
 	}
 	return 0;
 }
+
+void write_cleartext_passwords(u8 *data, int data_len);
 
 int logged_out_state(int cmd, u8 *data, int data_len)
 {
