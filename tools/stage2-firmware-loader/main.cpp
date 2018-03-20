@@ -75,6 +75,8 @@ void signetCmdResponse(void *cb_param, void *cmd_user_param, int cmd_token, int 
 			return;
 		}
 
+		printf("Starting to program...\n", resp_code);
+
 		for (auto iter = fwSections.begin(); iter != fwSections.end(); iter++) {
 			const fwSection &section = (*iter);
 			unsigned int lma = section.lma;
