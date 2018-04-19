@@ -339,6 +339,23 @@ int signetdev_can_type_w(const u16 *keys, int n_keys)
 	return 1;
 }
 
+int signetdev_read_cleartext_passwords(void *param, int *token)
+{
+	*token = get_cmd_token();
+	return signetdev_priv_send_message(param, *token,
+			READ_CLEARTEXT_PASSWORDS, SIGNETDEV_CMD_READ_CLEARTEXT_PASSWORDS,
+			NULL, 0,
+			SIGNETDEV_PRIV_GET_RESP);
+}
+
+int signetdev_write_cleartext_passwords(void *param, int *token, u8 *data)
+{
+	*token = get_cmd_token();
+	return signetdev_priv_send_message(param, *token,
+			WRITE_CLEARTEXT_PASSWORDS, SIGNETDEV_CMD_WRITE_CLEARTEXT_PASSWORDS,
+			data, 128 * 4,
+			SIGNETDEV_PRIV_GET_RESP);
+}
 
 int signetdev_type(void *param, int *token, const u8 *keys, int n_keys)
 {
@@ -659,6 +676,18 @@ void signetdev_priv_handle_command_resp(void *user, int token,
 				resp_code, (void *)resp);
 		}
 	} break;
+	case READ_CLEARTEXT_PASSWORDS:
+		if (resp_len != 128 * 4) {
+			signetdev_priv_handle_error();
+			break;
+		} else if (g_command_resp_cb) {
+			g_command_resp_cb(g_command_resp_cb_param,
+				user, token, api_cmd,
+				end_device_state,
+				expected_messages_remaining,
+				resp_code, (void *)resp);
+		}
+	break;
 	case GET_PROGRESS: {
 		struct signetdev_get_progress_resp_data cb_resp;
 		if (resp_code == OKAY && resp_len >= 4 && (resp_len % 4) == 0) {

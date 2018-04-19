@@ -59,9 +59,13 @@ typedef enum signetdev_cmd_id {
 	SIGNETDEV_CMD_READ_ALL_UIDS,
 	SIGNETDEV_CMD_GET_RAND_BITS,
 	SIGNETDEV_CMD_GET_DEVICE_STATE,
+	SIGNETDEV_CMD_READ_CLEARTEXT_PASSWORDS,
+	SIGNETDEV_CMD_WRITE_CLEARTEXT_PASSWORDS,
 	SIGNETDEV_NUM_COMMANDS
 } signetdev_cmd_id_t;
 
+int signetdev_write_cleartext_passwords(void *param, int *token, u8 *data);
+int signetdev_read_cleartext_passwords(void *param, int *token);
 int signetdev_enter_mobile_mode(void *user, int *token);
 int signetdev_get_device_state(void *user, int *token);
 int signetdev_logout(void *user, int *token);
