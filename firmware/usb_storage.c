@@ -1,6 +1,7 @@
+#include <memory.h>
+
 #include "usb_storage.h"
 #include "print.h"
-#include "mem.h"
 #include "usb.h"
 #include "usb_driver.h"
 #include "flash.h"

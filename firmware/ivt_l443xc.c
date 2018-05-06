@@ -9,6 +9,7 @@ extern unsigned long _bss_end;
 extern unsigned long _stack_end;
 
 void busy_delay(int ms);
+void led_on();
 
 void handler_default(void)
 {

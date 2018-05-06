@@ -1,8 +1,9 @@
+#include <memory.h>
+
 #include "usb_raw_hid.h"
 #include "usb.h"
 #include "usb_driver.h"
 #include "commands.h"
-#include "mem.h"
 #include "print.h"
 #include "signetdev/common/signetdev_common.h"
 

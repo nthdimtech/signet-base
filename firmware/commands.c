@@ -1,3 +1,6 @@
+#include <memory.h>
+#include <stddef.h>
+
 #include "commands.h"
 #include "signetdev/common/signetdev_common.h"
 #include "types.h"
@@ -5,8 +8,6 @@
 #include "usb_keyboard.h"
 #include "print.h"
 #include "flash.h"
-#include "mem.h"
-#include <stddef.h>
 
 #include "stm_aes.h"
 #include "firmware_update_state.h"
@@ -1226,7 +1227,7 @@ void startup_cmd_iter()
 
 void cmd_init()
 {
-	memcpy(&root_page, (u8 *)(&_root_page), BLK_SIZE);
+	memcpy(&root_page, (u8 *)(&_root_page), sizeof(root_page));
 }
 
 void startup_cmd(u8 *data, int data_len)

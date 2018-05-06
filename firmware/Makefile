@@ -5,7 +5,7 @@ HTUPLE:=arm-none-eabi
 
 LIBBDF_INSTALLDIR=$(HOME)/x-tools/$(HTUPLE)/$(BTUPLE)/$(HTUPLE)
 
-HOST_CFLAGS=-I.. -std=c99
+HOST_CFLAGS=-I.. -std=c99 -D_DEFAULT_SOURCE
 
 SERIAL_LOADER_LDFLAGS=-L$(LIBBDF_INSTALLDIR)/lib
 SERIAL_LOADER_INCLUDES=-I$(LIBBDF_INSTALLDIR)/include
@@ -33,7 +33,7 @@ dfu-util-loader: dfu-util-loader.c
 
 LIBS=-lnettle
 CFLAGS=-mcpu=cortex-m4 -mthumb -ffunction-sections -fdata-sections -O2 -I..
-LDFLAGS=-Wl,"--gc-sections" -nostdlib
+LDFLAGS=-Wl,"--gc-sections"
 
 CFLAGS+= -DFIRMWARE -Wall
 
@@ -56,7 +56,7 @@ MCU_SOURCES = ivt_l443xc.c main_l443xc.c rng_driver.c flash_l443xc.c
 SOURCES = startup.c firmware_update_state.c commands.c crc.c db.c \
 	  usb_fs_driver.c \
 	  usart.c stm_aes.c usb_serial.c usb_storage.c usb.c usb_keyboard.c \
-	  print.c mem.c irq.c gpio.c rtc_rand.c \
+	  print.c irq.c gpio.c rtc_rand.c \
 	  usb_raw_hid.c $(MCU_SOURCES)
 
 OBJECTS = $(SOURCES:.c=.o)

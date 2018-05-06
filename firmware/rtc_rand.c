@@ -1,8 +1,9 @@
+#include <memory.h>
+
 #include "rtc_rand.h"
 #include "types.h"
 #include "regmap.h"
 #include "types.h"
-#include "mem.h"
 #include "print.h"
 #include "commands.h"
 

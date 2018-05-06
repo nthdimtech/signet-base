@@ -1,8 +1,9 @@
+#include <memory.h>
+
 #include "firmware_update_state.h"
 #include "commands.h"
 #include "signetdev/common/signetdev_common.h"
 #include "flash.h"
-#include "mem.h"
 #include "regmap.h"
 #include "print.h"
 

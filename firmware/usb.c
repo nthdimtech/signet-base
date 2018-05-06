@@ -1,6 +1,6 @@
+#include <memory.h>
 #include "usb.h"
 #include "print.h"
-#include "mem.h"
 #include "usb_serial.h"
 #include "usb_raw_hid.h"
 #include "usb_keyboard.h"

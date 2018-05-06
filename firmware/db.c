@@ -1,7 +1,7 @@
+#include <memory.h>
 #include "signetdev/common/signetdev_common.h"
 #include "types.h"
 #include "crc.h"
-#include "mem.h"
 #include "flash.h"
 #include "commands.h"
 #include "stm_aes.h"

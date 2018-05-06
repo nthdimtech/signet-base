@@ -1,10 +1,8 @@
+#include <memory.h>
+#include <nettle/aes.h>
 #include "stm_aes.h"
 #include "print.h"
 #include "signetdev/common/signetdev_common.h"
-#include "mem.h"
-
-#include <nettle/aes.h>
-
 
 void stm_aes_init()
 {

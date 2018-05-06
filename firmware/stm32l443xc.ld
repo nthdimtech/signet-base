@@ -30,9 +30,9 @@ main_l443xc.o(.text .text* .rodata .rodata*)
 commands.o(.text .text* .rodata .rodata*)
 rtc_rand.o(.text .text* .rodata .rodata*)
 rng_driver.o(.text .text* .rodata .rodata*)
-mem.o(.text .text* .rodata .rodata*)
 gpio.o(.text .text* .rodata .rodata*)
 irq.o(.text .text* .rodata .rodata*)
+libc.a(.text .text* .rodata .rodata*)
 . = ALIGN(16);
 _data_end = .;
 } > RAM
