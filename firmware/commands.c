@@ -48,31 +48,7 @@ static void long_button_press_disconnected();
 static void button_press_disconnected();
 static void button_release_disconnected();
 
-struct root_page
-{
-	u8 signature[AES_BLK_SIZE];
-	union {
-		struct {
-			u8 auth_rand[AES_128_KEY_SIZE];
-			u8 auth_rand_ct[AES_128_KEY_SIZE];
-			u8 encrypt_key_ct[AES_128_KEY_SIZE];
-			u8 cbc_iv[AES_BLK_SIZE];
-			u8 salt[AES_128_KEY_SIZE];
-			u8 hashfn[AES_BLK_SIZE];
-		} v1;
-		struct {
-			u32 crc;
-			u8 db_version;
-			u8 auth_rand[AES_256_KEY_SIZE];
-			u8 auth_rand_ct[AES_256_KEY_SIZE];
-			u8 encrypt_key_ct[AES_256_KEY_SIZE];
-			u8 cbc_iv[AES_BLK_SIZE];
-			u8 salt[SALT_SZ_V2];
-			u8 hashfn[HASH_FN_SZ];
-			struct cleartext_pass cleartext_passwords[NUM_CLEARTEXT_PASS];
-		} v2;
-	} header;
-} __attribute__((__packed__)) root_page;
+struct root_page root_page;
 
 extern struct root_page _root_page;
 
@@ -227,29 +203,9 @@ void finish_command_resp(enum command_responses resp)
 	finish_command(resp, NULL, 0);
 }
 
-int validate_id(int id)
-{
-	if (id < MIN_DATA_BLOCK || id > MAX_DATA_BLOCK) {
-		finish_command_resp(ID_INVALID);
-		return -1;
-	}
-	return 0;
-}
-
-int validate_present_id(int id)
-{
-	if (id < MIN_DATA_BLOCK || id > MAX_DATA_BLOCK || *((u16 *)ID_BLK(id)) != 0) {
-		return -1;
-	}
-	return 0;
-}
-
 void derive_iv(u32 id, u8 *iv)
 {
 	switch(root_page.signature[0]) {
-	case 1:
-		memcpy(iv, root_page.header.v1.cbc_iv, AES_BLK_SIZE);
-		break;
 	case 2:
 		memcpy(iv, root_page.header.v2.cbc_iv, AES_BLK_SIZE);
 		break;
@@ -281,8 +237,6 @@ static void finalize_root_page_check()
 
 //
 // System events
-//
-//
 //
 
 void get_rand_bits_cmd_check();
@@ -376,9 +330,6 @@ void flash_write_complete()
 	case CHANGE_MASTER_PASSWORD:
 	case WRITE_BLOCK:
 	case ERASE_BLOCK:
-	//V1 commands
-	case SET_DATA:
-	case DELETE_ID:
 	case WRITE_FLASH:
 		finish_command_resp(OKAY);
 		break;
@@ -1192,26 +1143,17 @@ void startup_cmd_iter()
 		finish_command(OKAY, resp, sizeof(resp));
 	} else {
 		switch (header_version) {
-		case 1:
-			memcpy(resp + 6, root_page.header.v1.hashfn, HASH_FN_SZ);
-			memcpy(resp + 6 + HASH_FN_SZ, root_page.header.v1.salt, SALT_SZ_V1);
-			db_version = 1;
-			break;
 		case 2:
 			memcpy(resp + 6, root_page.header.v2.hashfn, HASH_FN_SZ);
 			memcpy(resp + 6 + HASH_FN_SZ, root_page.header.v2.salt, SALT_SZ_V2);
 			db_version = root_page.header.v2.db_version;
 			break;
-		}
-		resp[5] = db_version;
-
-		switch (header_version) {
-		case 2:
-			break;
 		default:
 			finish_command(UNKNOWN_DB_FORMAT, resp, sizeof(resp));
 			return;
 		}
+		resp[5] = db_version;
+
 		switch (db_version) {
 		case 2:
 			if (db2_startup_scan(cmd_data.startup.block, &cmd_data.startup.blk_info)) {

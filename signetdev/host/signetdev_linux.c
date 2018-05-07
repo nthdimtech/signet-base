@@ -18,6 +18,7 @@ extern signetdev_conn_err_t g_error_handler;
 extern void *g_error_handler_param;
 
 static int g_opening_connection;
+static int g_emulating;
 static int g_poll_fd = -1;
 static int g_inotify_fd = -1;
 
@@ -170,6 +171,17 @@ static void handle_command(int command, void *p)
 	int rc;
 	struct signetdev_connection *conn = &g_connection;
 	switch (command) {
+	case SIGNETDEV_CMD_EMULATE_BEGIN:
+		if (!g_opening_connection && conn->fd < 0) {
+			g_emulating = 1;
+			command_response(1);
+		} else {
+			command_response(0);
+		}
+		break;
+	case SIGNETDEV_CMD_EMULATE_END:
+		g_emulating = 0;
+		break;
 	case SIGNETDEV_CMD_OPEN:
 		rc = attempt_open_connection();
 		command_response(rc);
@@ -190,26 +202,34 @@ static void handle_command(int command, void *p)
 	case SIGNETDEV_CMD_MESSAGE: {
 		struct signetdev_connection *conn = &g_connection;
 		struct send_message_req *msg = (struct send_message_req *)p;
-		msg->next = NULL;
-		if (!conn->head_message) {
-			conn->head_message = msg;
+		if (g_emulating) {
+			signetdev_emulate_handle_message_priv(msg);
+		} else {
+			msg->next = NULL;
+			if (!conn->head_message) {
+				conn->head_message = msg;
+			}
+			if (conn->tail_message)
+				conn->tail_message->next = msg;
+			conn->tail_message = msg;
 		}
-		if (conn->tail_message)
-			conn->tail_message->next = msg;
-		conn->tail_message = msg;
 	} break;
 	case SIGNETDEV_CMD_QUIT: {
 		pthread_exit(NULL);
 	} break;
 	case SIGNETDEV_CMD_CANCEL_MESSAGE: {
 		struct send_message_req *msg = (struct send_message_req *)p;
-		msg->next = NULL;
-		if (!conn->head_cancel_message) {
-			conn->head_cancel_message = msg;
+		if (g_emulating) {
+			signetdev_emulate_handle_message_priv(msg);
+		} else {
+			msg->next = NULL;
+			if (!conn->head_cancel_message) {
+				conn->head_cancel_message = msg;
+			}
+			if (conn->tail_cancel_message)
+				conn->tail_cancel_message->next = msg;
+			conn->tail_cancel_message = msg;
 		}
-		if (conn->tail_cancel_message)
-			conn->tail_cancel_message->next = msg;
-		conn->tail_cancel_message = msg;
 	} break;
 	}
 }
@@ -251,9 +271,9 @@ static int raw_hid_io(struct signetdev_connection *conn)
 		}
 		if (conn->tx_state.message) {
 			signetdev_priv_prepare_message_state(&conn->tx_state,
-			                 conn->tx_state.message->dev_cmd,
-			                 conn->tx_state.message->payload,
-			                 conn->tx_state.message->payload_size);
+					 conn->tx_state.message->dev_cmd,
+					 conn->tx_state.message->payload,
+					 conn->tx_state.message->payload_size);
 		}
 	}
 

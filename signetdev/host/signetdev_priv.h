@@ -16,7 +16,9 @@ enum signetdev_commands {
 	SIGNETDEV_CMD_FD_ATTACHED,
 	SIGNETDEV_CMD_FD_DETACHED,
 	SIGNETDEV_CMD_RESET_CONNECTION,
-	SIGNETDEV_CMD_HAS_KEYBOARD
+	SIGNETDEV_CMD_HAS_KEYBOARD,
+	SIGNETDEV_CMD_EMULATE_BEGIN,
+	SIGNETDEV_CMD_EMULATE_END
 };
 
 struct send_message_req {
@@ -78,5 +80,7 @@ int signetdev_priv_cancel_message(int dev_cmd, const u8 *payload, unsigned int p
 
 void signetdev_priv_issue_command_no_resp(int command, void *p);
 int signetdev_priv_issue_command(int command, void *p);
+
+int signetdev_emulate_handle_message_priv(struct send_message_req *msg);
 
 #endif

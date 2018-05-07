@@ -5,8 +5,8 @@ enum commands {
 	STARTUP,
 	OPEN_ID, //Defunct
 	CLOSE_ID, //Defunct
-	GET_DATA,
-	SET_DATA,
+	GET_DATA, //Defunct
+	SET_DATA, //Defunct
 	TYPE,
 	LOGIN,
 	LOGOUT,
@@ -110,6 +110,8 @@ enum command_responses {
 #define INIT_RAND_DATA_SZ ((AES_256_KEY_SIZE * 2) + CBC_IV_SZ)
 #define INITIALIZE_CMD_SIZE (LOGIN_KEY_SZ + HASH_FN_SZ + SALT_SZ_V2 + INIT_RAND_DATA_SZ)
 
+#define STARTUP_RESP_SIZE (6 + HASH_FN_SZ + SALT_SZ_V2)
+
 #define TOTAL_STORAGE_SIZE (192 * 1024)
 #define NUM_STORAGE_BLOCKS (TOTAL_STORAGE_SIZE/BLK_SIZE)
 
@@ -144,5 +146,55 @@ typedef int32_t s32;
 typedef int16_t s16;
 typedef int8_t s8;
 #endif
+
+struct cleartext_pass {
+	u8 format;
+	u8 length;
+	u8 data[126];
+};
+#define NUM_CLEARTEXT_PASS 4
+#define CLEARTEXT_PASS_SIZE 128
+
+struct root_page
+{
+	u8 signature[AES_BLK_SIZE];
+	union {
+		struct {
+			u32 crc;
+			u8 db_version;
+			u8 auth_rand[AES_256_KEY_SIZE];
+			u8 auth_rand_ct[AES_256_KEY_SIZE];
+			u8 encrypt_key_ct[AES_256_KEY_SIZE];
+			u8 cbc_iv[AES_BLK_SIZE];
+			u8 salt[SALT_SZ_V2];
+			u8 hashfn[HASH_FN_SZ];
+			struct cleartext_pass cleartext_passwords[NUM_CLEARTEXT_PASS];
+		} v2;
+	} header;
+} __attribute__((__packed__));
+
+struct db_uid_ent {
+	unsigned int uid : 12;
+	unsigned int rev : 2;
+	unsigned int first : 1;
+	unsigned int pad : 1;
+	u16 sz;
+	u16 blk_next;
+} __attribute__((__packed__));
+
+struct db_block_header {
+	u32 crc;
+	u16 part_size;
+	u16 occupancy;
+} __attribute__((__packed__));
+
+struct db_block {
+	struct db_block_header header;
+	struct db_uid_ent uid_tbl[];
+} __attribute__((__packed__));
+
+#define INVALID_BLOCK (0)
+#define INVALID_PART_SIZE (0xffff)
+#define INVALID_CRC (0xffffffff)
 
 #endif

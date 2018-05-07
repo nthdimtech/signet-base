@@ -16,14 +16,6 @@ extern u8 cmd_resp[];
 
 extern enum device_state device_state;
 
-struct cleartext_pass {
-	u8 format;
-	u8 length;
-	u8 data[126];
-};
-#define NUM_CLEARTEXT_PASS 4
-#define CLEARTEXT_PASS_SIZE 128
-
 union state_data_u {
 	struct {
 		int prev_state;

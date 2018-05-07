@@ -11,10 +11,6 @@ extern struct root_page _root_page;
 
 #define BLOCK(id) ((const struct block *)(((const u8 *)&_root_page) + BLK_SIZE * (id)))
 
-#define INVALID_BLOCK (0)
-#define INVALID_PART_SIZE (0xffff)
-#define INVALID_CRC (0xffffffff)
-
 extern u8 encrypt_key[AES_256_KEY_SIZE];
 
 struct block_info block_info_tbl[NUM_STORAGE_BLOCKS];
@@ -136,7 +132,7 @@ int db2_startup_scan(u8 *block_temp, struct block_info *blk_info_temp)
 
 static int part_sizes[NUM_PART_SIZES] = {1,2,3,4,6,7,12,15,31,63,127};
 
-//Return the partition size that will fit 
+//Return the partition size that will fit
 static int target_part_size(int data_bytes)
 {
 	int min_part_size = SIZE_TO_SUB_BLK_COUNT(data_bytes);
@@ -145,7 +141,7 @@ static int target_part_size(int data_bytes)
 			return part_sizes[i];
 		}
 	}
-	return 0; 
+	return 0;
 }
 
 //Return a block that has not been allocated or INVALID_BLOCK if there are no free blocks
@@ -282,7 +278,7 @@ static const struct uid_ent *find_uid(int uid, int *block_num, int *index)
 static int deallocate_uid(int uid, struct block *block_temp, struct block_info *blk_info_temp, int deallocate_block)
 {
 	int block_num;
-        int index;
+	int index;
 	const struct uid_ent *ent = find_uid(uid, &block_num, &index);
 	if (!ent) {
 		return INVALID_BLOCK;
@@ -306,8 +302,8 @@ static int deallocate_uid(int uid, struct block *block_temp, struct block_info *
 			       get_part(block_temp, blk_info_temp, blk_info_temp->part_occupancy),
 			       blk_info_temp->part_size * SUB_BLK_SIZE);
 			memcpy(block_temp->uid_tbl + index,
-				block_temp->uid_tbl + blk_info_temp->part_occupancy,
-				sizeof(struct uid_ent));
+			        block_temp->uid_tbl + blk_info_temp->part_occupancy,
+			        sizeof(struct uid_ent));
 		}
 	}
 	return block_num;
@@ -361,12 +357,12 @@ void update_uid_cmd(int uid, u8 *data, int sz)
 	cmd_data.update_uid.write_count = 0;
 	cmd_data.update_uid.prev_block_num = INVALID_BLOCK;
 	cmd_data.update_uid.block_num = update_uid(uid,
-			data,
-			sz,
-			&cmd_data.update_uid.prev_block_num,
-			cmd_data.update_uid.iv,
-			block,
-		        &cmd_data.update_uid.blk_info);
+	                data,
+	                sz,
+	                &cmd_data.update_uid.prev_block_num,
+	                cmd_data.update_uid.iv,
+	                block,
+	                &cmd_data.update_uid.blk_info);
 	if (cmd_data.update_uid.block_num == INVALID_BLOCK) {
 		finish_command_resp(NOT_ENOUGH_SPACE);
 	} else {
@@ -484,8 +480,6 @@ void read_all_uids_cmd_iter()
 		if (cmd_data.read_all_uids.uid > MAX_UID) {
 			block[0] = cmd_data.read_all_uids.uid & 0xff;
 			block[1] = cmd_data.read_all_uids.uid >> 8;
-			block[2] = 0;
-			block[3] = 0;
 			finish_command_multi(ID_INVALID, 0, block, 2);
 			return;
 		}

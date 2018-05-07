@@ -162,6 +162,11 @@ void signetdev_set_device_closed_cb(void (*device_closed)(void *), void *param);
 void signetdev_set_command_resp_cb(signetdev_cmd_resp_t cmd_resp_cb, void *cb_param);
 void signetdev_set_device_event_cb(signetdev_device_event_t device_event_cb, void *cb_param);
 
+int signetdev_emulate_init(const char *filename);
+int signetdev_emulate_begin();
+void signetdev_emulate_end();
+void signetdev_emulate_deinit();
+
 #endif
 
 
