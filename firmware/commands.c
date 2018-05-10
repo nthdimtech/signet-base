@@ -409,12 +409,6 @@ void long_button_press()
 			break;
 		case CHANGE_MASTER_PASSWORD:
 			switch (root_page.signature[0]) {
-			case 1:
-				memcpy(root_page.header.v1.hashfn, cmd_data.change_master_password.hashfn, HASH_FN_SZ);
-				stm_aes_128_encrypt(cmd_data.change_master_password.new_key, encrypt_key, root_page.header.v1.encrypt_key_ct);
-				stm_aes_128_encrypt(cmd_data.change_master_password.new_key, root_page.header.v1.auth_rand, root_page.header.v1.auth_rand_ct);
-				memcpy(root_page.header.v1.salt, cmd_data.change_master_password.salt, SALT_SZ_V1);
-				break;
 			case 2:
 				memcpy(root_page.header.v2.hashfn, cmd_data.change_master_password.hashfn, HASH_FN_SZ);
 				stm_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
@@ -784,15 +778,6 @@ void change_master_password_cmd(u8 *data, int data_len)
 	memcpy(cmd_data.change_master_password.hashfn, hashfn, HASH_FN_SZ);
 	memcpy(cmd_data.change_master_password.salt, salt, SALT_SZ_V2);
 	switch (root_page.signature[0]) {
-	case 1:
-		stm_aes_128_encrypt(old_key, root_page.header.v1.auth_rand, cmd_data.change_master_password.cyphertext);
-		if (memcmp(cmd_data.change_master_password.cyphertext, root_page.header.v1.auth_rand_ct, AES_128_KEY_SIZE)) {
-			finish_command_resp(BAD_PASSWORD);
-			return;
-		}
-		stm_aes_128_decrypt(old_key, root_page.header.v1.encrypt_key_ct, encrypt_key);
-		memcpy(cmd_data.change_master_password.new_key, new_key, AES_128_KEY_SIZE);
-		break;
 	case 2:
 		stm_aes_256_encrypt_cbc(old_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
 				root_page.header.v2.auth_rand, cmd_data.change_master_password.cyphertext);

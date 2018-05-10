@@ -137,15 +137,14 @@ enum command_responses {
 #define CMD_PACKET_PAYLOAD_SIZE (BLK_SIZE + CMD_PACKET_HEADER_SIZE + 1)
 #define CMD_PACKET_BUF_SIZE (CMD_PACKET_PAYLOAD_SIZE + CMD_PACKET_HEADER_SIZE + RAW_HID_PAYLOAD_SIZE - 1)
 
-#ifndef FIRMWARE
 #include <stdint.h>
+typedef unsigned long long u64;
 typedef uint32_t u32;
 typedef uint16_t u16;
 typedef uint8_t u8;
 typedef int32_t s32;
 typedef int16_t s16;
 typedef int8_t s8;
-#endif
 
 struct cleartext_pass {
 	u8 format;
