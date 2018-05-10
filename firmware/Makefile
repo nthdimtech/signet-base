@@ -1,4 +1,4 @@
-all: signet-fw serial-loader dfu-util-loader signet-firmware-encoder
+all: signet-fw.dfu
 
 BTUPLE:=$(shell echo $(shell ./config.guess) | sed -e 's/\([a-z_09A-Z]\)*-/\1-build_/')
 HTUPLE:=arm-none-eabi
@@ -23,14 +23,6 @@ FIRMWARE_ENCODER_CPPFLAGS=-DPACKAGE
 signet-firmware-encoder: signet-firmware-encoder.c
 	gcc $< $(HOST_CFLAGS) $(FIRMWARE_ENCODER_LDFLAGS) $(FIRMWARE_ENCODER_INCLUDES) $(FIRMWARE_ENCODER_CPPFLAGS) $(FIRMWARE_ENCODER_LIBS) -o $@
 
-DFU_UTIL_LOADER_LDFLAGS=-L$(LIBBDF_INSTALLDIR)/lib
-DFU_UTIL_LOADER_INCLUDES=-I$(LIBBDF_INSTALLDIR)/include
-DFU_UTIL_LOADER_LIBS=-lbfd -lz -ldl -liberty
-DFU_UTIL_LOADER_CPPFLAGS=-DPACKAGE
-
-dfu-util-loader: dfu-util-loader.c
-	gcc $< $(HOST_CFLAGS) $(DFU_UTIL_LOADER_LDFLAGS) $(DFU_UTIL_LOADER_INCLUDES) $(DFU_UTIL_LOADER_CPPFLAGS) $(DFU_UTIL_LOADER_LIBS) -o $@
-
 LIBS=-lnettle
 CFLAGS=-mcpu=cortex-m4 -mthumb -ffunction-sections -fdata-sections -O2 -I..
 LDFLAGS=-Wl,"--gc-sections"
@@ -45,7 +37,7 @@ LDFLAGS+= -Wl,"-Tstm32l443xc.ld"
 CFLAGS += -DUSE_RAW_HID -I../signet-desktop-client/common
 
 clean:
-	rm -rf *.o *.d signet-fw serial-loader signet-firmware-encoder dfu-util-loader
+	rm -rf *.o *.d signet-fw signet-fw.* serial-loader signet-firmware-encoder dfu-util-loader
 
 %.o: %.c
 	$(HTUPLE)-gcc  $(CFLAGS) $< -c -o $@
@@ -64,5 +56,12 @@ DEPFILES = $(SOURCES:.c=.o.d)
 
 signet-fw: $(OBJECTS)
 	$(HTUPLE)-gcc  $(CFLAGS) $(LDFLAGS) $^ $(LIBS) -o $@
+
+signet-fw.bin: signet-fw
+	$(HTUPLE)-objcopy $^ -O binary $@
+
+signet-fw.dfu: signet-fw.bin
+	cp $^ $@
+	dfu-suffix -v 0x0483 -p 0xdf11 -a $@
 
 -include $(DEPFILES)
