@@ -21,11 +21,6 @@ void signetdev_close_connection()
 	signetdev_priv_issue_command_no_resp(SIGNETDEV_CMD_CLOSE, NULL);
 }
 
-void signetdev_cancel_close_connection()
-{
-	signetdev_priv_issue_command_no_resp(SIGNETDEV_CMD_CANCEL_OPEN, NULL);
-}
-
 void signetdev_priv_platform_init()
 {
 	pipe(g_command_pipe);

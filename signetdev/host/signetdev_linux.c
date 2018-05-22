@@ -186,13 +186,8 @@ static void handle_command(int command, void *p)
 		rc = attempt_open_connection();
 		command_response(rc);
 		break;
-	case SIGNETDEV_CMD_CANCEL_OPEN:
-		if (g_opening_connection) {
-			g_opening_connection = 0;
-			command_response(-1);
-		}
-		break;
 	case SIGNETDEV_CMD_CLOSE:
+		g_opening_connection = 0;
 		if (conn->fd >= 0) {
 			epoll_ctl(g_poll_fd, EPOLL_CTL_DEL, conn->fd, NULL);
 			close(conn->fd);

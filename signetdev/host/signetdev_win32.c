@@ -20,6 +20,7 @@ static HANDLE g_msg_write_event = INVALID_HANDLE_VALUE;
 static HANDLE g_command_event = INVALID_HANDLE_VALUE;
 static HANDLE g_command_resp_event = INVALID_HANDLE_VALUE;
 static HANDLE g_command_mutex = INVALID_HANDLE_VALUE;
+static int g_emulating = 0;
 
 static OVERLAPPED g_read_overlapped;
 static OVERLAPPED g_write_overlapped;
@@ -187,19 +188,38 @@ int signetdev_priv_issue_command(int cmd, void *data)
 static void handle_command(int command, void *p)
 {
 	switch (command) {
-	case SIGNETDEV_CMD_OPEN:
+	case SIGNETDEV_CMD_EMULATE_BEGIN:
+		if (g_device_handle == INVALID_HANDLE && !g_open_request_pending) {
+			g_emulating = 1;
+			command_response(1);
+		} else {
+			command_response(0);
+		}
 		break;
-	case SIGNETDEV_CMD_CANCEL_OPEN:
+	case SIGNETDEV_CMD_EMULATE_END:
+		g_emulating = 0;
+		break;
+	case SIGNETDEV_CMD_OPEN:
 		break;
 	case SIGNETDEV_CMD_CLOSE:
 		break;
 	case SIGNETDEV_CMD_MESSAGE: {
-		process_send_message_req((struct send_message_req *)p);
+		struct send_message_req *msg = (struct send_message_req *)p;
+		if (g_emulating) {
+			signetdev_emulate_handle_message_priv(msg);
+		} else {
+			process_send_message_req(msg);
+		}
 		} break;
 	case SIGNETDEV_CMD_QUIT: {
 		} break;
 	case SIGNETDEV_CMD_CANCEL_MESSAGE: {
-		process_cancel_message_req((struct send_message_req *)p);
+		struct send_message_req *msg = (struct send_message_req *)p;
+		if (g_emulating) {
+			signetdev_emulate_handle_message_priv(msg);
+		} else {
+			process_send_message_req(msg);
+		}
 		} break;
 	}
 }
@@ -388,4 +408,5 @@ void signetdev_close_connection()
 {
 	rawhid_close(0);
 	g_device_handle = INVALID_HANDLE_VALUE;
+	g_open_request_pending = 0;
 }

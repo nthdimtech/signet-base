@@ -12,6 +12,7 @@
 extern signetdev_conn_err_t g_error_handler;
 extern void *g_error_handler_param;
 static int g_opening_connection = 0;
+static int g_emulating = 0;
 static IOHIDManagerRef hid_manager=NULL;
 static IOHIDDeviceRef hid_dev=NULL;
 
@@ -73,6 +74,17 @@ static int send_hid_command(int cmd, u8 *payload, int payload_size)
 static void handle_command(int command, void *p)
 {
     switch (command) {
+	case SIGNETDEV_CMD_EMULATE_BEGIN:
+		if (!g_opening_connection && conn->fd < 0) {
+			g_emulating = 1;
+			command_response(1);
+		} else {
+			command_response(0);
+		}
+		break;
+	case SIGNETDEV_CMD_EMULATE_END:
+		g_emulating = 0;
+		break;
     case SIGNETDEV_CMD_OPEN:
 	if (hid_dev != NULL) {
 	    command_response(0);
@@ -81,10 +93,8 @@ static void handle_command(int command, void *p)
 	    command_response(-1);
 	}
 	break;
-    case SIGNETDEV_CMD_CANCEL_OPEN:
-	g_opening_connection = 0;
-	break;
     case SIGNETDEV_CMD_CLOSE:
+	g_opening_connection = 0;
 	if (hid_dev != NULL) {
 	    IOHIDDeviceClose(hid_dev, kIOHIDOptionsTypeNone);
 	    hid_dev = NULL;
@@ -96,25 +106,33 @@ static void handle_command(int command, void *p)
 	case SIGNETDEV_CMD_MESSAGE: {
 		struct send_message_req *msg = (struct send_message_req *)p;
 		msg->next = NULL;
-		if (!g_head_message) {
-			g_head_message = msg;
+		if (g_emulating) {
+			signetdev_emulate_handle_message_priv(msg);
+		} else {
+			if (!g_head_message) {
+				g_head_message = msg;
+			}
+			if (g_tail_message)
+				g_tail_message->next = msg;
+			g_tail_message = msg;
+			CFRunLoopStop(CFRunLoopGetCurrent());
 		}
-		if (g_tail_message)
-			g_tail_message->next = msg;
-		g_tail_message = msg;
-		CFRunLoopStop(CFRunLoopGetCurrent());
 		} break;
 	case SIGNETDEV_CMD_CANCEL_MESSAGE: {
 		struct send_message_req *msg = (struct send_message_req *)p;
 		msg->next = NULL;
-		if (!g_head_cancel_message) {
-		    g_head_cancel_message = msg;
+		if (g_emulating) {
+			signetdev_emulate_handle_message_priv(msg);
+		} else {
+			if (!g_head_cancel_message) {
+			    g_head_cancel_message = msg;
+			}
+			if (g_tail_cancel_message)
+			    g_tail_cancel_message->next = msg;
+			g_tail_cancel_message = msg;
+			CFRunLoopStop(CFRunLoopGetCurrent());
 		}
-		if (g_tail_cancel_message)
-		    g_tail_cancel_message->next = msg;
-		g_tail_cancel_message = msg;
-		CFRunLoopStop(CFRunLoopGetCurrent());
-		} break;
+		}break;
 	}
 }
 
