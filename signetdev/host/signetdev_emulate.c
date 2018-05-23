@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <gcrypt.h>
+#include <memory.h>
 
 struct db_uid_mapping {
 	int block;
@@ -204,13 +205,16 @@ static int db_scan()
 		if (part_size && part_size != INVALID_PART_SIZE && blk->header.crc != INVALID_CRC) {
 			for (int j = 0; j < occupancy; j++) {
 				const struct db_uid_ent *ent = blk->uid_tbl + j;
-				int uid = ent->uid;
-				if (uid >= MIN_UID && ent->uid <= MAX_UID && ent->first) {
+				int uid = ent->info & 0xfff;
+				int first = (ent->info >> 14) & 1;
+				int rev = (ent->info >> 12) & 3;
+				if (uid >= MIN_UID && uid <= MAX_UID && first) {
 					if (g_deviceState.uid_map[uid].block != INVALID_BLOCK) {
 						//UID collision
 						struct db_block *blk = uid_to_db_block(uid);
 						struct db_uid_ent *prev_ent = blk->uid_tbl + g_deviceState.uid_map[uid].index;
-						if (((ent->rev + 1) & 3) == prev_ent->rev) {
+						int prev_rev = (ent->info >> 12) & 3;
+						if (((rev + 1) & 3) == prev_rev) {
 							g_deviceState.uid_map[uid].block = i;
 							g_deviceState.uid_map[uid].index = j;
 						}
@@ -226,8 +230,6 @@ static int db_scan()
 	}
 	return 0;
 }
-
-#include <memory.h>
 
 static void startup_cmd(struct send_message_req *msg)
 {
@@ -416,7 +418,6 @@ static int read_all_uids_cmd_iter(struct send_message_req *msg)
 	resp_data_multi(msg, g_deviceState.read_all_uids.expected_remaining + 1, OKAY, (blk_count * SUB_BLK_SIZE) + 4);
 	return 1;
 }
-
 
 static void read_all_uids_cmd(struct send_message_req *msg)
 {

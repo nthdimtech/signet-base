@@ -173,10 +173,7 @@ struct root_page
 } __attribute__((__packed__));
 
 struct db_uid_ent {
-	unsigned int uid : 12;
-	unsigned int rev : 2;
-	unsigned int first : 1;
-	unsigned int pad : 1;
+	u16 info; //[0:11] = uid, [12:13] = rev, [14] = first, [15] = padding/reserved
 	u16 sz;
 	u16 blk_next;
 } __attribute__((__packed__));

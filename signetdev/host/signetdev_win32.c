@@ -5,7 +5,6 @@
 #include <Usbiodef.h>
 #include <hidsdi.h>
 #include <hidclass.h>
-
 #include "signetdev.h"
 #include "signetdev_priv.h"
 
@@ -189,12 +188,13 @@ static void handle_command(int command, void *p)
 {
 	switch (command) {
 	case SIGNETDEV_CMD_EMULATE_BEGIN:
-		if (g_device_handle == INVALID_HANDLE && !g_open_request_pending) {
+		if (g_device_handle == INVALID_HANDLE_VALUE && !g_open_request_pending) {
 			g_emulating = 1;
-			command_response(1);
+			g_command_resp = 1;
 		} else {
-			command_response(0);
+			g_command_resp = 0;
 		}
+		SetEvent(g_command_resp_event);
 		break;
 	case SIGNETDEV_CMD_EMULATE_END:
 		g_emulating = 0;
@@ -304,7 +304,8 @@ void signetdev_priv_platform_init()
 {
 	g_msg_read_event = CreateEvent(NULL, TRUE, FALSE, NULL);
 	g_msg_write_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-	g_command_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+	g_command_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+	g_command_resp_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 	g_command_mutex = CreateMutex(NULL, FALSE, NULL);
 	g_msg_thread = CreateThread(NULL, 4096*16, transaction_thread, NULL, 0, NULL);
 }
