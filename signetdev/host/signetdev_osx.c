@@ -75,7 +75,7 @@ static void handle_command(int command, void *p)
 {
     switch (command) {
 	case SIGNETDEV_CMD_EMULATE_BEGIN:
-		if (!g_opening_connection && conn->fd < 0) {
+		if (!g_opening_connection && hid_dev == NULL) {
 			g_emulating = 1;
 			command_response(1);
 		} else {
