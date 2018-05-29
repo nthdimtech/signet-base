@@ -213,7 +213,7 @@ static int db_scan()
 						//UID collision
 						struct db_block *blk = uid_to_db_block(uid);
 						struct db_uid_ent *prev_ent = blk->uid_tbl + g_deviceState.uid_map[uid].index;
-						int prev_rev = (ent->info >> 12) & 3;
+						int prev_rev = (prev_ent->info >> 12) & 3;
 						if (((rev + 1) & 3) == prev_rev) {
 							g_deviceState.uid_map[uid].block = i;
 							g_deviceState.uid_map[uid].index = j;
@@ -487,9 +487,11 @@ int signetdev_emulate_handle_message_priv(struct send_message_req *msg)
 	//Not needed in software yet
 	case LOGIN_TOKEN:
 		break;
-	case READ_CLEARTEXT_PASSWORDS:
+	case READ_CLEARTEXT_PASSWORD:
 		break;
-	case WRITE_CLEARTEXT_PASSWORDS:
+	case READ_CLEARTEXT_PASSWORD_NAMES:
+		break;
+	case WRITE_CLEARTEXT_PASSWORD:
 		break;
 	case DISCONNECT:
 		break;

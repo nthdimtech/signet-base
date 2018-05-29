@@ -39,8 +39,9 @@ enum commands {
 	GET_RAND_BITS,
 	ENTER_MOBILE_MODE,
 	LOGIN_TOKEN,
-	READ_CLEARTEXT_PASSWORDS,
-	WRITE_CLEARTEXT_PASSWORDS
+	READ_CLEARTEXT_PASSWORD_NAMES,
+	READ_CLEARTEXT_PASSWORD,
+	WRITE_CLEARTEXT_PASSWORD
 };
 
 enum device_state {
@@ -79,7 +80,7 @@ enum command_responses {
 
 #define SIGNET_MAJOR_VERSION 1
 #define SIGNET_MINOR_VERSION 3
-#define SIGNET_STEP_VERSION 1
+#define SIGNET_STEP_VERSION 2
 
 #define SIGNET_ERROR_UNKNOWN -1
 #define SIGNET_ERROR_DISCONNECT -2
@@ -146,13 +147,18 @@ typedef int32_t s32;
 typedef int16_t s16;
 typedef int8_t s8;
 
+#define NUM_CLEARTEXT_PASS 4
+#define CLEARTEXT_PASS_SIZE 256
+#define CLEARTEXT_PASS_NAME_SIZE 64
+#define CLEARTEXT_PASS_PASS_SIZE 64
+
 struct cleartext_pass {
 	u8 format;
-	u8 length;
-	u8 data[126];
+	u8 scancode_entries;
+	char name_utf8[CLEARTEXT_PASS_NAME_SIZE];
+	char password_utf8[CLEARTEXT_PASS_PASS_SIZE];
+	u8 scancodes[CLEARTEXT_PASS_SIZE - CLEARTEXT_PASS_PASS_SIZE - CLEARTEXT_PASS_NAME_SIZE - 2];
 };
-#define NUM_CLEARTEXT_PASS 4
-#define CLEARTEXT_PASS_SIZE 128
 
 struct root_page
 {
@@ -167,6 +173,7 @@ struct root_page
 			u8 cbc_iv[AES_BLK_SIZE];
 			u8 salt[SALT_SZ_V2];
 			u8 hashfn[HASH_FN_SZ];
+
 			struct cleartext_pass cleartext_passwords[NUM_CLEARTEXT_PASS];
 		} v2;
 	} header;

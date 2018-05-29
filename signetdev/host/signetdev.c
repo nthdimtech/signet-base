@@ -339,23 +339,78 @@ int signetdev_can_type_w(const u16 *keys, int n_keys)
 	return 1;
 }
 
-int signetdev_read_cleartext_passwords(void *param, int *token)
+int signetdev_read_cleartext_password(void *param, int *token, int index)
+{
+	u8 data[1] = {index};
+	*token = get_cmd_token();
+	return signetdev_priv_send_message(param, *token,
+			READ_CLEARTEXT_PASSWORD, SIGNETDEV_CMD_READ_CLEARTEXT_PASSWORD,
+			data, 1,
+			SIGNETDEV_PRIV_GET_RESP);
+}
+
+int signetdev_read_cleartext_password_names(void *param, int *token)
 {
 	*token = get_cmd_token();
 	return signetdev_priv_send_message(param, *token,
-			READ_CLEARTEXT_PASSWORDS, SIGNETDEV_CMD_READ_CLEARTEXT_PASSWORDS,
+			READ_CLEARTEXT_PASSWORD_NAMES, SIGNETDEV_CMD_READ_CLEARTEXT_PASSWORD_NAMES,
 			NULL, 0,
 			SIGNETDEV_PRIV_GET_RESP);
 }
 
-int signetdev_write_cleartext_passwords(void *param, int *token, u8 *data)
+int signetdev_write_cleartext_password(void *param, int *token, int index, const struct cleartext_pass *pass)
 {
+	u8 data[CLEARTEXT_PASS_SIZE + 1];
+	data[0] = index;
+	memcpy(data + 1, pass, CLEARTEXT_PASS_SIZE);
 	*token = get_cmd_token();
 	return signetdev_priv_send_message(param, *token,
-			WRITE_CLEARTEXT_PASSWORDS, SIGNETDEV_CMD_WRITE_CLEARTEXT_PASSWORDS,
-			data, 128 * 4,
+			WRITE_CLEARTEXT_PASSWORD, SIGNETDEV_CMD_WRITE_CLEARTEXT_PASSWORD,
+			data, CLEARTEXT_PASS_SIZE + 1,
 			SIGNETDEV_PRIV_GET_RESP);
 }
+
+
+int signetdev_to_scancodes_w(const u16 *keys, int n_keys, u8 *out, int out_len)
+{
+	u16 prev_key = 0;
+	int i;
+	while (i < n_keys && out_len >= 4) {
+		u16 c = keys[i];
+		struct signetdev_key *key = keymap_inv + c;
+		if (c == prev_key) {
+			out[0] = 0;
+			out[1] = 0;
+			out += 2;
+			out_len -= 2;
+			prev_key = 0;
+			continue;
+		}
+		if (key->phy_key[0].scancode) {
+			if (key->phy_key[1].scancode && out_len <= 6) {
+				break;
+			}
+			out[0] = key->phy_key[0].modifier;
+			out[1] = key->phy_key[0].scancode;
+			out_len -= 2;
+			out += 2;
+			if (key->phy_key[1].scancode) {
+				out[0] = key->phy_key[1].modifier;
+				out[1] = key->phy_key[1].scancode;
+				out += 2;
+				out_len -= 2;
+			}
+		} else {
+			break;
+		}
+		prev_key = c;
+		i++;
+	}
+	out[0] = 0;
+	out[1] = 0;
+	return (i == n_keys) ? 1 : 0;
+}
+
 
 int signetdev_type(void *param, int *token, const u8 *keys, int n_keys)
 {
@@ -676,8 +731,20 @@ void signetdev_priv_handle_command_resp(void *user, int token,
 				resp_code, (void *)resp);
 		}
 	} break;
-	case READ_CLEARTEXT_PASSWORDS:
-		if (resp_len != 128 * 4) {
+	case READ_CLEARTEXT_PASSWORD:
+		if (resp_code == OKAY && resp_len != CLEARTEXT_PASS_SIZE) {
+			signetdev_priv_handle_error();
+			break;
+		} else if (g_command_resp_cb) {
+			g_command_resp_cb(g_command_resp_cb_param,
+				user, token, api_cmd,
+				end_device_state,
+				expected_messages_remaining,
+				resp_code, (void *)resp);
+		}
+	break;
+	case READ_CLEARTEXT_PASSWORD_NAMES:
+		if (resp_code ==OKAY && resp_len != 64 * NUM_CLEARTEXT_PASS) {
 			signetdev_priv_handle_error();
 			break;
 		} else if (g_command_resp_cb) {

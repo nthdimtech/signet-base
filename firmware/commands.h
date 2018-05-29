@@ -79,6 +79,9 @@ union cmd_data_u {
 		u8 block[BLK_SIZE];
 	} update_uid;
 	struct {
+		u8 block[NUM_CLEARTEXT_PASS * 64];
+	} read_cleartext_password_names;
+	struct {
 		u8 iv[AES_BLK_SIZE];
 		int uid;
 		int block_num;
@@ -99,8 +102,12 @@ union cmd_data_u {
 		u8 block[BLK_SIZE];
 	} get_rand_bits;
 	struct {
-		u8 data[NUM_CLEARTEXT_PASS * CLEARTEXT_PASS_SIZE];
-	} write_cleartext_passwords;
+		int idx;
+		u8 data[CLEARTEXT_PASS_SIZE];
+	} write_cleartext_password;
+	struct {
+		int idx;
+	} read_cleartext_password;
 };
 
 extern union cmd_data_u cmd_data;
