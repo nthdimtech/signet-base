@@ -47,7 +47,7 @@ MCU_SOURCES = ivt_l443xc.c main_l443xc.c rng_driver.c flash_l443xc.c
 
 SOURCES = startup.c firmware_update_state.c commands.c crc.c db.c \
 	  usb_fs_driver.c \
-	  usart.c stm_aes.c usb_serial.c usb_storage.c usb.c usb_keyboard.c \
+	  usart.c stm_aes.c usb_serial.c usb.c usb_keyboard.c \
 	  print.c irq.c gpio.c rtc_rand.c \
 	  usb_raw_hid.c $(MCU_SOURCES)
 
@@ -55,7 +55,7 @@ OBJECTS = $(SOURCES:.c=.o)
 DEPFILES = $(SOURCES:.c=.o.d)
 
 signet-fw: $(OBJECTS)
-	$(HTUPLE)-gcc  $(CFLAGS) $(LDFLAGS) $^ $(LIBS) -o $@
+	$(HTUPLE)-gcc $(CFLAGS) $(LDFLAGS) $^ $(LIBS) -o $@
 
 signet-fw.bin: signet-fw
 	$(HTUPLE)-objcopy $^ -O binary $@
