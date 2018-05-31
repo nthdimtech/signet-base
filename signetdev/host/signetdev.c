@@ -744,7 +744,7 @@ void signetdev_priv_handle_command_resp(void *user, int token,
 		}
 	break;
 	case READ_CLEARTEXT_PASSWORD_NAMES:
-		if (resp_code ==OKAY && resp_len != 64 * NUM_CLEARTEXT_PASS) {
+		if (resp_code ==OKAY && resp_len != CLEARTEXT_PASS_NAME_SIZE * NUM_CLEARTEXT_PASS) {
 			signetdev_priv_handle_error();
 			break;
 		} else if (g_command_resp_cb) {
