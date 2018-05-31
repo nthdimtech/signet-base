@@ -419,6 +419,9 @@ void long_button_press()
 						root_page.header.v2.auth_rand, root_page.header.v2.auth_rand_ct);
 				memcpy(root_page.header.v2.salt, cmd_data.change_master_password.salt, SALT_SZ_V2);
 				break;
+			default:
+				finish_command_resp(UNKNOWN_DB_FORMAT);
+				return;
 			}
 			flash_write_page(ID_BLK(0), (u8 *)&root_page, sizeof(root_page));
 			break;
@@ -495,7 +498,7 @@ void timer_timeout()
 	int index = cleartext_pass_index;
 	cleartext_pass_index = -1;
 	if (index >= 0) {
-		generate_backspaces(cleartext_type_buf, index+1);
+		generate_backspaces(cleartext_type_buf, index + 1);
 		cleartext_pass_typing = 1;
 		usb_keyboard_type(cleartext_type_buf, (index + 1)*2);
 	}
@@ -568,7 +571,10 @@ void button_press()
 				} else {
 					finish_command_resp(BAD_PASSWORD);
 				}
-			} break;
+				} break;
+			default:
+				finish_command_resp(UNKNOWN_DB_FORMAT);
+				break;
 			}
 			break;
 		case LOGIN_TOKEN: {
@@ -644,9 +650,6 @@ void initialize_cmd(u8 *data, int data_len)
 	memcpy(cmd_data.init_data.salt, d, SALT_SZ_V2); d += SALT_SZ_V2;
 	memcpy(cmd_data.init_data.rand, d, INIT_RAND_DATA_SZ); d += INIT_RAND_DATA_SZ;
 	cmd_data.init_data.started = 0;
-
-	data += INITIALIZE_CMD_SIZE;
-	data_len -= INITIALIZE_CMD_SIZE;
 	begin_long_button_press_wait();
 }
 
@@ -717,24 +720,14 @@ void write_block_cmd(u8 *data, int data_len)
 {
 	dprint_s("WRITE BLOCK\r\n");
 	if (data_len != (1 + BLK_SIZE)) {
-		dprint_s("DATA LENGTH WRONG ");
-		dprint_dec(data_len);
-		dprint_s("\r\n");
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	int idx = *data;
-	data++;
+	int idx = *data; data++;
 	if (idx >= NUM_STORAGE_BLOCKS) {
-		dprint_s("BAD INDEX ");
-		dprint_dec(idx);
-		dprint_s("\r\n");
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	dprint_s("IDX ");
-	dprint_dec(idx);
-	dprint_s("\r\n");
 	flash_write_page(ID_BLK(idx), data, BLK_SIZE);
 }
 
@@ -757,6 +750,7 @@ void erase_block_cmd(u8 *data, int data_len)
 void get_device_capacity_cmd(u8 *data, int data_len)
 {
 	dprint_s("GET DEVICE CAPACITY\r\n");
+	//TODO
 	static struct {
 		u16 block_size;
 		u8 sub_blk_mask_size;
@@ -790,6 +784,10 @@ void change_master_password_cmd(u8 *data, int data_len)
 		stm_aes_256_decrypt_cbc(old_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
 				root_page.header.v2.encrypt_key_ct, encrypt_key);
 		memcpy(cmd_data.change_master_password.new_key, new_key, AES_256_KEY_SIZE);
+		break;
+	default:
+		finish_command_resp(UNKNOWN_DB_FORMAT);
+		return;
 	}
 	begin_long_button_press_wait();
 }
@@ -819,11 +817,13 @@ void get_rand_bits_cmd(u8 *data, int data_len)
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	cmd_data.get_rand_bits.sz = data[0] + (data[1] << 8);
+	int sz = data[0] + (data[1] << 8);
+	cmd_data.get_rand_bits.sz = sz; 
 	if (cmd_data.get_rand_bits.sz >= BLK_SIZE) {
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
+	memset(cmd_data.get_rand_bits.block, 0, (sz + 3)/4);
 	get_rand_bits_cmd_check();
 }
 
@@ -1031,7 +1031,7 @@ void read_cleartext_password_names()
 	int i;
 	int j = 0;
 	for (i = 0; i < NUM_CLEARTEXT_PASS; i++) {
-		if (p[i].format == 0 || p[i].format == 0xff) {
+		if (p->format == 0 || p->format == 0xff) {
 			memset(block + j, 0, 64);
 		} else {
 			memcpy(block + j, p->name_utf8, 64);
