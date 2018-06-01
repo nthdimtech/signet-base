@@ -56,6 +56,7 @@ DEPFILES = $(SOURCES:.c=.o.d)
 
 signet-fw: $(OBJECTS)
 	$(HTUPLE)-gcc $(CFLAGS) $(LDFLAGS) $^ $(LIBS) -o $@
+	$(HTUPLE)-objcopy --add-section version=firmware-version --set-section-flags version=noload,readonly $@ $@
 
 signet-fw.bin: signet-fw
 	$(HTUPLE)-objcopy $^ -O binary $@

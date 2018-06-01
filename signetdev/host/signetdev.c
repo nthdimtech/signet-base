@@ -371,44 +371,40 @@ int signetdev_write_cleartext_password(void *param, int *token, int index, const
 }
 
 
-int signetdev_to_scancodes_w(const u16 *keys, int n_keys, u8 *out, int out_len)
+int signetdev_to_scancodes_w(const u16 *keys, int n_keys, u16 *out, int *out_len_)
 {
 	u16 prev_key = 0;
-	int i;
-	while (i < n_keys && out_len >= 4) {
+	int i =0;
+	int out_len = *out_len_;
+	while (i < n_keys && out_len >= 2) {
 		u16 c = keys[i];
 		struct signetdev_key *key = keymap_inv + c;
 		if (c == prev_key) {
 			out[0] = 0;
-			out[1] = 0;
-			out += 2;
-			out_len -= 2;
+			out ++;
+			out_len--;
 			prev_key = 0;
 			continue;
 		}
 		if (key->phy_key[0].scancode) {
-			if (key->phy_key[1].scancode && out_len <= 6) {
+			if (key->phy_key[1].scancode && out_len <= 3) {
 				break;
 			}
-			out[0] = key->phy_key[0].modifier;
-			out[1] = key->phy_key[0].scancode;
-			out_len -= 2;
-			out += 2;
+			out[0] = key->phy_key[0].modifier + (key->phy_key[0].scancode << 8);
+			out_len--; out++;
 			if (key->phy_key[1].scancode) {
-				out[0] = key->phy_key[1].modifier;
-				out[1] = key->phy_key[1].scancode;
-				out += 2;
-				out_len -= 2;
+				out[0] = key->phy_key[1].modifier + (key->phy_key[1].scancode << 8);
+				out_len--; out++;
 			}
 		} else {
-			break;
+			return 2;
 		}
 		prev_key = c;
 		i++;
 	}
-	out[0] = 0;
-	out[1] = 0;
-	return (i == n_keys) ? 1 : 0;
+	out[0] = 0; out_len--; out++;
+	*out_len_ = (*out_len_) - out_len;
+	return (i == n_keys) ? 0 : 1;
 }
 
 
@@ -744,7 +740,7 @@ void signetdev_priv_handle_command_resp(void *user, int token,
 		}
 	break;
 	case READ_CLEARTEXT_PASSWORD_NAMES:
-		if (resp_code ==OKAY && resp_len != CLEARTEXT_PASS_NAME_SIZE * NUM_CLEARTEXT_PASS) {
+		if (resp_code ==OKAY && resp_len != (CLEARTEXT_PASS_NAME_SIZE + 1) * NUM_CLEARTEXT_PASS) {
 			signetdev_priv_handle_error();
 			break;
 		} else if (g_command_resp_cb) {

@@ -398,17 +398,6 @@ void long_button_press()
 		case INITIALIZE:
 			initialize_cmd_complete();
 			break;
-		case READ_CLEARTEXT_PASSWORD: {
-				int idx = cmd_data.read_cleartext_password.idx;
-				struct cleartext_pass *p = root_page.header.v2.cleartext_passwords;
-				finish_command(OKAY, (u8 *)(p + idx), CLEARTEXT_PASS_SIZE);
-			} break;
-		case WRITE_CLEARTEXT_PASSWORD: {
-				int idx = cmd_data.write_cleartext_password.idx;
-				struct cleartext_pass *p = root_page.header.v2.cleartext_passwords;
-				memcpy(p + idx, cmd_data.write_cleartext_password.data, CLEARTEXT_PASS_SIZE);
-				flash_write_page(ID_BLK(0), (u8 *)&root_page, sizeof(root_page));
-			} break;
 		case CHANGE_MASTER_PASSWORD:
 			switch (root_page.signature[0]) {
 			case 2:
@@ -470,7 +459,6 @@ void login_cmd_iter()
 }
 
 static int cleartext_pass_index = -1;
-static int cleartext_pass_chars_typed = 0;
 static u8 cleartext_type_buf[128+4*4];
 static int cleartext_pass_typing;
 
@@ -514,14 +502,9 @@ static void button_release_disconnected()
 			return;
 		}
 		cleartext_pass_typing = 1;
-		int i = cleartext_pass_chars_typed;
-		generate_backspaces(cleartext_type_buf, cleartext_pass_chars_typed);
-		cleartext_type_buf[i*4 + 0] = 0;
-		cleartext_type_buf[i*4 + 1] = 30 + cleartext_pass_index;
-		cleartext_type_buf[i*4 + 2] = 0;
-		cleartext_type_buf[i*4 + 3] = 0;
-		usb_keyboard_type(cleartext_type_buf, cleartext_pass_chars_typed*2 + 2);
-		cleartext_pass_chars_typed = 0;
+		cleartext_type_buf[0] = 0;
+		cleartext_type_buf[1] = 30 + cleartext_pass_index;
+		usb_keyboard_type(cleartext_type_buf, 2);
 		timer_start(2000);
 	}
 }
@@ -537,7 +520,6 @@ static void long_button_press_disconnected()
 			generate_backspaces(cleartext_type_buf, index+1);
 			memcpy(cleartext_type_buf + (index+1)*4, p->scancodes, p->scancode_entries*2);
 			cleartext_pass_typing = 1;
-			cleartext_pass_chars_typed = p->scancode_entries;
 			usb_keyboard_type(cleartext_type_buf, p->scancode_entries + (index + 1)*2);
 		} else {
 			timer_timeout();
@@ -552,6 +534,17 @@ void button_press()
 	if (waiting_for_button_press) {
 		end_button_press_wait();
 		switch(active_cmd) {
+		case READ_CLEARTEXT_PASSWORD: {
+				int idx = cmd_data.read_cleartext_password.idx;
+				struct cleartext_pass *p = root_page.header.v2.cleartext_passwords;
+				finish_command(OKAY, (u8 *)(p + idx), CLEARTEXT_PASS_SIZE);
+			} break;
+		case WRITE_CLEARTEXT_PASSWORD: {
+				int idx = cmd_data.write_cleartext_password.idx;
+				struct cleartext_pass *p = root_page.header.v2.cleartext_passwords;
+				memcpy(p + idx, cmd_data.write_cleartext_password.data, CLEARTEXT_PASS_SIZE);
+				flash_write_page(ID_BLK(0), (u8 *)&root_page, sizeof(root_page));
+			} break;
 		case LOGIN:
 			switch (root_page.signature[0]) {
 			case 2: {
@@ -1005,7 +998,7 @@ void write_cleartext_password(u8 *data, int data_len)
 	}
 	cmd_data.write_cleartext_password.idx = idx;
 	memcpy(cmd_data.write_cleartext_password.data, data, data_len);
-	begin_long_button_press_wait();
+	begin_button_press_wait();
 }
 
 void read_cleartext_password(u8 *data, int data_len)
@@ -1020,7 +1013,7 @@ void read_cleartext_password(u8 *data, int data_len)
 		return;
 	}
 	cmd_data.read_cleartext_password.idx = idx;
-	begin_long_button_press_wait();
+	begin_button_press_wait();
 }
 
 
@@ -1031,15 +1024,16 @@ void read_cleartext_password_names()
 	int i;
 	int j = 0;
 	for (i = 0; i < NUM_CLEARTEXT_PASS; i++) {
+		block[j] = p->format;
 		if (p->format == 0 || p->format == 0xff) {
-			memset(block + j, 0, 64);
+			memset(block + j + 1, 0, CLEARTEXT_PASS_NAME_SIZE);
 		} else {
-			memcpy(block + j, p->name_utf8, 64);
+			memcpy(block + j + 1, p->name_utf8, CLEARTEXT_PASS_NAME_SIZE);
 		}
-		j += 64;
+		j += (CLEARTEXT_PASS_NAME_SIZE + 1);
 		p++;
 	}
-	finish_command(OKAY, (u8 *)block, NUM_CLEARTEXT_PASS * 64);
+	finish_command(OKAY, (u8 *)block, NUM_CLEARTEXT_PASS * (CLEARTEXT_PASS_NAME_SIZE + 1));
 }
 
 int logged_in_state(int cmd, u8 *data, int data_len)

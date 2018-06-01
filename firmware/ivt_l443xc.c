@@ -37,6 +37,7 @@ void sdmmc_handler(void) __attribute__ ((weak, alias ("handler_default")));
 void rng_handler(void) __attribute__ ((weak, alias ("handler_default")));
 void ext_9_5_handler(void) __attribute__ ((weak, alias ("handler_default")));
 
+
 __attribute__ ((section(".interrupt_vector")))
 void (* const table_interrupt_vector[])(void) =
 {
