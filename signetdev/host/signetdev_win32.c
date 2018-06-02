@@ -24,6 +24,8 @@ static int g_emulating = 0;
 static OVERLAPPED g_read_overlapped;
 static OVERLAPPED g_write_overlapped;
 
+static int g_quitting = 0;
+
 extern signetdev_conn_err_t g_error_handler;
 extern void *g_error_handler_param;
 
@@ -212,6 +214,7 @@ static void handle_command(int command, void *p)
 		}
 		} break;
 	case SIGNETDEV_CMD_QUIT: {
+		g_quitting = 1;
 		} break;
 	case SIGNETDEV_CMD_CANCEL_MESSAGE: {
 		struct send_message_req *msg = (struct send_message_req *)p;
@@ -231,7 +234,7 @@ static DWORD WINAPI transaction_thread(LPVOID lpParameter)
 	wait_handles[0] = g_msg_read_event;
 	wait_handles[1] = g_msg_write_event;
 	wait_handles[2] = g_command_event;
-	while (1) {
+	while (!g_quitting) {
 		DWORD rc = WaitForMultipleObjects(3, wait_handles, FALSE, INFINITE);
 		int index = rc - WAIT_OBJECT_0;
 		ResetEvent(wait_handles[index]);
@@ -287,7 +290,7 @@ static DWORD WINAPI transaction_thread(LPVOID lpParameter)
 			WaitForSingleObject(g_command_mutex, -1);
 			int entries = g_command_queue_head - g_command_queue_tail;
 			if (entries < 0) entries += 128;
-			for (int i = 0; i < entries; i++) {
+			for (int i = 0; (i < entries) && !g_quitting; i++) {
 				int j = (g_command_queue_tail + i) % 128;
 				handle_command(g_command_queue[j].cmd, g_command_queue[j].data);
 			}
@@ -312,7 +315,8 @@ void signetdev_priv_platform_init()
 
 void signetdev_priv_platform_deinit()
 {
-	WaitForSingleObject(g_msg_thread, INFINITE);
+	signetdev_priv_issue_command_no_resp(SIGNETDEV_CMD_QUIT, NULL);
+	WaitForSingleObject(g_msg_thread, 2000);
 	CloseHandle(g_msg_thread);
 	g_msg_thread = INVALID_HANDLE_VALUE;
 	CloseHandle(g_msg_read_event);
