@@ -13,8 +13,8 @@ extern signetdev_conn_err_t g_error_handler;
 extern void *g_error_handler_param;
 static int g_opening_connection = 0;
 static int g_emulating = 0;
-static IOHIDManagerRef hid_manager=NULL;
-static IOHIDDeviceRef hid_dev=NULL;
+static IOHIDManagerRef hid_manager = NULL;
+static IOHIDDeviceRef hid_dev = NULL;
 
 static struct send_message_req *g_tail_message = NULL;
 static struct send_message_req *g_head_message = NULL;
@@ -28,35 +28,35 @@ static struct rx_message_state g_rx_message_state;
 
 static void handle_error()
 {
-    if (g_error_handler) {
+	if (g_error_handler) {
 	g_error_handler(g_error_handler_param);
-    }
+	}
 }
 
 int signetdev_priv_issue_command(int command, void *p)
 {
-    intptr_t v[2] = {command, (intptr_t)p};
-    write(g_command_pipe[1], v, sizeof(intptr_t) * 2);
-    char cmd_resp;
-    read(g_command_resp_pipe[0], &cmd_resp, 1);
-    return cmd_resp;
+	intptr_t v[2] = {command, (intptr_t)p};
+	write(g_command_pipe[1], v, sizeof(intptr_t) * 2);
+	char cmd_resp;
+	read(g_command_resp_pipe[0], &cmd_resp, 1);
+	return cmd_resp;
 }
 
 void signetdev_priv_issue_command_no_resp(int command, void *p)
 {
-    intptr_t v[2] = {command, (intptr_t)p};
-    write(g_command_pipe[1], v, sizeof(intptr_t) * 2);
+	intptr_t v[2] = {command, (intptr_t)p};
+	write(g_command_pipe[1], v, sizeof(intptr_t) * 2);
 }
 
 void signetdev_priv_handle_error()
 {
-    handle_error();
+	handle_error();
 }
 
 static void command_response(int rc)
 {
-    char resp = rc;
-    write(g_command_resp_pipe[1], &resp, 1);
+	char resp = rc;
+	write(g_command_resp_pipe[1], &resp, 1);
 }
 
 static int send_hid_command(int cmd, u8 *payload, int payload_size)
@@ -71,9 +71,11 @@ static int send_hid_command(int cmd, u8 *payload, int payload_size)
 	return 0;
 }
 
+static int open_device(IOHIDDeviceRef dev);
+
 static void handle_command(int command, void *p)
 {
-    switch (command) {
+	switch (command) {
 	case SIGNETDEV_CMD_EMULATE_BEGIN:
 		if (!g_opening_connection && hid_dev == NULL) {
 			g_emulating = 1;
@@ -85,20 +87,39 @@ static void handle_command(int command, void *p)
 	case SIGNETDEV_CMD_EMULATE_END:
 		g_emulating = 0;
 		break;
-    case SIGNETDEV_CMD_OPEN:
-	if (hid_dev != NULL) {
-	    command_response(0);
-	} else {
-	    g_opening_connection = 1;
-	    command_response(-1);
-	}
+	case SIGNETDEV_CMD_OPEN:
+		if (hid_dev == NULL) {
+			CFSetRef refs = IOHIDManagerCopyDevices(hid_manager);
+			int ref_count = CFSetGetCount(refs);
+			if (ref_count > 0) {
+				const void **values = (const void **)malloc(sizeof(void *) * ref_count);
+				CFSetGetValues(refs, values);
+				int rc = open_device((IOHIDDeviceRef)values[0]);
+				int i;
+				if (!rc) {
+					CFRelease((CFTypeRef)values[0]);
+				}
+				for (i = 1; i < ref_count; i++) {
+					CFRelease((CFTypeRef)values[i]);
+				}
+				free(values);
+			}
+		}
+		if (hid_dev == NULL) {
+			g_opening_connection = 1;
+			command_response(-1);
+		} else {
+			g_opening_connection = 0;
+			command_response(0);
+		}
 	break;
-    case SIGNETDEV_CMD_CLOSE:
-	g_opening_connection = 0;
-	if (hid_dev != NULL) {
-	    IOHIDDeviceClose(hid_dev, kIOHIDOptionsTypeNone);
-	    hid_dev = NULL;
-	}
+	case SIGNETDEV_CMD_CLOSE:
+		g_opening_connection = 0;
+		if (hid_dev != NULL) {
+			IOHIDDeviceClose(hid_dev, kIOHIDOptionsTypeNone);
+			CFRelease((CFTypeRef)hid_dev);
+			hid_dev = NULL;
+		}
 	break;
 	case SIGNETDEV_CMD_QUIT:
 		pthread_exit(NULL);
@@ -125,10 +146,10 @@ static void handle_command(int command, void *p)
 			signetdev_emulate_handle_message_priv(msg);
 		} else {
 			if (!g_head_cancel_message) {
-			    g_head_cancel_message = msg;
+				g_head_cancel_message = msg;
 			}
 			if (g_tail_cancel_message)
-			    g_tail_cancel_message->next = msg;
+				g_tail_cancel_message->next = msg;
 			g_tail_cancel_message = msg;
 			CFRunLoopStop(CFRunLoopGetCurrent());
 		}
@@ -138,21 +159,21 @@ static void handle_command(int command, void *p)
 
 void command_pipe_callback(CFFileDescriptorRef f, CFOptionFlags callBackTypes, void *info)
 {
-    (void)callBackTypes;
-    (void)info;
-    intptr_t v[2];
-    int rc = read(g_command_pipe[0], v, sizeof(intptr_t) * 2);
-    if (rc == sizeof(intptr_t) * 2) {
+	(void)callBackTypes;
+	(void)info;
+	intptr_t v[2];
+	int rc = read(g_command_pipe[0], v, sizeof(intptr_t) * 2);
+	if (rc == sizeof(intptr_t) * 2) {
 	handle_command(v[0], (void *)v[1]);
 	CFFileDescriptorEnableCallBacks(f, kCFFileDescriptorReadCallBack);
-    } else {
+	} else {
 	handle_error();
-    }
+	}
 }
 
 static void handle_exit(void *arg)
 {
-    (void)arg;
+	(void)arg;
 }
 
 static void detach_callback(void *context, IOReturn r, void *hid_mgr, IOHIDDeviceRef dev)
@@ -161,19 +182,20 @@ static void detach_callback(void *context, IOReturn r, void *hid_mgr, IOHIDDevic
 	(void)r;
 	(void)hid_mgr;
 	if (dev == hid_dev && hid_dev != NULL) {
-	    hid_dev = NULL;
+		CFRelease((CFTypeRef)hid_dev);
+		hid_dev = NULL;
 	}
 	if (g_rx_message_state.message) {
 		signetdev_priv_finalize_message(&g_rx_message_state.message, SIGNET_ERROR_DISCONNECT);
 	}
 	if (g_device_closed_cb) {
-	    g_device_closed_cb(g_device_closed_cb_param);
+		g_device_closed_cb(g_device_closed_cb_param);
 	}
 }
 
 struct hid_packet {
-    u8 data[RAW_HID_PACKET_SIZE];
-    struct hid_packet *next;
+	u8 data[RAW_HID_PACKET_SIZE];
+	struct hid_packet *next;
 };
 
 struct hid_packet *hid_packet_first = NULL;
@@ -181,61 +203,71 @@ struct hid_packet *hid_packet_last = NULL;
 
 static void input_callback(void *context, IOReturn ret, void *sender, IOHIDReportType type, uint32_t id, uint8_t *data, CFIndex len)
 {
-    (void)type;
-    (void)id;
-    (void)sender;
-    (void)ret;
-    (void)context;
-    static u8 recv_packet[RAW_HID_PACKET_SIZE];
-    static int recv_byte = 0;
-    int i = 0;
-    while (i <= len) {
+	(void)type;
+	(void)id;
+	(void)sender;
+	(void)ret;
+	(void)context;
+	static u8 recv_packet[RAW_HID_PACKET_SIZE];
+	static int recv_byte = 0;
+	int i = 0;
+	while (i <= len) {
 	int rem = RAW_HID_PACKET_SIZE - recv_byte;
 	int to_copy;
 	if (len <= rem) {
-	    to_copy = len;
+		to_copy = len;
 	} else {
-	    to_copy = rem;
+		to_copy = rem;
 	}
 	memcpy(recv_packet + recv_byte, data + i, to_copy);
 	recv_byte += to_copy;
 	i += to_copy;
 	len -= to_copy;
 	if (recv_byte == RAW_HID_PACKET_SIZE) {
-	    recv_byte = 0;
-	    struct hid_packet *p = (struct hid_packet *)malloc(sizeof(struct hid_packet));
-	    memcpy(p->data, recv_packet, RAW_HID_PACKET_SIZE);
-	    p->next = NULL;
-	    if (hid_packet_first == NULL) {
+		recv_byte = 0;
+		struct hid_packet *p = (struct hid_packet *)malloc(sizeof(struct hid_packet));
+		memcpy(p->data, recv_packet, RAW_HID_PACKET_SIZE);
+		p->next = NULL;
+		if (hid_packet_first == NULL) {
 		hid_packet_first = p;
 		hid_packet_last = p;
-	    } else {
+		} else {
 		hid_packet_last->next = p;
 		hid_packet_last = p;
-	    }
+		}
 	}
-    }
-    CFRunLoopStop(CFRunLoopGetCurrent());
+	}
+	CFRunLoopStop(CFRunLoopGetCurrent());
 }
 
 static u8 g_input_buffer[1024];
 
-static void attach_callback(void *context, IOReturn r, void *hid_mgr, IOHIDDeviceRef dev)
+static int open_device(IOHIDDeviceRef dev)
 {
-	(void)context;
-	(void)r;
-	(void)hid_mgr;
-	if (IOHIDDeviceOpen(dev, kIOHIDOptionsTypeNone) != kIOReturnSuccess) return;
+	if (IOHIDDeviceOpen(dev, kIOHIDOptionsTypeNone) != kIOReturnSuccess) return 0;
 
 	IOHIDDeviceScheduleWithRunLoop(dev, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
 	IOHIDDeviceRegisterInputReportCallback(dev, g_input_buffer, sizeof(g_input_buffer),
 		input_callback, NULL);
 	hid_dev = dev;
 	if (g_opening_connection) {
-	    g_opening_connection = 0;
-	    if (g_device_opened_cb) {
-		g_device_opened_cb(g_device_opened_cb_param);
-	    }
+		g_opening_connection = 0;
+		if (g_device_opened_cb) {
+			g_device_opened_cb(g_device_opened_cb_param);
+		}
+	}
+	return 1;
+}
+
+static void attach_callback(void *context, IOReturn r, void *hid_mgr, IOHIDDeviceRef dev)
+{
+	(void)context;
+	(void)r;
+	(void)hid_mgr;
+	if (hid_dev == NULL) {
+		if (open_device(dev)) {
+			CFRetain((CFTypeRef)hid_dev);
+		}
 	}
 }
 
