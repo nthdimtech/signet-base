@@ -90,19 +90,21 @@ static void handle_command(int command, void *p)
 	case SIGNETDEV_CMD_OPEN:
 		if (hid_dev == NULL) {
 			CFSetRef refs = IOHIDManagerCopyDevices(hid_manager);
-			int ref_count = CFSetGetCount(refs);
-			if (ref_count > 0) {
-				const void **values = (const void **)malloc(sizeof(void *) * ref_count);
-				CFSetGetValues(refs, values);
-				int rc = open_device((IOHIDDeviceRef)values[0]);
-				int i;
-				if (!rc) {
-					CFRelease((CFTypeRef)values[0]);
+			if (refs) {
+				int ref_count = CFSetGetCount(refs);
+				if (ref_count > 0) {
+					const void **values = (const void **)malloc(sizeof(void *) * ref_count);
+					CFSetGetValues(refs, values);
+					int rc = open_device((IOHIDDeviceRef)values[0]);
+					int i;
+					if (!rc) {
+						CFRelease((CFTypeRef)values[0]);
+					}
+					for (i = 1; i < ref_count; i++) {
+						CFRelease((CFTypeRef)values[i]);
+					}
+					free(values);
 				}
-				for (i = 1; i < ref_count; i++) {
-					CFRelease((CFTypeRef)values[i]);
-				}
-				free(values);
 			}
 		}
 		if (hid_dev == NULL) {
