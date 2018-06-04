@@ -442,6 +442,12 @@ static void read_all_uids_cmd(struct send_message_req *msg)
 	while (read_all_uids_cmd_iter(msg));
 }
 
+static void disconnect_cmd(struct send_message_req *msg)
+{
+	enter_state(DISCONNECTED);
+	resp_code(msg, OKAY);
+}
+
 //
 // signetdev_emulate_*
 //
@@ -493,8 +499,7 @@ int signetdev_emulate_handle_message_priv(struct send_message_req *msg)
 		break;
 	case WRITE_CLEARTEXT_PASSWORD:
 		break;
-	case DISCONNECT:
-		break;
+
 
 	//Needed soon
 	case INITIALIZE:
@@ -505,6 +510,9 @@ int signetdev_emulate_handle_message_priv(struct send_message_req *msg)
 	//Essential to emulate
 	case STARTUP:
 		startup_cmd(msg);
+		break;
+	case DISCONNECT:
+		disconnect_cmd(msg);
 		break;
 	case LOGIN:
 		login_cmd(msg);
