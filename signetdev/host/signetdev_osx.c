@@ -59,10 +59,10 @@ static void command_response(int rc)
 	write(g_command_resp_pipe[1], &resp, 1);
 }
 
-static int send_hid_command(int cmd, u8 *payload, int payload_size)
+static int send_hid_command(int cmd, int messages_remaining, u8 *payload, int payload_size)
 {
 	struct tx_message_state msg;
-	signetdev_priv_prepare_message_state(&msg, cmd, payload, payload_size);
+	signetdev_priv_prepare_message_state(&msg, cmd, messages_remaining, payload, payload_size);
 	for (int i = 0; i < msg.msg_packet_count; i++) {
 		signetdev_priv_advance_message_state(&msg);
 		IOHIDDeviceSetReport(hid_dev, kIOHIDReportTypeOutput, 0, msg.packet_buf + 1, RAW_HID_PACKET_SIZE);
@@ -353,6 +353,7 @@ void *transaction_thread(void *arg)
 			}
 			if (g_current_write_message) {
 				send_hid_command(g_current_write_message->dev_cmd,
+						 g_current_write_message->messages_remaining,
 						 g_current_write_message->payload,
 						 g_current_write_message->payload_size);
 				if (!g_current_write_message->resp && !g_current_write_message->resp_code) {

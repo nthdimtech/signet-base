@@ -11,7 +11,7 @@ struct block_info {
 };
 
 void read_uid_cmd(int uid, int masked);
-void update_uid_cmd(int uid, u8 *data, int sz);
+void update_uid_cmd(int uid, u8 *data, int sz, int press_type);
 void read_all_uids_cmd(int masked);
 
 void read_all_uids_cmd_iter();

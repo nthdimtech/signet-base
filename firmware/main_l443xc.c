@@ -16,7 +16,7 @@
 #include "main.h"
 #include "usb_driver.h"
 
-static const char fw_version[] __attribute__((section(".version"))) = "1.9.2";
+static const char fw_version[] __attribute__((section(".version"))) = "1.3.2";
 
 volatile int ms_count = 0;
 static int ms_last_pressed = 0;

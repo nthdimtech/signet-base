@@ -111,6 +111,7 @@ static void state_iter()
 		if (g_tx_state.message) {
 			signetdev_priv_prepare_message_state(&g_tx_state,
 					 g_tx_state.message->dev_cmd,
+					 g_tx_state.message->messages_remaining,
 					 g_tx_state.message->payload,
 					 g_tx_state.message->payload_size);
 

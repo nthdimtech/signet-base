@@ -26,6 +26,7 @@ struct send_message_req {
 	int api_cmd;
 	u8 *payload;
 	unsigned int payload_size;
+	unsigned int messages_remaining;
 	u8 *resp;
 	int *resp_code;
 	void *user;
@@ -59,7 +60,7 @@ struct rx_message_state {
 	struct send_message_req *message;
 };
 
-void signetdev_priv_prepare_message_state(struct tx_message_state *msg, int dev_cmd, u8 *payload, int payload_size);
+void signetdev_priv_prepare_message_state(struct tx_message_state *msg, int dev_cmd, int messages_remaining, u8 *payload, int payload_size);
 void signetdev_priv_advance_message_state(struct tx_message_state *msg);
 
 extern void (*g_device_opened_cb)(void *);
@@ -71,7 +72,7 @@ extern void *g_device_closed_cb_param;
 #define SIGNETDEV_PRIV_GET_RESP 1
 #define SIGNETDEV_PRIV_NO_RESP 0
 
-int signetdev_priv_send_message(void *user, int token,  int dev_cmd, int api_cmd, const u8 *payload, unsigned int payload_size, int get_resp);
+int signetdev_priv_send_message(void *user, int token,  int dev_cmd, int api_cmd, int messages_remainin, const u8 *payload, unsigned int payload_size, int get_resp);
 void signetdev_priv_message_send_resp(struct send_message_req *msg, int rc, int expected_messages_remaining);
 void signetdev_priv_free_message(struct send_message_req **req);
 void signetdev_priv_finalize_message(struct send_message_req **msg ,int rc);

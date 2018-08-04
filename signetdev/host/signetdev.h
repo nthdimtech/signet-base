@@ -56,6 +56,7 @@ typedef enum signetdev_cmd_id {
 	SIGNETDEV_CMD_ERASE_PAGES,
 	SIGNETDEV_CMD_ENTER_MOBILE_MODE,
 	SIGNETDEV_CMD_UPDATE_UID,
+	SIGNETDEV_CMD_UPDATE_UIDS,
 	SIGNETDEV_CMD_READ_UID,
 	SIGNETDEV_CMD_READ_ALL_UIDS,
 	SIGNETDEV_CMD_GET_RAND_BITS,
@@ -106,6 +107,7 @@ int signetdev_write_flash(void *param, int *token, u32 addr, const void *data, i
 int signetdev_erase_pages(void *param, int *token, int n_pages, const u8 *page_numbers);
 
 int signetdev_update_uid(void *user, int *token, int id, int size, const u8 *data, const u8 *mask);
+int signetdev_update_uids(void *user, int *token, int id, int size, const u8 *data, const u8 *mask, int entries_remaining);
 int signetdev_read_uid(void *param, int *token, int uid, int masked);
 int signetdev_read_all_uids(void *param, int *token, int masked);
 int signetdev_has_keyboard();

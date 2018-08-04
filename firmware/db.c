@@ -348,7 +348,7 @@ static int update_uid(int uid, u8 *data, int sz, int *prev_block_num, const u8 *
 	}
 }
 
-void update_uid_cmd(int uid, u8 *data, int sz)
+void update_uid_cmd(int uid, u8 *data, int sz, int press_type)
 {
 	derive_iv(uid, cmd_data.update_uid.iv);
 	struct block *block = (struct block *)cmd_data.update_uid.block;
@@ -366,7 +366,13 @@ void update_uid_cmd(int uid, u8 *data, int sz)
 	if (cmd_data.update_uid.block_num == INVALID_BLOCK) {
 		finish_command_resp(NOT_ENOUGH_SPACE);
 	} else {
-		begin_button_press_wait();
+		if (press_type == 0) {
+			update_uid_cmd_complete();
+		} else if (press_type == 1) {
+			begin_button_press_wait();
+		} else {
+			begin_long_button_press_wait();
+		}
 	}
 }
 

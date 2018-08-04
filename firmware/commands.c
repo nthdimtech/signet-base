@@ -22,6 +22,8 @@
 
 //Command code of the currently executing command or -1 if no command is executing
 static int active_cmd = -1;
+static int cmd_iter_count = 0;
+static int cmd_messages_remaining = 0;
 
 enum device_state device_state = DISCONNECTED;
 
@@ -187,7 +189,7 @@ void finish_command_multi(enum command_responses resp, int messages_remaining, c
 	if (payload) {
 		memcpy(cmd_resp + CMD_PACKET_HEADER_SIZE, payload, payload_len);
 	}
-	if (!messages_remaining) {
+	if (!messages_remaining && !cmd_messages_remaining) {
 		active_cmd = -1;
 	}
 	cmd_packet_send(cmd_resp, full_length);
@@ -333,6 +335,7 @@ void flash_write_complete()
 	case WRITE_FLASH:
 		finish_command_resp(OKAY);
 		break;
+	case UPDATE_UIDS:
 	case UPDATE_UID:
 		update_uid_cmd_write_finished();
 	        break;
@@ -374,6 +377,9 @@ void long_button_press()
 		switch(active_cmd) {
 		case READ_ALL_UIDS:
 			read_all_uids_cmd_iter();
+			break;
+		case UPDATE_UIDS:
+			update_uid_cmd_complete();
 			break;
 		case UPDATE_FIRMWARE:
 			finish_command_resp(OKAY);
@@ -1046,7 +1052,6 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		change_master_password_cmd(data, data_len);
 		break;
 	case BACKUP_DEVICE:
-		dprint_s("Backup device\r\n");
 		begin_long_button_press_wait();
 		break;
 	case GET_RAND_BITS:
@@ -1065,6 +1070,7 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		}
 		read_uid_cmd(uid, masked);
 	} break;
+	case UPDATE_UIDS:
 	case UPDATE_UID: {
 		if (data_len < 4) {
 			finish_command_resp(INVALID_INPUT);
@@ -1079,7 +1085,15 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 			finish_command_resp(INVALID_INPUT);
 			return 0;
 		}
-		update_uid_cmd(uid, data, sz);
+		if (active_cmd == UPDATE_UID) {
+			update_uid_cmd(uid, data, sz, 1 /* short press */);
+		} else {
+			if (!cmd_iter_count) {
+				update_uid_cmd(uid, data, sz, 2 /* long press */);
+			} else {
+				update_uid_cmd(uid, data, sz, 0 /* no press */);
+			}
+		}
 	} break;
 	case READ_ALL_UIDS: {
 		if (data_len < 1) {
@@ -1226,6 +1240,7 @@ int cmd_packet_recv()
 	u8 *data = cmd_packet_buf;
 	int data_len = data[0] + (data[1] << 8) - CMD_PACKET_HEADER_SIZE;
 	int next_active_cmd = data[2];
+	int messages_remaining = data[3] + (data[4] << 8);
 	int prev_active_cmd = active_cmd;
 	data += CMD_PACKET_HEADER_SIZE;
 
@@ -1247,7 +1262,11 @@ int cmd_packet_recv()
 		finish_command_resp(BUTTON_PRESS_CANCELED);
 		return waiting_for_a_button_press;
 	}
+	if (active_cmd != next_active_cmd) {
+		cmd_iter_count = 0;
+	}
 	active_cmd = next_active_cmd;
+	cmd_messages_remaining = messages_remaining;
 
 	if (active_cmd == STARTUP) {
 		startup_cmd(data, data_len);
@@ -1314,6 +1333,9 @@ int cmd_packet_recv()
 	if (ret) {
 		dprint_s("INVALID STATE\r\n");
 		finish_command_resp(INVALID_STATE);
+	}
+	if (messages_remaining) {
+		cmd_iter_count++;
 	}
 #ifdef TESTING_MODE
 	if (waiting_for_button_press) {
