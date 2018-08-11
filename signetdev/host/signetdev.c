@@ -574,7 +574,7 @@ int signetdev_write_flash(void *param, int *token, u32 addr, const void *data, i
 				0, msg, 4 + data_len, SIGNETDEV_PRIV_GET_RESP);
 }
 
-static int encode_entry_data(int size, const u8 *data, const u8 *mask, uint8_t *msg, int msg_sz)
+int encode_entry_data(int size, const u8 *data, const u8 *mask, uint8_t *msg, int msg_sz)
 {
 	int i;
 	int blk_count = SIZE_TO_SUB_BLK_COUNT(size);
@@ -603,10 +603,12 @@ int signetdev_update_uid(void *param, int *token, int uid, int size, const u8 *d
 	msg[k] = (uid >> 8) & 0xff; k++;
 	msg[k] = (size >> 0) & 0xff; k++;
 	msg[k] = (size >> 8); k++;
-	int message_size = encode_entry_data(size, data, mask, msg + k, sizeof(msg) - k) + k;
+	int message_size = encode_entry_data(size, data, mask, msg + k, sizeof(msg) - k);
 
 	if (message_size < 0)
 		return message_size;
+
+	message_size += k;
 
 	return signetdev_priv_send_message(param, *token,
 		UPDATE_UID, SIGNETDEV_CMD_UPDATE_UID,
