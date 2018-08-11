@@ -377,17 +377,17 @@ int signetdev_write_cleartext_password(void *param, int *token, int index, const
 
 int signetdev_to_scancodes_w(const u16 *keys, int n_keys, u16 *out, int *out_len_)
 {
-	u16 prev_key = 0;
-	int i =0;
+	u8 prev_scancode = 0;
+	int i = 0;
 	int out_len = *out_len_;
 	while (i < n_keys && out_len >= 2) {
 		u16 c = keys[i];
 		struct signetdev_key *key = keymap_inv + c;
-		if (c == prev_key) {
+		if (key->phy_key[0].scancode && prev_scancode == key->phy_key[0].scancode) {
 			out[0] = 0;
 			out ++;
 			out_len--;
-			prev_key = 0;
+			prev_scancode = 0;
 			continue;
 		}
 		if (key->phy_key[0].scancode) {
@@ -403,7 +403,7 @@ int signetdev_to_scancodes_w(const u16 *keys, int n_keys, u16 *out, int *out_len
 		} else {
 			return 2;
 		}
-		prev_key = c;
+		prev_scancode = (out - 1)[0] >> 8;
 		i++;
 	}
 	out[0] = 0; out_len--; out++;
