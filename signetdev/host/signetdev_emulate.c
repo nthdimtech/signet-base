@@ -7,12 +7,13 @@
 #include <memory.h>
 
 struct db_uid_mapping {
-	int block;
-	int index;
+	unsigned int block;
+	unsigned int index;
 };
 
 static struct {
 	enum device_state state;
+	enum device_state progress_state;
 	FILE *db_file;
 	u8 device_data[NUM_STORAGE_BLOCKS][BLK_SIZE];
 	u8 encrypt_key[AES_256_KEY_SIZE];
@@ -21,13 +22,12 @@ static struct {
 	gcry_cipher_hd_t aes256_ecb;
 	gcry_cipher_hd_t aes256_cbc;
 	gcry_md_hd_t crc32;
-	int n_progress_components;
-	int progress_levels[8];
-	int progress_maximums[8];
-	int progress_level;
-	int progress_maximum;
-	int progress_check;
-	enum device_state progress_state;
+	unsigned int n_progress_components;
+	unsigned int progress_levels[8];
+	unsigned int progress_maximums[8];
+	unsigned int progress_level;
+	unsigned int progress_maximum;
+	unsigned int progress_check;
 	struct send_message_req *msg;
 
 	struct db_uid_mapping uid_map[MAX_UID + 1];
@@ -50,31 +50,31 @@ static void resp_code(struct send_message_req *msg, int code)
 	signetdev_priv_message_send_resp(msg, 0, 0);
 }
 
-static void resp_data_multi(struct send_message_req *msg, int expected_messages_remaining, int code, int len)
+static void resp_data_multi(struct send_message_req *msg, int expected_messages_remaining, int code, size_t len)
 {
 	if (msg->resp_code)
 		*msg->resp_code = code;
-	signetdev_priv_message_send_resp(msg, len, expected_messages_remaining);
+	signetdev_priv_message_send_resp(msg, (int)len, expected_messages_remaining);
 }
 
-static void resp_data(struct send_message_req *msg, int code, int len)
+static void resp_data(struct send_message_req *msg, int code, size_t len)
 {
 	resp_data_multi(msg, 0, code, len);
 }
 
 static void enter_state(int state)
 {
-	g_deviceState.state = state;
+	g_deviceState.state = (enum device_state)state;
 	g_deviceState.progress_level = 0;
 	g_deviceState.n_progress_components = 0;
 }
 
-static void enter_progressing_state(int state, int components, int *maximums)
+static void enter_progressing_state(int state, unsigned int components, unsigned int *maximums)
 {
-	g_deviceState.state = state;
+	g_deviceState.state = (enum device_state)state;
 	g_deviceState.progress_level = 0;
 	g_deviceState.n_progress_components = components;
-	for (int i = 0; i < components; i++) {
+	for (unsigned int i = 0; i < components; i++) {
 		g_deviceState.progress_levels[i] = 0;
 		g_deviceState.progress_maximums[i] = maximums[i];
 	}
@@ -96,14 +96,14 @@ static void derive_iv(u32 id, u8 *iv)
 	iv[AES_BLK_SIZE-1] += (u8)(id);
 }
 
-static int get_block_header_size(int part_count)
+static size_t get_block_header_size(size_t part_count)
 {
 	return SUB_BLK_COUNT(sizeof(struct db_block_header) + (sizeof(struct db_uid_ent) * part_count));
 }
 
 struct db_block *uid_to_db_block(int uid)
 {
-	int block_index = g_deviceState.uid_map[uid].block;
+	size_t block_index = g_deviceState.uid_map[uid].block;
 	if (block_index == 0) {
 		return NULL;
 	} else {
@@ -122,27 +122,27 @@ struct db_uid_ent *uid_to_db_ent(int uid)
 }
 
 //Returns the number of partitions a block can hold if it's partition size is 'part_size' sub blocks
-static int get_part_count(int part_size)
+static size_t get_part_count(size_t part_size)
 {
-	int max_sub_blocks = (BLK_SIZE/SUB_BLK_SIZE);
-	int count = max_sub_blocks/part_size;
+	size_t max_sub_blocks = (BLK_SIZE/SUB_BLK_SIZE);
+	size_t count = max_sub_blocks/part_size;
 	while (count && ((get_block_header_size(count) + (count * part_size))) > max_sub_blocks) {
 		count--;
 	}
 	return count;
 }
 
-static u8 *get_part(const struct db_block *block, int index)
+static const u8 *get_part(const struct db_block *block, size_t index)
 {
-	int part_count = get_part_count(block->header.part_size);
-	int part_tbl_offs = get_block_header_size(part_count);
-	return ((u8 *)block) + ((part_tbl_offs + (block->header.part_size * index)) * SUB_BLK_SIZE);
+	size_t part_count = get_part_count(block->header.part_size);
+	size_t part_tbl_offs = get_block_header_size(part_count);
+	return ((const u8 *)block) + ((part_tbl_offs + (block->header.part_size * index)) * SUB_BLK_SIZE);
 }
 
-static void mask_uid_data(u8 *data, int blk_count)
+static void mask_uid_data(u8 *data, size_t blk_count)
 {
 	u8 *sub_block = data;
-	for (int i = 0; i < blk_count; i++) {
+	for (size_t i = 0; i < blk_count; i++) {
 		u8 *mask = sub_block;
 		u8 *data = mask + SUB_BLK_MASK_SIZE;
 		for (int j = 0; j < SUB_BLK_DATA_SIZE; j++) {
@@ -156,13 +156,13 @@ static void mask_uid_data(u8 *data, int blk_count)
 	}
 }
 
-static int decode_uid(int uid, int masked, u8 *dest)
+static size_t decode_uid(int uid, int masked, u8 *dest)
 {
 	struct db_block *blk = uid_to_db_block(uid);
-	int index = g_deviceState.uid_map[uid].index;
-	int blk_count = SIZE_TO_SUB_BLK_COUNT(blk->uid_tbl[index].sz);
+	size_t index = g_deviceState.uid_map[uid].index;
+	size_t blk_count = SIZE_TO_SUB_BLK_COUNT(blk->uid_tbl[index].sz);
 	u8 iv[AES_BLK_SIZE];
-	derive_iv(uid, iv);
+	derive_iv((u32)uid, iv);
 	gcry_cipher_reset(g_deviceState.aes256_cbc);
 	gcry_cipher_setiv(g_deviceState.aes256_cbc, iv, AES_BLK_SIZE);
 	gcry_cipher_decrypt(g_deviceState.aes256_cbc, dest, AES_BLK_SIZE * blk_count, get_part(blk, index), AES_BLK_SIZE * blk_count);
@@ -182,11 +182,11 @@ static void get_progress_check(struct send_message_req *msg)
 		resp_code(msg, INVALID_STATE);
 	} else {
 		if (g_deviceState.progress_level > g_deviceState.progress_check) {
-			for (int i = 0; i < g_deviceState.n_progress_components; i++) {
-				msg->resp[i * 4 + 0] = g_deviceState.progress_levels[i] & 0xff;
-				msg->resp[i * 4 + 1] = g_deviceState.progress_levels[i] >> 8;
-				msg->resp[i * 4 + 2] = g_deviceState.progress_maximums[i] & 0xff;
-				msg->resp[i * 4 + 3] = g_deviceState.progress_maximums[i] >> 8;
+			for (unsigned int i = 0; i < g_deviceState.n_progress_components; i++) {
+				msg->resp[i * 4 + 0] = (u8)(g_deviceState.progress_levels[i] & 0xff);
+				msg->resp[i * 4 + 1] = (u8)(g_deviceState.progress_levels[i] >> 8);
+				msg->resp[i * 4 + 2] = (u8)(g_deviceState.progress_maximums[i] & 0xff);
+				msg->resp[i * 4 + 3] = (u8)(g_deviceState.progress_maximums[i] >> 8);
 			}
 			resp_data(msg, OKAY, g_deviceState.n_progress_components * 4);
 		}
@@ -195,15 +195,15 @@ static void get_progress_check(struct send_message_req *msg)
 
 static int db_scan()
 {
-	int i;
+	unsigned int i;
 	for (i = MIN_UID; i <= MAX_UID; i++)
 		g_deviceState.uid_map[i].block = INVALID_BLOCK;
-	for (int i = MIN_DATA_BLOCK; i <= MAX_DATA_BLOCK; i++) {
+	for (unsigned int i = MIN_DATA_BLOCK; i <= MAX_DATA_BLOCK; i++) {
 		struct db_block *blk = (struct db_block *)g_deviceState.device_data[i];
-		int part_size = blk->header.part_size;
-		int occupancy = blk->header.occupancy;
+		unsigned int part_size = blk->header.part_size;
+		unsigned int occupancy = blk->header.occupancy;
 		if (part_size && part_size != INVALID_PART_SIZE && blk->header.crc != INVALID_CRC) {
-			for (int j = 0; j < occupancy; j++) {
+			for (unsigned int j = 0; j < occupancy; j++) {
 				const struct db_uid_ent *ent = blk->uid_tbl + j;
 				int uid = ent->info & 0xfff;
 				int first = (ent->info >> 14) & 1;
@@ -249,8 +249,8 @@ static void startup_cmd(struct send_message_req *msg)
 	msg->resp[0] = SIGNET_MAJOR_VERSION;
 	msg->resp[1] = SIGNET_MINOR_VERSION;
 	msg->resp[2] = SIGNET_STEP_VERSION;
-	msg->resp[3] = g_deviceState.state;
-	msg->resp[4] = g_deviceState.header_version;
+	msg->resp[3] = (u8)g_deviceState.state;
+	msg->resp[4] = (u8)g_deviceState.header_version;
 	msg->resp[5] = 0;
 	if (g_deviceState.state == UNINITIALIZED) {
 		signetdev_priv_message_send_resp(msg, OKAY, 0);
@@ -319,7 +319,7 @@ static void logout_cmd(struct send_message_req *msg)
 
 static void get_device_state_cmd(struct send_message_req *msg)
 {
-	msg->resp[0] = g_deviceState.state;
+	msg->resp[0] = (u8)g_deviceState.state;
 	resp_data(msg, OKAY, 1);
 }
 
@@ -329,8 +329,8 @@ static void get_progress_cmd(struct send_message_req *msg)
 		resp_code(msg, INVALID_INPUT);
 		return;
 	}
-	g_deviceState.progress_check = msg->resp[0] + (msg->resp[1] << 8);
-	g_deviceState.progress_state = msg->resp[2] + (msg->resp[3] << 8);
+	g_deviceState.progress_check = (enum device_state)(msg->resp[0] + (msg->resp[1] << 8));
+	g_deviceState.progress_state = (enum device_state)(msg->resp[2] + (msg->resp[3] << 8));
 
 	if (g_deviceState.state != g_deviceState.progress_state) {
 		resp_code(msg, INVALID_STATE);
@@ -387,7 +387,7 @@ static void read_uid_cmd(struct send_message_req *msg)
 
 	msg->resp[0] = (ent->sz) & 0xff;
 	msg->resp[1] = (ent->sz) >> 8;
-	int blk_count = decode_uid(uid, masked, msg->resp + 2);
+	size_t blk_count = decode_uid(uid, masked, msg->resp + 2);
 	resp_data(msg, OKAY, (blk_count * SUB_BLK_SIZE) + 2);
 }
 
@@ -399,22 +399,22 @@ static int read_all_uids_cmd_iter(struct send_message_req *msg)
 	int uid = g_deviceState.read_all_uids.uid;
 
 	if (uid > MAX_UID) {
-		msg->resp[0] = uid & 0xff;
-		msg->resp[1] = uid >> 8;
+		msg->resp[0] = (u8)(uid & 0xff);
+		msg->resp[1] = (u8)(uid >> 8);
 		resp_data(msg, ID_INVALID, 2);
 		return 0;
 	}
 	g_deviceState.read_all_uids.expected_remaining--;
 
 	struct db_block *blk = uid_to_db_block(uid);
-	int index = g_deviceState.uid_map[uid].index;
-	int sz = blk->uid_tbl[index].sz;
+	unsigned int index = g_deviceState.uid_map[uid].index;
+	unsigned int sz = blk->uid_tbl[index].sz;
 	memset(msg->resp, 0, BLK_SIZE);
-	msg->resp[0] = uid & 0xff;
-	msg->resp[1] = uid >> 8;
-	msg->resp[2] = sz & 0xff;
-	msg->resp[3] = sz >> 8;
-	int blk_count = decode_uid(uid, g_deviceState.read_all_uids.masked, msg->resp + 4);
+	msg->resp[0] = (u8)(uid & 0xff);
+	msg->resp[1] = (u8)(uid >> 8);
+	msg->resp[2] = (u8)(sz & 0xff);
+	msg->resp[3] = (u8)(sz >> 8);
+	size_t blk_count = decode_uid(uid, g_deviceState.read_all_uids.masked, msg->resp + 4);
 	resp_data_multi(msg, g_deviceState.read_all_uids.expected_remaining + 1, OKAY, (blk_count * SUB_BLK_SIZE) + 4);
 	return 1;
 }
@@ -551,12 +551,12 @@ int signetdev_emulate_init(const char *filename)
 	gcry_error_t err2 = gcry_cipher_open(&g_deviceState.aes256_cbc, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, 0);
 	if (g_deviceState.db_file) {
 		fseek(g_deviceState.db_file, 0, SEEK_END);
-		int len = ftell(g_deviceState.db_file);
+		long len = ftell(g_deviceState.db_file);
 		if (len != TOTAL_STORAGE_SIZE) {
 			return 0;
 		}
 		fseek(g_deviceState.db_file, SEEK_SET, 0);
-		int rc = fread(g_deviceState.device_data, BLK_SIZE, NUM_STORAGE_BLOCKS, g_deviceState.db_file);
+		size_t rc = fread(g_deviceState.device_data, BLK_SIZE, NUM_STORAGE_BLOCKS, g_deviceState.db_file);
 		if (rc != NUM_STORAGE_BLOCKS) {
 			return 0;
 		}
@@ -571,7 +571,7 @@ int signetdev_emulate_begin()
 
 void signetdev_emulate_end()
 {
-	return signetdev_priv_issue_command_no_resp(SIGNETDEV_CMD_EMULATE_END, NULL);
+	signetdev_priv_issue_command_no_resp(SIGNETDEV_CMD_EMULATE_END, NULL);
 }
 
 void signetdev_emulate_deinit()
