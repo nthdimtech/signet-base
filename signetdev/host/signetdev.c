@@ -991,7 +991,8 @@ void signetdev_priv_process_rx_packet(struct rx_message_state *state, u8 *rx_pac
 			if ((offset + to_read) > state->expected_resp_size) {
 				to_read = (state->expected_resp_size - offset);
 			}
-			memcpy(state->message->resp + offset, rx_packet_header, to_read);
+			if (to_read > 0)
+				memcpy(state->message->resp + offset, rx_packet_header, to_read);
 		}
 		if (last) {
 			if (state->expected_messages_remaining == 0) {
