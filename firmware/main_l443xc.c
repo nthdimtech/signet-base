@@ -16,7 +16,7 @@
 #include "main.h"
 #include "usb_driver.h"
 
-static const char fw_version[] __attribute__((section(".version"))) = "1.3.2";
+static const char fw_version[] __attribute__((section(".version"))) = "1.3.4";
 
 volatile int ms_count = 0;
 static int ms_last_pressed = 0;
@@ -137,6 +137,7 @@ void delay(int ms)
 void button_press();
 void button_release();
 void long_button_press();
+
 extern volatile int typing;
 
 int press_pending = 0;
