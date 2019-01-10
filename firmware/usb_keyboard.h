@@ -7,6 +7,8 @@ void usb_tx_keyboard();
 
 void usb_keyboard_type(u8 *chars, u8 n);
 
+void usb_keyboard_idle();
+
 void usb_keyboard_typing_done();
 
 #endif

@@ -336,7 +336,7 @@ int main()
 #endif
 	dprint_s("Entering main loop\r\n");
 	while(1) {
-		if (!flash_writing() && !button_state) {
+		if (!flash_writing() && !button_state && !typing) {
 			__asm__("wfi");
 		}
 		__asm__("cpsid i");
@@ -344,6 +344,7 @@ int main()
 			timer_timeout();
 			timer_target = 0;
 		}
+		usb_keyboard_idle();
 		blink_idle();
 		flash_idle();
 		if (press_pending) {
