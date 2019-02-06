@@ -9,7 +9,6 @@
 #include "signetdev_priv.h"
 
 static int g_open_request_pending = 0;
-static int g_read_requested = 0;
 static HWND g_window = INVALID_HANDLE_VALUE;
 static HANDLE g_device_handle = INVALID_HANDLE_VALUE;
 
@@ -87,7 +86,6 @@ static int request_next_packet()
 			return -1;
 		}
 	}
-	g_read_requested = 1;
 	return 0;
 }
 
@@ -115,17 +113,9 @@ static void state_iter()
 					 g_tx_state.message->payload,
 					 g_tx_state.message->payload_size);
 
-			if (g_tx_state.message) {
-				if (send_next_packet()) {
-					signetdev_priv_handle_error();
-					return;
-				}
-			}
-			if (g_tx_state.message && g_tx_state.message->resp) {
-				if (request_next_packet()) {
-					signetdev_priv_handle_error();
-					return;
-				}
+			if (send_next_packet()) {
+				signetdev_priv_handle_error();
+				return;
 			}
 		}
 	}
@@ -255,6 +245,7 @@ static DWORD WINAPI transaction_thread(LPVOID lpParameter)
 				signetdev_priv_handle_error();
 				break;
 			}
+			state_iter();
 		} break;
 		case 1: {
 			DWORD n;
@@ -274,16 +265,11 @@ static DWORD WINAPI transaction_thread(LPVOID lpParameter)
 				} else {
 					g_tx_state.message = NULL;
 				}
+
 			} else {
 				if (send_next_packet()) {
 					signetdev_priv_handle_error();
 					break;
-				}
-				if (!g_read_requested) {
-					if (request_next_packet()) {
-						signetdev_priv_handle_error();
-						break;
-					}
 				}
 			}
 			} break;
@@ -339,7 +325,9 @@ int signetdev_open_connection()
 	}
 	g_device_handle = rawhid_win32_get_handle(0);
 	g_open_request_pending = 0;
-	g_read_requested = 0;
+	if (request_next_packet()) {
+		return -1;
+	}
 
 	DEV_BROADCAST_HANDLE dbh;
 	dbh.dbch_size = sizeof(dbh);
