@@ -135,7 +135,7 @@ static void process_send_message_req(struct send_message_req *req)
 	state_iter();
 }
 
-void process_cancel_message_req(struct send_message_req *msg)
+static void process_cancel_message_req(struct send_message_req *msg)
 {
 	msg->next = NULL;
 	if (!g_head_cancel_message) {
@@ -212,7 +212,7 @@ static void handle_command(int command, void *p)
 		if (g_emulating) {
 			signetdev_emulate_handle_message_priv(msg);
 		} else {
-			process_send_message_req(msg);
+			process_cancel_message_req(msg);
 		}
 		} break;
 	}
