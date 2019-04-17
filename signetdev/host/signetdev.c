@@ -13,10 +13,10 @@ void *g_device_opened_cb_param = NULL;
 void (*g_device_closed_cb)(void *) = NULL;
 void *g_device_closed_cb_param = NULL;
 
-signetdev_cmd_resp_t g_command_resp_cb = NULL;
+static signetdev_cmd_resp_t g_command_resp_cb = NULL;
 static void *g_command_resp_cb_param = NULL;
 
-signetdev_device_event_t g_device_event_cb = NULL;
+static signetdev_device_event_t g_device_event_cb = NULL;
 static void *g_device_event_cb_param = NULL;
 
 signetdev_conn_err_t g_error_handler = NULL;
@@ -123,8 +123,8 @@ void signetdev_initialize_api()
 
 void signetdev_set_keymap(const struct signetdev_key *keys, int n_keys)
 {
-	for (int i = 0; i < (1<<16); i++) {
-		keymap_inv[i].key = i;
+	for (unsigned int i = 0; i < (1<<16); i++) {
+		keymap_inv[i].key = (u16)i;
 		keymap_inv[i].phy_key[0].scancode = 0;
 		keymap_inv[i].phy_key[0].modifier = 0;
 	}
@@ -538,47 +538,47 @@ int signetdev_begin_initialize_device(void *param, int *token,
 			0, msg, INITIALIZE_CMD_SIZE, SIGNETDEV_PRIV_GET_RESP);
 }
 
-int signetdev_read_block(void *param, int *token, int idx)
+int signetdev_read_block(void *param, int *token, unsigned int idx)
 {
 	*token = get_cmd_token();
-	u8 msg[] = {idx};
+	u8 msg[] = {(u8)idx};
 	return signetdev_priv_send_message(param, *token,
 			READ_BLOCK, SIGNETDEV_CMD_READ_BLOCK,
 			0, msg, sizeof(msg), SIGNETDEV_PRIV_GET_RESP);
 }
 
-int signetdev_write_block(void *param, int *token, int idx, const void *buffer)
+int signetdev_write_block(void *param, int *token, unsigned int idx, const void *buffer)
 {
 	*token = get_cmd_token();
-	u8 msg[BLK_SIZE + 1] = {idx};
+	u8 msg[BLK_SIZE + 1] = {(u8)idx};
 	memcpy(msg + 1, buffer, BLK_SIZE);
 	return signetdev_priv_send_message(param, *token,
 				WRITE_BLOCK, SIGNETDEV_CMD_WRITE_BLOCK,
 				0, msg, sizeof(msg), SIGNETDEV_PRIV_GET_RESP);
 }
 
-int signetdev_write_flash(void *param, int *token, u32 addr, const void *data, int data_len)
+int signetdev_write_flash(void *param, int *token, u32 addr, const void *data, unsigned int data_len)
 {
 	*token = get_cmd_token();
 	uint8_t msg[CMD_PACKET_PAYLOAD_SIZE];
 	unsigned int message_size = 4 + data_len;
 	if (message_size >= sizeof(msg))
 		return SIGNET_ERROR_OVERFLOW;
-	msg[0] = (addr >> 0) & 0xff;
-	msg[1] = (addr >> 8) & 0xff;
-	msg[2] = (addr >> 16) & 0xff;
-	msg[3] = (addr >> 24) & 0xff;
+	msg[0] = (u8)(addr >> 0) & 0xff;
+	msg[1] = (u8)(addr >> 8) & 0xff;
+	msg[2] = (u8)(addr >> 16) & 0xff;
+	msg[3] = (u8)(addr >> 24) & 0xff;
 	memcpy(msg + 4, data, data_len);
 	return signetdev_priv_send_message(param, *token,
 				WRITE_FLASH, SIGNETDEV_CMD_WRITE_FLASH,
 				0, msg, 4 + data_len, SIGNETDEV_PRIV_GET_RESP);
 }
 
-int encode_entry_data(int size, const u8 *data, const u8 *mask, uint8_t *msg, int msg_sz)
+int encode_entry_data(unsigned int size, const u8 *data, const u8 *mask, uint8_t *msg, unsigned int msg_sz)
 {
-	int i;
-	int blk_count = SIZE_TO_SUB_BLK_COUNT(size);
-	int message_size = blk_count * SUB_BLK_SIZE;
+	unsigned int i;
+	unsigned int blk_count = SIZE_TO_SUB_BLK_COUNT(size);
+	unsigned int message_size = blk_count * SUB_BLK_SIZE;
 	if (message_size >= msg_sz)
 		return SIGNET_ERROR_OVERFLOW;
 
@@ -586,24 +586,24 @@ int encode_entry_data(int size, const u8 *data, const u8 *mask, uint8_t *msg, in
 		int r = i % SUB_BLK_DATA_SIZE;
 		int blk = i / SUB_BLK_DATA_SIZE;
 		int idx = blk * SUB_BLK_SIZE + r + SUB_BLK_MASK_SIZE;
-		int bit = (mask[i/8] >> (i % 8)) & 0x1;
+		unsigned int bit = (mask[i/8] >> (i % 8)) & 0x1;
 		int m_idx = blk * SUB_BLK_SIZE + (r/8);
 		msg[idx] = data[i];
-		msg[m_idx] = (msg[m_idx] & ~(1<<(r%8))) | (bit << (r%8));
+		msg[m_idx] = (u8)((msg[m_idx] & ~(1<<(r%8))) | (bit << (r%8)));
 	}
-	return message_size;
+	return (int)message_size;
 }
 
-int signetdev_update_uid(void *param, int *token, int uid, int size, const u8 *data, const u8 *mask)
+int signetdev_update_uid(void *param, int *token, unsigned int uid, unsigned int size, const u8 *data, const u8 *mask)
 {
 	uint8_t msg[CMD_PACKET_PAYLOAD_SIZE];
 	*token = get_cmd_token();
 	int k = 0;
-	msg[k] = (uid >> 0) & 0xff; k++;
-	msg[k] = (uid >> 8) & 0xff; k++;
-	msg[k] = (size >> 0) & 0xff; k++;
-	msg[k] = (size >> 8); k++;
-	int message_size = encode_entry_data(size, data, mask, msg + k, sizeof(msg) - k);
+	msg[k] = (u8)(uid >> 0) & 0xff; k++;
+	msg[k] = (u8)(uid >> 8) & 0xff; k++;
+	msg[k] = (u8)(size >> 0) & 0xff; k++;
+	msg[k] = (u8)(size >> 8); k++;
+	int message_size = encode_entry_data(size, data, mask, msg + k, sizeof(msg) - (unsigned int)k);
 
 	if (message_size < 0)
 		return message_size;
@@ -612,27 +612,29 @@ int signetdev_update_uid(void *param, int *token, int uid, int size, const u8 *d
 
 	return signetdev_priv_send_message(param, *token,
 		UPDATE_UID, SIGNETDEV_CMD_UPDATE_UID,
-		0, msg, message_size, SIGNETDEV_PRIV_GET_RESP);
+	        0, msg, (unsigned int)message_size, SIGNETDEV_PRIV_GET_RESP);
 }
 
 
-int signetdev_update_uids(void *param, int *token, int uid, int size, const u8 *data, const u8 *mask, int remaining_uids)
+int signetdev_update_uids(void *param, int *token, unsigned int uid, unsigned int size, const u8 *data, const u8 *mask, unsigned int remaining_uids)
 {
 	uint8_t msg[CMD_PACKET_PAYLOAD_SIZE];
 	*token = get_cmd_token();
 	int k = 0;
-	msg[k] = (uid >> 0) & 0xff; k++;
-	msg[k] = (uid >> 8) & 0xff; k++;
-	msg[k] = (size >> 0) & 0xff; k++;
-	msg[k] = (size >> 8); k++;
-	int message_size = encode_entry_data(size, data, mask, msg + k, sizeof(msg) - k) + k;
+	msg[k] = (u8)(uid >> 0) & 0xff; k++;
+	msg[k] = (u8)(uid >> 8) & 0xff; k++;
+	msg[k] = (u8)(size >> 0) & 0xff; k++;
+	msg[k] = (u8)(size >> 8); k++;
+	int message_size = encode_entry_data(size, data, mask, msg + k, sizeof(msg) - (unsigned int)k);
 
 	if (message_size < 0)
 		return message_size;
 
+	message_size += k;
+
 	return signetdev_priv_send_message(param, *token,
 		UPDATE_UIDS, SIGNETDEV_CMD_UPDATE_UIDS,
-		remaining_uids, msg, message_size, SIGNETDEV_PRIV_GET_RESP);
+	        remaining_uids, msg, (unsigned int)message_size, SIGNETDEV_PRIV_GET_RESP);
 }
 
 int signetdev_read_uid(void *param, int *token, int uid, int masked)
@@ -676,7 +678,7 @@ int signetdev_change_master_password(void *param, int *token,
 			SIGNETDEV_PRIV_GET_RESP);
 }
 
-int signetdev_erase_pages(void *param, int *token, int n_pages, const u8 *page_numbers)
+int signetdev_erase_pages(void *param, int *token, unsigned int n_pages, const u8 *page_numbers)
 {
 	*token = get_cmd_token();
 	return signetdev_priv_send_message(param, *token,
@@ -688,18 +690,18 @@ int signetdev_erase_pages(void *param, int *token, int n_pages, const u8 *page_n
 void signetdev_priv_handle_device_event(int event_type, const u8 *resp, int resp_len)
 {
 	if (g_device_event_cb) {
-		g_device_event_cb(g_device_event_cb_param, event_type, (void *)resp, resp_len);
+		g_device_event_cb(g_device_event_cb_param, event_type, (const void *)resp, resp_len);
 	}
 }
 
-void signetdev_priv_prepare_message_state(struct tx_message_state *msg, int dev_cmd, int messages_remaining, u8 *payload, int payload_size)
+void signetdev_priv_prepare_message_state(struct tx_message_state *msg, unsigned int dev_cmd, unsigned int messages_remaining, u8 *payload, unsigned int payload_size)
 {
 	msg->msg_size = payload_size + CMD_PACKET_HEADER_SIZE;
-	msg->msg_buf[0] = msg->msg_size & 0xff;
-	msg->msg_buf[1] = msg->msg_size >> 8;
-	msg->msg_buf[2] = dev_cmd;
-	msg->msg_buf[3] = messages_remaining & 0xff;
-	msg->msg_buf[4] = messages_remaining >> 8;
+	msg->msg_buf[0] = (u8)(msg->msg_size & 0xff);
+	msg->msg_buf[1] = (u8)(msg->msg_size >> 8);
+	msg->msg_buf[2] = (u8)(dev_cmd);
+	msg->msg_buf[3] = (u8)(messages_remaining & 0xff);
+	msg->msg_buf[4] = (u8)(messages_remaining >> 8);
 	msg->msg_packet_seq = 0;
 	msg->msg_packet_count = (msg->msg_size + RAW_HID_PAYLOAD_SIZE - 1)/ RAW_HID_PAYLOAD_SIZE;
 	if (payload)
@@ -711,8 +713,8 @@ void signetdev_priv_advance_message_state(struct tx_message_state *msg)
 {
 	int pidx = 0;
 	msg->packet_buf[pidx++] = 0;
-	msg->packet_buf[pidx++] = msg->msg_packet_seq |
-			(((msg->msg_packet_seq + 1) == msg->msg_packet_count) ? 0x80 : 0);
+	msg->packet_buf[pidx++] = (u8)(msg->msg_packet_seq |
+	                (((msg->msg_packet_seq + 1) == msg->msg_packet_count) ? 0x80 : 0));
 	memcpy(msg->packet_buf + 1 + RAW_HID_HEADER_SIZE,
 		   msg->msg_buf + RAW_HID_PAYLOAD_SIZE * msg->msg_packet_seq,
 		   RAW_HID_PAYLOAD_SIZE);
@@ -747,7 +749,7 @@ static int decode_id(const u8 *resp, unsigned int resp_len, u8 *data, u8 *mask)
 
 void signetdev_priv_handle_command_resp(void *user, int token,
 					int dev_cmd, int api_cmd,
-					int resp_code, const u8 *resp, int resp_len,
+                                        int resp_code, const u8 *resp, unsigned int resp_len,
 					int end_device_state,
 					int expected_messages_remaining)
 {
@@ -762,7 +764,7 @@ void signetdev_priv_handle_command_resp(void *user, int token,
 				user, token, api_cmd,
 				end_device_state,
 				expected_messages_remaining,
-				resp_code, (void *)resp);
+			        resp_code, (const void *)resp);
 		}
 	} break;
 	case READ_CLEARTEXT_PASSWORD:
@@ -774,7 +776,7 @@ void signetdev_priv_handle_command_resp(void *user, int token,
 				user, token, api_cmd,
 				end_device_state,
 				expected_messages_remaining,
-				resp_code, (void *)resp);
+			        resp_code, (const void *)resp);
 		}
 	break;
 	case READ_CLEARTEXT_PASSWORD_NAMES:
@@ -786,7 +788,7 @@ void signetdev_priv_handle_command_resp(void *user, int token,
 				user, token, api_cmd,
 				end_device_state,
 				expected_messages_remaining,
-				resp_code, (void *)resp);
+			        resp_code, (const void *)resp);
 		}
 	break;
 	case GET_PROGRESS: {
@@ -915,7 +917,7 @@ void signetdev_priv_handle_command_resp(void *user, int token,
 	}
 }
 
-int signetdev_priv_send_message(void *user, int token, int dev_cmd, int api_cmd, int messages_remaining, const u8 *payload, unsigned int payload_size, int get_resp)
+int signetdev_priv_send_message(void *user, int token, int dev_cmd, int api_cmd, unsigned int messages_remaining, const u8 *payload, unsigned int payload_size, int get_resp)
 {
 	static u8 s_async_resp[CMD_PACKET_PAYLOAD_SIZE];
 	static int s_async_resp_code;
@@ -972,11 +974,11 @@ void signetdev_priv_process_rx_packet(struct rx_message_state *state, u8 *rx_pac
 	if (seq == 0x7f) {
 		int event_type = rx_packet_header[0];
 		int resp_len =  rx_packet_header[1];
-		void *data = (void *)(rx_packet_header + 2);
+		const void *data = (const void *)(rx_packet_header + 2);
 		signetdev_priv_handle_device_event(event_type, data, resp_len);
 	} else if (state->message) {
 		if (seq == 0) {
-			state->expected_resp_size = rx_packet_header[0] + (rx_packet_header[1] << 8) - CMD_PACKET_HEADER_SIZE;
+			state->expected_resp_size = rx_packet_header[0] + ((unsigned int)rx_packet_header[1] << 8) - CMD_PACKET_HEADER_SIZE;
 			state->expected_messages_remaining = rx_packet_header[3] + (rx_packet_header[4] << 8);
 			if (state->message->resp_code) {
 				*state->message->resp_code = rx_packet_header[2];
@@ -986,8 +988,8 @@ void signetdev_priv_process_rx_packet(struct rx_message_state *state, u8 *rx_pac
 				rx_packet_buf + RAW_HID_HEADER_SIZE + CMD_PACKET_HEADER_SIZE,
 				RAW_HID_PAYLOAD_SIZE - CMD_PACKET_HEADER_SIZE);
 		} else {
-			int to_read = RAW_HID_PAYLOAD_SIZE;
-			int offset = (RAW_HID_PAYLOAD_SIZE * seq) - CMD_PACKET_HEADER_SIZE;
+			size_t to_read = RAW_HID_PAYLOAD_SIZE;
+			size_t offset = (RAW_HID_PAYLOAD_SIZE * (size_t)seq) - CMD_PACKET_HEADER_SIZE;
 			if ((offset + to_read) > state->expected_resp_size) {
 				to_read = (state->expected_resp_size - offset);
 			}
@@ -996,9 +998,9 @@ void signetdev_priv_process_rx_packet(struct rx_message_state *state, u8 *rx_pac
 		}
 		if (last) {
 			if (state->expected_messages_remaining == 0) {
-				signetdev_priv_finalize_message(&state->message, state->expected_resp_size);
+				signetdev_priv_finalize_message(&state->message, (int)state->expected_resp_size);
 			} else {
-				signetdev_priv_message_send_resp(state->message, state->expected_resp_size, state->expected_messages_remaining);
+				signetdev_priv_message_send_resp(state->message, (int)state->expected_resp_size, state->expected_messages_remaining);
 			}
 		}
 	}

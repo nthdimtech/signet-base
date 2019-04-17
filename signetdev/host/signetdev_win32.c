@@ -25,9 +25,6 @@ static OVERLAPPED g_write_overlapped;
 
 static int g_quitting = 0;
 
-extern signetdev_conn_err_t g_error_handler;
-extern void *g_error_handler_param;
-
 static u8 g_rx_packet[RAW_HID_PACKET_SIZE + 1];
 
 struct tx_message_state g_tx_state;

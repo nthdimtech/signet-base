@@ -100,14 +100,14 @@ int signetdev_begin_initialize_device(void *param, int *token,
                                         const u8 *salt, int salt_len,
                                         const u8 *rand_data, int rand_data_len);
 int signetdev_disconnect(void *user, int *token);
-int signetdev_read_block(void *param, int *token, int idx);
-int signetdev_write_block(void *param, int *token, int idx, const void *buffer);
+int signetdev_read_block(void *param, int *token, unsigned int idx);
+int signetdev_write_block(void *param, int *token, unsigned int idx, const void *buffer);
 int signetdev_get_rand_bits(void *param, int *token, int sz);
-int signetdev_write_flash(void *param, int *token, u32 addr, const void *data, int data_len);
-int signetdev_erase_pages(void *param, int *token, int n_pages, const u8 *page_numbers);
+int signetdev_write_flash(void *param, int *token, u32 addr, const void *data, unsigned int data_len);
+int signetdev_erase_pages(void *param, int *token, unsigned int n_pages, const u8 *page_numbers);
 
-int signetdev_update_uid(void *user, int *token, int id, int size, const u8 *data, const u8 *mask);
-int signetdev_update_uids(void *user, int *token, int id, int size, const u8 *data, const u8 *mask, int entries_remaining);
+int signetdev_update_uid(void *user, int *token, unsigned int id, unsigned int size, const u8 *data, const u8 *mask);
+int signetdev_update_uids(void *user, int *token, unsigned int id, unsigned int size, const u8 *data, const u8 *mask, unsigned int entries_remaining);
 int signetdev_read_uid(void *param, int *token, int uid, int masked);
 int signetdev_read_all_uids(void *param, int *token, int masked);
 int signetdev_has_keyboard();
@@ -158,8 +158,8 @@ void signetdev_win32_set_window_handle(HANDLE recp);
 int signetdev_filter_window_messasage(UINT uMsg, WPARAM wParam, LPARAM lParam);
 #endif
 
-typedef void (*signetdev_cmd_resp_t)(void *cb_param, void *cmd_user_param, int cmd_token, int end_device_state, int messages_remaining, int cmd, int resp_code, void *resp_data);
-typedef void (*signetdev_device_event_t)(void *cb_param, int event_type, void *resp_data, int resp_len);
+typedef void (*signetdev_cmd_resp_t)(void *cb_param, void *cmd_user_param, int cmd_token, int end_device_state, int messages_remaining, int cmd, int resp_code, const void *resp_data);
+typedef void (*signetdev_device_event_t)(void *cb_param, int event_type, const void *resp_data, int resp_len);
 
 
 void signetdev_set_device_opened_cb(void (*device_opened)(void *), void *param);
