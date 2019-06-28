@@ -109,14 +109,16 @@ int db2_startup_scan(u8 *block_temp, struct block_info *blk_info_temp)
 						int index_temp;
 						const struct uid_ent *prev_ent = find_uid(uid, &block_num_temp, &index_temp);
 						if (((ent->rev + 1) & 0x3) == prev_ent->rev) {
-							uid_map[uid] = ent->uid;
+							uid_map[uid] = i;
 						}
 						struct block *block = (struct block *)block_temp;
 						int block_num = deallocate_uid(uid,  block, blk_info_temp, 1/* dellocate block */);
-						if (blk_info_temp->occupied) {
-							block->header.crc = block_crc(block);
+						if (block_num != INVALID_BLOCK) {
+							if (blk_info_temp->occupied) {
+								block->header.crc = block_crc(block);
+							}
+							flash_write_page((u8 *)BLOCK(block_num), (u8 *)block, BLK_SIZE);
 						}
-						flash_write_page((u8 *)BLOCK(block_num), (u8 *)block, BLK_SIZE);
 						return 0;
 					} else {
 						uid_map[uid] = i;
