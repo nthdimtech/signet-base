@@ -2,3 +2,4 @@ signet-fw
 signet-fw.bin
 signet-fw.dfu
 *.sfw
+ct-ng/.build
