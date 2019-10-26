@@ -275,9 +275,6 @@ void startup_cmd_iter();
 void flash_write_complete()
 {
 	switch (device_state) {
-	case STARTUP:
-		startup_cmd_iter();
-		break;
 	case INITIALIZING:
 		cmd_data.init_data.blocks_written++;
 		progress_level[0] = cmd_data.init_data.blocks_written;
@@ -339,6 +336,9 @@ void flash_write_complete()
 	case UPDATE_UID:
 		update_uid_cmd_write_finished();
 	        break;
+	case STARTUP:
+		startup_cmd_iter();
+		break;
 	default:
 		break;
 	}
