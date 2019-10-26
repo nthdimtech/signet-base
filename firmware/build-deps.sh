@@ -1,6 +1,5 @@
 ARM_NONE_TOOLCHAIN=$HOME/x-tools/arm-none-eabi
 ARM_NONE_SYSROOT=$ARM_NONE_TOOLCHAIN/arm-none-eabi/
-export CPLUS_INCLUDE_PATH=
 git submodule init &&
 git submodule update &&
 cd crosstool-ng &&

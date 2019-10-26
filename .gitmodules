@@ -4,3 +4,9 @@
 [submodule "crosstool-ng"]
 	path = firmware/crosstool-ng
 	url = https://github.com/crosstool-ng/crosstool-ng.git
+[submodule "firmware-hc/nettle"]
+	path = firmware-hc/nettle
+	url = ../nettle.git
+[submodule "firmware-hc/mini-gmp"]
+	path = firmware-hc/mini-gmp
+	url = https://github.com/chfast/mini-gmp.git
