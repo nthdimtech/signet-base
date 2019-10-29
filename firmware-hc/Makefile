@@ -3,17 +3,14 @@ all: signet-fw.bin
 HTUPLE:=arm-none-eabi
 
 LIBS=-lnettle -lhogweed -lmini-gmp
-CFLAGS=-ffunction-sections -fdata-sections -O2 -Os -I../..
+CFLAGS=-ffunction-sections -fdata-sections -O2 -Os
 ASFLAGS=
 LDFLAGS=-Wl,"--gc-sections"
 
-CFLAGS+= -DFIRMWARE -Wall
+CFLAGS+= -DFIRMWARE -DUSE_RAW_HID -DSTM32F733xx -Wall
+CFLAGS+= -Istm32f7xx -I.
 
 LDFLAGS+= -Wl,"-Tstm32f733iekx.ld"
-
-CFLAGS += -DUSE_RAW_HID -I../../signet-desktop-client/common
-
-CFLAGS += -DSTM32F733xx
 
 clean:
 	rm -rf *.o *.d signet-fw signet-fw.*
@@ -25,10 +22,41 @@ clean:
 %.o: %.S
 	$(HTUPLE)-gcc $(ASFLAGS) $< -c -o $@
 
-MCU_SOURCES = main.c system_stm32f7xx.c 
+MCU_SOURCES = main.c \
+	      flash.c \
+	      stm32f7xx/system_stm32f7xx.c \
+	      stm32f7xx/stm32f7xx_hal.c \
+	      stm32f7xx/stm32f7xx_hal_gpio.c \
+	      stm32f7xx/stm32f7xx_hal_rcc.c \
+	      stm32f7xx/stm32f7xx_hal_rcc_ex.c \
+	      stm32f7xx/stm32f7xx_hal_rng.c \
+	      stm32f7xx/stm32f7xx_hal_mmc.c \
+	      stm32f7xx/stm32f7xx_ll_sdmmc.c \
+	      stm32f7xx/stm32f7xx_ll_usb.c \
+	      stm32f7xx/stm32f7xx_hal_flash.c \
+	      stm32f7xx/stm32f7xx_hal_flash_ex.c \
+	      stm32f7xx/stm32f7xx_hal_cortex.c \
+	      stm32f7xx/stm32f7xx_hal_pcd.c \
+	      stm32f7xx/stm32f7xx_hal_pcd_ex.c \
+	      stm32f7xx/stm32f7xx_hal_cryp.c \
+	      stm32f7xx/stm32f7xx_hal_pwr_ex.c
 MCU_SOURCES_S = startup_stm32f733iekx.S
 
-SOURCES = $(MCU_SOURCES)
+SOURCES = commands.c \
+	  db.c \
+	  crc.c \
+	  rtc_rand.c \
+	  rng.c \
+	  signet_aes.c \
+	  usb_raw_hid.c \
+	  usbd_conf.c \
+	  usbd_desc.c \
+	  usbd_core.c \
+	  usbd_ctlreq.c \
+	  usbd_ioreq.c \
+	  usbd_hid.c \
+	  $(MCU_SOURCES)
+
 ASM_SOURCES = $(MCU_SOURCES_S)
 ALL_SOURCES = $(SOURCES) $(ASM_SOURCES)
 

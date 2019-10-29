@@ -3,7 +3,7 @@
 #include "stm32f7xx_it.h"
 
 /******************************************************************************/
-/*           Cortex-M7 Processor Interruption and Exception Handlers          */ 
+/*           Cortex-M7 Processor Interruption and Exception Handlers          */
 /******************************************************************************/
 /**
   * @brief This function handles Non maskable interrupt.
@@ -17,9 +17,8 @@ void NMI_Handler(void)
   */
 void HardFault_Handler(void)
 {
-  while (1)
-  {
-  }
+	while (1) {
+	}
 }
 
 /**
@@ -27,9 +26,8 @@ void HardFault_Handler(void)
   */
 void MemManage_Handler(void)
 {
-  while (1)
-  {
-  }
+	while (1) {
+	}
 }
 
 /**
@@ -37,9 +35,8 @@ void MemManage_Handler(void)
   */
 void BusFault_Handler(void)
 {
-  while (1)
-  {
-  }
+	while (1) {
+	}
 }
 
 /**
@@ -47,9 +44,8 @@ void BusFault_Handler(void)
   */
 void UsageFault_Handler(void)
 {
-  while (1)
-  {
-  }
+	while (1) {
+	}
 }
 
 /**
@@ -78,14 +74,14 @@ void PendSV_Handler(void)
   */
 void SysTick_Handler(void)
 {
-  HAL_IncTick();
+	HAL_IncTick();
 }
 
 extern PCD_HandleTypeDef hpcd;
 
 void OTG_HS_IRQHandler(void)
 {
-  HAL_PCD_IRQHandler(&hpcd);
+	HAL_PCD_IRQHandler(&hpcd);
 }
 
 void OTG_HS_WKUP_IRQHandler(void)
