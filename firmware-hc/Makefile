@@ -7,7 +7,7 @@ CFLAGS=-ffunction-sections -fdata-sections -O2 -Os
 ASFLAGS=
 LDFLAGS=-Wl,"--gc-sections"
 
-CFLAGS+= -DFIRMWARE -DUSE_RAW_HID -DSTM32F733xx -Wall
+CFLAGS+= -DFIRMWARE -DUSE_RAW_HID -DSTM32F733xx -DUSE_HAL_DRIVER -Wall
 CFLAGS+= -Istm32f7xx -I.
 
 LDFLAGS+= -Wl,"-Tstm32f733iekx.ld"
@@ -30,16 +30,19 @@ MCU_SOURCES = main.c \
 	      stm32f7xx/stm32f7xx_hal_rcc.c \
 	      stm32f7xx/stm32f7xx_hal_rcc_ex.c \
 	      stm32f7xx/stm32f7xx_hal_rng.c \
+	      stm32f7xx_hal_msp.c \
 	      stm32f7xx/stm32f7xx_hal_mmc.c \
 	      stm32f7xx/stm32f7xx_ll_sdmmc.c \
 	      stm32f7xx/stm32f7xx_ll_usb.c \
 	      stm32f7xx/stm32f7xx_hal_flash.c \
 	      stm32f7xx/stm32f7xx_hal_flash_ex.c \
 	      stm32f7xx/stm32f7xx_hal_cortex.c \
+	      stm32f7xx/stm32f7xx_hal_dma.c \
 	      stm32f7xx/stm32f7xx_hal_pcd.c \
 	      stm32f7xx/stm32f7xx_hal_pcd_ex.c \
 	      stm32f7xx/stm32f7xx_hal_cryp.c \
-	      stm32f7xx/stm32f7xx_hal_pwr_ex.c
+	      stm32f7xx/stm32f7xx_hal_pwr_ex.c \
+	      stm32f7xx/stm32f7xx_it.c
 MCU_SOURCES_S = startup_stm32f733iekx.S
 
 SOURCES = commands.c \
@@ -55,6 +58,11 @@ SOURCES = commands.c \
 	  usbd_ctlreq.c \
 	  usbd_ioreq.c \
 	  usbd_hid.c \
+	  usbd_msc.c \
+	  usbd_msc_bot.c \
+	  usbd_msc_data.c \
+	  usbd_msc_scsi.c \
+	  buffer_manager.c \
 	  $(MCU_SOURCES)
 
 ASM_SOURCES = $(MCU_SOURCES_S)

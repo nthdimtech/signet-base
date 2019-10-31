@@ -28,7 +28,7 @@ UART_HandleTypeDef huart1;
 PCD_HandleTypeDef hpcd_USB_OTG_HS;
 
 /* Private function prototypes -----------------------------------------------*/
-void SystemClock_Config(void);
+static void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_AES_Init(void);
 static void MX_RNG_Init(void);
@@ -268,7 +268,14 @@ int main(void)
 	MX_AES_Init();
 	MX_RNG_Init();
 	MX_SDMMC1_MMC_Init();
+
 	//MX_USART1_UART_Init();
+
+	HAL_Delay(500);
+	led_on();
+	HAL_Delay(500);
+	led_off();
+	HAL_Delay(500);
 
 #ifdef ENABLE_FIDO2
 	mp_set_memory_functions(mp_alloc, mp_realloc, mp_dealloc);
@@ -332,7 +339,7 @@ int main(void)
   * @brief System Clock Configuration
   * @retval None
   */
-void SystemClock_Config(void)
+static void SystemClock_Config(void)
 {
 	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
 	RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
@@ -357,11 +364,9 @@ void SystemClock_Config(void)
 	}
 	/** Activate the Over-Drive mode
 	*/
-#if 1
 	if (HAL_PWREx_EnableOverDrive() != HAL_OK) {
 		Error_Handler();
 	}
-#endif
 
 	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
 	                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
