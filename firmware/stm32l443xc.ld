@@ -35,6 +35,7 @@ libc.a(.text .text* .rodata .rodata*)
 crt*.o(*)
 . = ALIGN(16);
 _data_end = .;
+end = .;
 } > RAM
 
 .text _flash_origin + SIZEOF(.data) :
