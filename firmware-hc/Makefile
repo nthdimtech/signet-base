@@ -6,6 +6,7 @@ LIBS=-lnettle -lhogweed -lmini-gmp
 CFLAGS=-ffunction-sections -fdata-sections -O2 -Os
 ASFLAGS=
 LDFLAGS=-Wl,"--gc-sections"
+LDFLAGS+=-Wl,"-Map=signet-fw.map"
 
 CFLAGS+= -DFIRMWARE -DUSE_RAW_HID -DSTM32F733xx -DUSE_HAL_DRIVER -Wall
 CFLAGS+= -Istm32f7xx -I.
