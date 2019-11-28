@@ -1,6 +1,5 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
 /**
   * Initializes the Global MSP.
   */

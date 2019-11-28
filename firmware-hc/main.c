@@ -6,6 +6,8 @@
 #include "usbd_hid.h"
 #include "flash.h"
 
+#include "memory_layout.h"
+
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
@@ -36,20 +38,6 @@ static void MX_SDMMC1_MMC_Init(void);
 static void MX_USART1_UART_Init(void);
 USBD_HandleTypeDef USBD_Device;
 
-
-#if PROTOTYPE_VERSION
-
-#define LED1_PORT GPIOE
-#define LED1_PIN GPIO_PIN_13
-
-#define LED2_PORT GPIOC
-#define LED2_PIN GPIO_PIN_11
-
-#define BUTTON_PORT GPIOG
-#define BUTTON_PIN GPIO_PIN_5
-
-#else
-
 #define LED1_PORT GPIOI
 #define LED1_PIN GPIO_PIN_11
 
@@ -58,9 +46,6 @@ USBD_HandleTypeDef USBD_Device;
 
 #define BUTTON_PORT GPIOD
 #define BUTTON_PIN GPIO_PIN_0
-
-#endif
-
 
 static void setLED1(int x)
 {
@@ -276,7 +261,6 @@ int main(void)
 	HAL_Delay(500);
 	led_off();
 	HAL_Delay(500);
-
 #ifdef ENABLE_FIDO2
 	mp_set_memory_functions(mp_alloc, mp_realloc, mp_dealloc);
 	crypto_ecc256_init();
@@ -307,6 +291,7 @@ int main(void)
 			timer_timeout();
 			timer_target = 0;
 		}
+		//NEN_TODO: need to implment the function below
 		//usb_keyboard_idle();
 		blink_idle();
 		flash_idle();

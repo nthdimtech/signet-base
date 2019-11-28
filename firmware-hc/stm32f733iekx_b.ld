@@ -27,7 +27,7 @@ SECTIONS
     . = ALIGN(4);
     KEEP(*(.isr_vector)) /* Startup code */
     . = ALIGN(4);
-  } > FLASH_A
+  } > FLASH_B
 
   /* The program code and other data into "FLASH" Rom type memory */
   .text :
@@ -44,7 +44,7 @@ SECTIONS
 
     . = ALIGN(4);
     _etext = .;        /* define a global symbols at end of code */
-  } > FLASH_A
+  } > FLASH_B
 
   /* Constant data into "FLASH" Rom type memory */
   .rodata :
@@ -53,13 +53,13 @@ SECTIONS
     *(.rodata)         /* .rodata sections (constants, strings, etc.) */
     *(.rodata*)        /* .rodata* sections (constants, strings, etc.) */
     . = ALIGN(4);
-  } > FLASH_A
+  } > FLASH_B
 
   .ARM.extab   : {
   	. = ALIGN(4);
   	*(.ARM.extab* .gnu.linkonce.armextab.*)
   	. = ALIGN(4);
-  } > FLASH_A
+  } >FLASH_B
 
   .ARM : {
     . = ALIGN(4);
@@ -67,7 +67,7 @@ SECTIONS
     *(.ARM.exidx*)
     __exidx_end = .;
     . = ALIGN(4);
-  } > FLASH_A
+  } >FLASH_B
 
   .preinit_array     :
   {
@@ -76,7 +76,7 @@ SECTIONS
     KEEP (*(.preinit_array*))
     PROVIDE_HIDDEN (__preinit_array_end = .);
     . = ALIGN(4);
-  } > FLASH_A
+  } >FLASH_B
 
   .init_array :
   {
@@ -86,7 +86,7 @@ SECTIONS
     KEEP (*(.init_array*))
     PROVIDE_HIDDEN (__init_array_end = .);
     . = ALIGN(4);
-  } > FLASH_A
+  } >FLASH_A
 
   .fini_array :
   {
@@ -96,7 +96,7 @@ SECTIONS
     KEEP (*(.fini_array*))
     PROVIDE_HIDDEN (__fini_array_end = .);
     . = ALIGN(4);
-  } > FLASH_A
+  } >FLASH_A
 
 
   /* Used by the startup to initialize data */
@@ -129,7 +129,7 @@ SECTIONS
     . = ALIGN(4);
     _ebss = .;         /* define a global symbol at bss end */
     __bss_end__ = _ebss;
-  } > RAM
+  } >RAM
 
   /* User_heap_stack section, used to check that there is enough "RAM" Ram  type memory left */
   ._user_heap_stack :
@@ -142,15 +142,15 @@ SECTIONS
     . = ALIGN(8);
   } >RAM
 
-  .cryptdata1 :
-  {
-    _crypt_data1 = .;
-  } > FLASH_D1
+.cryptdata1 :
+{
+_crypt_data1 = .;
+} > FLASH_D1
 
-  .cryptdata1 :
-  {
-    _crypt_data2 = .;
-  } > FLASH_D2
+.cryptdata1 :
+{
+_crypt_data2 = .;
+} > FLASH_D2
 
   /* Remove information from the compiler libraries */
   /DISCARD/ :
