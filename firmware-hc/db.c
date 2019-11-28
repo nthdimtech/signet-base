@@ -10,7 +10,11 @@ void flash_write_page(u8 *page, const u8 *src, int sz);
 #include "signet_aes.h"
 #include "main.h"
 
-extern struct root_page _root_page;
+extern struct root_page _crypt_data1;
+extern struct root_page _crypt_data2;
+
+//NEN_TODO: need to select data source based on validation algorithm
+#define _root_page _crypt_data1
 
 #define BLOCK(id) ((const struct block *)(((const u8 *)&_root_page) + FLASH_PAGE_SIZE * (id)))
 

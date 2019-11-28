@@ -58,7 +58,11 @@ static void button_release_disconnected();
 
 struct root_page root_page;
 
-extern struct root_page _root_page;
+extern struct root_page _crypt_data1;
+extern struct root_page _crypt_data2;
+
+//NEN_TODO: need to select data source based on validation algorithm
+#define _root_page _crypt_data1
 
 static int n_progress_components = 0;
 static int progress_level[8];
