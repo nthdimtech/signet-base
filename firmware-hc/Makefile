@@ -6,7 +6,7 @@ TARGET_BASE_NAME=signet-fw-b
 endif
 
 TARGET_BIN=$(TARGET_BASE_NAME).bin
-TARGET_ELF=$(TARGET_BASE_NAME)
+TARGET_ELF=$(TARGET_BASE_NAME).elf
 TARGET_MAP=$(TARGET_BASE_NAME).map
 
 all: $(TARGET_BIN)
@@ -35,7 +35,6 @@ clean:
 		fido2/*.o? fido2/*.d \
 		fido2/extensions/*.o? fido2/extensions/*.d \
 		tinycbor/*.o? tinycbor/*.d \
-		signet-fw-a signet-fw-b \
 		signet-fw-a.* signet-fw-b.*
 
 ifeq ($(BT_MODE), A)
@@ -100,7 +99,7 @@ SOURCES = commands.c \
 ifeq ($(BT_MODE), B)
 
 CFLAGS += -Itinycbor -Ifido2 -Ifido2/extensions
-CFLAGS += -DENABLE_U2F
+CFLAGS += -DENABLE_U2F -DVECT_TAB_OFFSET=0x20000
 
 SOURCES+= tinycbor/cborencoder.c \
 	  tinycbor/cborencoder_close_container_checked.c \
@@ -120,6 +119,8 @@ SOURCES+= fido2/crypto.c \
 	  fido2/u2f.c \
 	  fido2/util.c \
 	  fido2/extensions/extensions.c
+else
+CFLAGS += -DVECT_TAB_OFFSET=0x8000
 endif
 
 ASM_SOURCES = $(MCU_SOURCES_S)

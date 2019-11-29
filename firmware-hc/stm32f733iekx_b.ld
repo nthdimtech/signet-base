@@ -11,10 +11,9 @@ _Min_Stack_Size = 0x400 ;	/* required amount of stack */
 /* Memories definition */
 MEMORY
 {
-    FLASH_A	(rx)	: ORIGIN = 0x8000000, LENGTH = 96K
-    FLASH_D1	(rx)	: ORIGIN = 0x8008000, LENGTH = 16K
-    FLASH_D2	(rx)	: ORIGIN = 0x800C000, LENGTH = 16K
-    FLASH_B	(rx)	: ORIGIN = 0x8020000, LENGTH = 382K
+    FLASH_D1	(rx)	: ORIGIN = 0x8000000, LENGTH = 16K
+    FLASH_D2	(rx)	: ORIGIN = 0x8004000, LENGTH = 16K
+    FLASH_B	(rx)	: ORIGIN = 0x8020000, LENGTH = 384K
     RAM	(rwx)	: ORIGIN = 0x20000000,	LENGTH = 256K
 }
 
@@ -86,7 +85,7 @@ SECTIONS
     KEEP (*(.init_array*))
     PROVIDE_HIDDEN (__init_array_end = .);
     . = ALIGN(4);
-  } >FLASH_A
+  } >FLASH_B
 
   .fini_array :
   {
@@ -96,7 +95,7 @@ SECTIONS
     KEEP (*(.fini_array*))
     PROVIDE_HIDDEN (__fini_array_end = .);
     . = ALIGN(4);
-  } >FLASH_A
+  } >FLASH_B
 
 
   /* Used by the startup to initialize data */
@@ -113,7 +112,7 @@ SECTIONS
     . = ALIGN(4);
     _edata = .;        /* define a global symbol at data end */
 
-  } >RAM AT> FLASH_A
+  } >RAM AT> FLASH_B
 
   /* Uninitialized data section into "RAM" Ram type memory */
   . = ALIGN(4);

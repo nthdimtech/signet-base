@@ -2,3 +2,6 @@ toolchain
 *.o
 *.o?
 *.d
+*.bin
+*.map
+*.elf

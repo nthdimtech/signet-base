@@ -256,11 +256,18 @@ int main(void)
 
 	//MX_USART1_UART_Init();
 
-	HAL_Delay(500);
+#ifdef BOOT_MODE_A
+	int blink_duration = 500;
+#else
+	int blink_duration = 2000;
+#endif
+
+
+	HAL_Delay(blink_duration);
 	led_on();
-	HAL_Delay(500);
+	HAL_Delay(blink_duration);
 	led_off();
-	HAL_Delay(500);
+	HAL_Delay(blink_duration);
 #ifdef ENABLE_FIDO2
 	mp_set_memory_functions(mp_alloc, mp_realloc, mp_dealloc);
 	crypto_ecc256_init();
