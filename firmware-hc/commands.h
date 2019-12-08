@@ -45,6 +45,7 @@ union cmd_data_u {
 		struct block_info blk_info;
 	} init_data;
 	struct {
+		u8 read_block[BLK_SIZE];
 		u8 block[BLK_SIZE];
 		struct block_info blk_info;
 	} startup;

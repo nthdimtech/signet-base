@@ -14,7 +14,7 @@ all: $(TARGET_BIN)
 HTUPLE:=arm-none-eabi
 
 LIBS=-lnettle -lhogweed -lmini-gmp
-CFLAGS=-ffunction-sections -fdata-sections -O2 -Os
+CFLAGS=-ffunction-sections -fdata-sections -O2 -Os -DSIGNET_HC
 ASFLAGS=
 LDFLAGS=-Wl,"--gc-sections"
 LDFLAGS+=-Wl,"-Map=$(TARGET_MAP)"

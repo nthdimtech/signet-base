@@ -4,7 +4,17 @@
 #include "crc.h"
 
 //#include "flash.h"
-void flash_write_page(u8 *page, const u8 *src, int sz);
+void emmc_flash_write_page(int pg, const u8 *src, int sz);
+
+void emmc_flash_read_page(int pg, u8 *dest, int sz);
+
+void emmc_flash_read_page(int pg, u8 *dest, int sz)
+{
+}
+
+void emmc_flash_write_page(int pg, const u8 *src, int sz)
+{
+}
 
 #include "commands.h"
 #include "signet_aes.h"
@@ -87,51 +97,61 @@ static u8 *get_part(const struct block *block, const struct block_info *info, in
 	return ((u8 *)block) + ((info->part_tbl_offs + (info->part_size * n)) * SUB_BLK_SIZE);
 }
 
-//Scans blocks on startup to initialize 'block_info_tbl' and 'uid_map'
-int db2_startup_scan(u8 *block_temp, struct block_info *blk_info_temp)
-{
-	int i;
-	for (i = MIN_UID; i <= MAX_UID; i++)
-		uid_map[i] = INVALID_BLOCK;
-	for (int i = MIN_DATA_BLOCK; i <= MAX_DATA_BLOCK; i++) {
-		const struct block *blk = BLOCK(i);
-		struct block_info *blk_info = block_info_tbl + i;
-		blk_info->part_size = blk->header.part_size;
-		blk_info->valid = block_crc_check(blk) || blk_info->part_size == INVALID_PART_SIZE;
-		blk_info->occupied = (blk_info->part_size != INVALID_PART_SIZE);
-		if (!blk_info->valid) {
-			continue;
-		}
 
-		if (blk_info->occupied) {
-			blk_info->part_occupancy = blk->header.occupancy;
-			blk_info->part_count = get_part_count(blk->header.part_size);
-			blk_info->part_tbl_offs = get_block_header_size(blk_info->part_count);
-			for (int j = 0; j < blk_info->part_occupancy; j++) {
-				const struct uid_ent *ent = blk->uid_tbl + j;
-				int uid = ent->uid;
-				if (uid >= MIN_UID && ent->uid <= MAX_UID && ent->first) {
-					if (uid_map[uid] != INVALID_BLOCK) {
-						int block_num_temp;
-						int index_temp;
-						const struct uid_ent *prev_ent = find_uid(uid, &block_num_temp, &index_temp);
-						if (((ent->rev + 1) & 0x3) == prev_ent->rev) {
-							uid_map[uid] = ent->uid;
-						}
-						struct block *block = (struct block *)block_temp;
-						int block_num = deallocate_uid(uid,  block, blk_info_temp, 1/* dellocate block */);
-						if (blk_info_temp->occupied) {
-							block->header.crc = block_crc(block);
-						}
-						flash_write_page((u8 *)BLOCK(block_num), (u8 *)block, BLK_SIZE);
-						return 0;
-					} else {
-						uid_map[uid] = i;
+static int db3_startup_scan_blk_num = -1;
+
+int db3_startup_scan_resume(struct block *block_read, u8 *block_temp, struct block_info *blk_info_temp)
+{
+	int i = db3_startup_scan_blk_num;
+	struct block_info *blk_info = block_info_tbl + i;
+	blk_info->part_size = block_read->header.part_size;
+	blk_info->valid = block_crc_check(block_read) || blk_info->part_size == INVALID_PART_SIZE;
+	blk_info->occupied = (blk_info->part_size != INVALID_PART_SIZE);
+	if (!blk_info->valid) {
+		//NEN_TODO: What do we do here?
+	}
+
+	if (blk_info->occupied) {
+		blk_info->part_occupancy = block_read->header.occupancy;
+		blk_info->part_count = get_part_count(block_read->header.part_size);
+		blk_info->part_tbl_offs = get_block_header_size(blk_info->part_count);
+		for (int j = 0; j < blk_info->part_occupancy; j++) {
+			const struct uid_ent *ent = block_read->uid_tbl + j;
+			int uid = ent->uid;
+			if (uid >= MIN_UID && ent->uid <= MAX_UID && ent->first) {
+				if (uid_map[uid] != INVALID_BLOCK) {
+					int block_num_temp;
+					int index_temp;
+					const struct uid_ent *prev_ent = find_uid(uid, &block_num_temp, &index_temp);
+					if (((ent->rev + 1) & 0x3) == prev_ent->rev) {
+						uid_map[uid] = ent->uid;
 					}
+					struct block *block = (struct block *)block_temp;
+					int block_num = deallocate_uid(uid,  block, blk_info_temp, 1/* dellocate block */);
+					if (blk_info_temp->occupied) {
+						block->header.crc = block_crc(block);
+					}
+					emmc_flash_write_page(block_num, (u8 *)block, BLK_SIZE);
+					return 0;
+				} else {
+					uid_map[uid] = i;
 				}
 			}
 		}
 	}
+	db3_startup_scan_blk_num++;
+}
+
+//Scans blocks on startup to initialize 'block_info_tbl' and 'uid_map'
+int db3_startup_scan(u8 *block_read, u8 *block_temp, struct block_info *blk_info_temp)
+{
+	int i;
+	for (i = MIN_UID; i <= MAX_UID; i++) {
+		uid_map[i] = INVALID_BLOCK;
+	}
+	//NEN_TODO: this is not ready yet
+	//db3_startup_scan_blk_num = MIN_DATA_BLOCK;
+	//emmc_flash_read_page(db3_startup_scan_blk_num, block_read, BLK_SIZE);
 	return 1;
 }
 
@@ -170,7 +190,7 @@ static void initialize_block(int part_size, struct block *block)
 	block->header.occupancy = 0;
 }
 
-struct block *db2_initialize_block(int block_num, struct block *block)
+struct block *db3_initialize_block(int block_num, struct block *block)
 {
 	if ((block_num - MIN_DATA_BLOCK) < NUM_PART_SIZES) {
 		int part_size = part_sizes[block_num - MIN_DATA_BLOCK];
@@ -389,7 +409,7 @@ void update_uid_cmd_complete()
 	if (cmd_data.update_uid.blk_info.occupied) {
 		block->header.crc = block_crc(block);
 	}
-	flash_write_page((u8 *)BLOCK(cmd_data.update_uid.block_num), (u8 *)block, BLK_SIZE);
+	emmc_flash_write_page(cmd_data.update_uid.block_num, (u8 *)block, BLK_SIZE);
 }
 
 void update_uid_cmd_write_finished()
@@ -403,7 +423,7 @@ void update_uid_cmd_write_finished()
 			struct block *block = (struct block *)cmd_data.update_uid.block;
 			deallocate_uid(cmd_data.update_uid.uid, block, &cmd_data.update_uid.blk_info, 1 /* dellocate block*/);
 			block->header.crc = block_crc(block);
-			flash_write_page((u8 *)BLOCK(cmd_data.update_uid.prev_block_num), (u8 *)block, BLK_SIZE);
+			emmc_flash_write_page(cmd_data.update_uid.prev_block_num, (u8 *)block, BLK_SIZE);
 		} else {
 			if (!cmd_data.update_uid.sz) {
 				//Record is being deleted

@@ -23,6 +23,7 @@
 #define KEYSTORE_KEY_SIZE (32)
 #define MAX_PROFILE_NAME_LENGTH (32)
 #define MAX_PROFILE_TAGS (16)
+#define HC_HASH_FN_SALT_SZ (32)
 
 struct hcdb_tag {
 	u16 id;
@@ -56,10 +57,10 @@ struct hcdb_profile_definition_block {
 } __attribute__((packed));
 
 struct hcdb_profile_auth_data {
-	u16 hash_function;
+	u8 salt[HC_HASH_FN_SALT_SZ];
 	u8 hash_function_params[HASH_FUNCTION_PARAMS_LENGTH];
 	u8 auth_random_cyphertext[AUTH_RANDOM_DATA_LEN];
-	u8 keystore_key_ct[KEYSTORE_KEY_SIZE];
+	u8 keystore_key_cyphertext[KEYSTORE_KEY_SIZE];
 } __attribute__((packed));
 
 struct hc_firmware_version {
@@ -68,21 +69,28 @@ struct hc_firmware_version {
 	u16 step;
 } __attribute__((packed));
 
+enum hc_firmware_upgrade_state {
+	HC_FIRMWARE_VALID,
+	HC_FILE_DOWNLOADED,
+	HC_BOOTLOADER_ONLY_UPGRADED,
+	HC_APPLICATION_ONLY_UPGRADED
+};
+
 struct hc_device_data {
 	u32 data_crc;
 	u16 format;
 	u16 data_iteration; //larger is newer
 	u8 device_id[DEVICE_ID_LEN];
 	u8 device_name[DEVICE_NAME_LEN];
-	struct hc_firmware_version fw_version;
-	u8 firmware_hash_key[FIRMWARE_HASH_KEY_LEN];
-	u8 firmware_hash[FIRMWARE_HASH_LEN];
-	u32 firmware_A_crc;
-	u32 firmware_B_crc;
-	u32 firmware_A_signature[FIRMWARE_SIGNATURE_LEN];
-	u32 firmware_B_signature[FIRMWARE_SIGNATURE_LEN];
+	struct hc_firmware_version fw_version[2];
+	u8 firmware_hash_key[2][FIRMWARE_HASH_KEY_LEN];
+	u8 firmware_hash[2][FIRMWARE_HASH_LEN];
+	u32 firmware_A_crc[2];
+	u32 firmware_B_crc[2];
+	u32 firmware_A_signature[2][FIRMWARE_SIGNATURE_LEN];
+	u32 firmware_B_signature[2][FIRMWARE_SIGNATURE_LEN];
 	u32 firmware_signature_pubkey[FIRMWARE_SIGNATURE_PUBKEY_LEN];
-	u8 auth_random_data[AUTH_RANDOM_DATA_LEN];
+	u8 auth_random_cleartext[AUTH_RANDOM_DATA_LEN];
 	struct hcdb_profile_auth_data profile_auth_data[MAX_PROFILES];
 	u16 user_data_size;
 	u8 user_data[];

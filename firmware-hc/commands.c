@@ -21,6 +21,7 @@ void usb_keyboard_type(const u8 *keys, int num)
 #include "rtc_rand.h"
 #include "main.h"
 #include "rng.h"
+#include "memory_layout.h"
 
 //
 // Globals
@@ -42,8 +43,8 @@ union cmd_data_u cmd_data;
 
 u8 encrypt_key[AES_256_KEY_SIZE];
 
-u8 token_auth_rand_ct[AES_256_KEY_SIZE];
-u8 token_encrypt_key_ct[AES_256_KEY_SIZE];
+u8 token_auth_rand_cyphertext[AES_256_KEY_SIZE];
+u8 token_encrypt_key_cyphertext[AES_256_KEY_SIZE];
 
 u8 header_version;
 u8 db_version;
@@ -56,10 +57,10 @@ static void long_button_press_disconnected();
 static void button_press_disconnected();
 static void button_release_disconnected();
 
-struct root_page root_page;
+struct hc_device_data root_page;
 
-extern struct root_page _crypt_data1;
-extern struct root_page _crypt_data2;
+extern struct hc_device_data _crypt_data1;
+extern struct hc_device_data _crypt_data2;
 
 //NEN_TODO: need to select data source based on validation algorithm
 #define _root_page _crypt_data1
@@ -90,7 +91,16 @@ u32 rand_get()
 	return rtc_val ^ rng_val;
 }
 
-#define ID_BLK(id) (((u8 *)&_root_page) + FLASH_PAGE_SIZE * (id))
+void write_data_block(int num, const u8 *data, int sz)
+{
+	//NEN_TODO
+}
+
+void write_root_block(const u8 *data, int sz)
+{
+	u8 *temp = (u8 *)&_root_page;
+	//NEN_TODO
+}
 
 void get_progress_check();
 void delete_cmd_complete();
@@ -217,9 +227,9 @@ void finish_command_resp(enum command_responses resp)
 
 void derive_iv(u32 id, u8 *iv)
 {
-	switch(root_page.signature[0]) {
-	case 2:
-		memcpy(iv, root_page.header.v2.cbc_iv, AES_BLK_SIZE);
+	switch(root_page.format) {
+	case 1:
+		memcpy(iv, root_page.device_id, AES_BLK_SIZE);
 		break;
 	}
 	iv[AES_BLK_SIZE-1] += (u8)(id);
@@ -230,20 +240,27 @@ static void finalize_root_page_check()
 {
 	if (rand_avail() >= (INIT_RAND_DATA_SZ/4) && !cmd_data.init_data.root_block_finalized && (cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS)) {
 		cmd_data.init_data.root_block_finalized = 1;
-		memcpy(root_page.signature, root_signature, AES_BLK_SIZE);
+		//NEN_TODO: compute CRC
 		for (int i = 0; i < (INIT_RAND_DATA_SZ/4); i++) {
 			((u32 *)cmd_data.init_data.rand)[i] ^= rand_get();
 		}
-		root_page.header.v2.db_version = 2;
-		memcpy(root_page.header.v2.cbc_iv, cmd_data.init_data.rand, AES_BLK_SIZE);
-		memcpy(root_page.header.v2.auth_rand, cmd_data.init_data.rand + AES_BLK_SIZE, AES_256_KEY_SIZE);
+		root_page.format = 1;
+		u8 *random = cmd_data.init_data.rand;
+
+		u8 *device_id = random; random += DEVICE_ID_LEN;
+		u8 *auth_rand_data = random; random += AUTH_RANDOM_DATA_LEN;
+		u8 *keystore_key = random; random += AES_256_KEY_SIZE;
+		
+
+		memcpy(root_page.device_id, device_id, DEVICE_ID_LEN);
+		memcpy(root_page.auth_random_cleartext, auth_rand_data, AUTH_RANDOM_DATA_LEN);
 		signet_aes_256_encrypt_cbc(cmd_data.init_data.passwd, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-		                           root_page.header.v2.auth_rand, root_page.header.v2.auth_rand_ct);
+		                           auth_rand_data, root_page.profile_auth_data[0].auth_random_cyphertext);
 		signet_aes_256_encrypt_cbc(cmd_data.init_data.passwd, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-		                           cmd_data.init_data.rand + AES_BLK_SIZE + AES_256_KEY_SIZE, root_page.header.v2.encrypt_key_ct);
-		memcpy(root_page.header.v2.salt, cmd_data.init_data.salt, SALT_SZ_V2);
-		memcpy(root_page.header.v2.hashfn, cmd_data.init_data.hashfn, HASH_FN_SZ);
-		flash_write_page((u8 *)&_root_page, (u8 *)&root_page, sizeof(struct root_page));
+		                           keystore_key, root_page.profile_auth_data[0].keystore_key_cyphertext);
+		memcpy(root_page.profile_auth_data[0].salt, cmd_data.init_data.salt, HC_HASH_FN_SALT_SZ);
+		memcpy(root_page.profile_auth_data[0].hash_function_params, cmd_data.init_data.hashfn, HASH_FUNCTION_PARAMS_LENGTH);
+		write_root_block((u8 *)&root_page, sizeof(struct root_page));
 	}
 }
 
@@ -293,8 +310,8 @@ void flash_write_complete()
 		get_progress_check();
 
 		if (cmd_data.init_data.blocks_written < NUM_DATA_BLOCKS) {
-			struct block *blk = db2_initialize_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (struct block *)cmd_data.init_data.block);
-			flash_write_page(ID_BLK(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK), (u8 *)blk, blk ? BLK_SIZE : 0);
+			struct block *blk = db3_initialize_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (struct block *)cmd_data.init_data.block);
+			write_data_block(cmd_data.init_data.blocks_written, (u8 *)blk, blk ? BLK_SIZE : 0);
 		} else if (cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS) {
 			finalize_root_page_check();
 		} else {
@@ -302,7 +319,7 @@ void flash_write_complete()
 			//TODO: fix magic numbers
 			header_version = 2;
 			db_version = 2;
-			if (db2_startup_scan(cmd_data.init_data.block, &cmd_data.init_data.blk_info)) {
+			if (db3_startup_scan((struct block *)cmd_data.startup.read_block, cmd_data.init_data.block, &cmd_data.init_data.blk_info)) {
 				enter_state(DS_LOGGED_OUT);
 			} else {
 				//Shouldn't be possible to have a INITIAL database in an inconsistent state
@@ -317,7 +334,7 @@ void flash_write_complete()
 		if (cmd_data.wipe_data.block == NUM_STORAGE_BLOCKS) {
 			enter_state(DS_UNINITIALIZED);
 		} else {
-			flash_write_page(ID_BLK(cmd_data.wipe_data.block), NULL, 0);
+			write_data_block(cmd_data.wipe_data.block, NULL, 0);
 		}
 		break;
 	case DS_ERASING_PAGES:
@@ -400,7 +417,7 @@ void long_button_press()
 		case WIPE: {
 			finish_command_resp(OKAY);
 			cmd_data.wipe_data.block = 0;
-			flash_write_page(ID_BLK(cmd_data.wipe_data.block), NULL, 0);
+			write_root_block(NULL, 0);
 			int temp[] = {NUM_STORAGE_BLOCKS};
 			enter_progressing_state(DS_WIPING, 1, temp);
 		}
@@ -418,20 +435,20 @@ void long_button_press()
 			initialize_cmd_complete();
 			break;
 		case CHANGE_MASTER_PASSWORD:
-			switch (root_page.signature[0]) {
-			case 2:
-				memcpy(root_page.header.v2.hashfn, cmd_data.change_master_password.hashfn, HASH_FN_SZ);
+			switch (root_page.format) {
+			case 1:
+				memcpy(root_page.profile_auth_data[0].hash_function_params, cmd_data.change_master_password.hashfn, HASH_FUNCTION_PARAMS_LENGTH);
 				signet_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-				                           encrypt_key, root_page.header.v2.encrypt_key_ct);
+				                           encrypt_key, root_page.profile_auth_data[0].keystore_key_cyphertext);
 				signet_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-				                           root_page.header.v2.auth_rand, root_page.header.v2.auth_rand_ct);
-				memcpy(root_page.header.v2.salt, cmd_data.change_master_password.salt, SALT_SZ_V2);
+				                           root_page.auth_random_cleartext, root_page.profile_auth_data[0].auth_random_cyphertext);
+				memcpy(root_page.profile_auth_data[0].salt, cmd_data.change_master_password.salt, HC_HASH_FN_SALT_SZ);
 				break;
 			default:
 				finish_command_resp(UNKNOWN_DB_FORMAT);
 				return;
 			}
-			flash_write_page(ID_BLK(0), (u8 *)&root_page, sizeof(root_page));
+			write_root_block((u8 *)&root_page, sizeof(root_page));
 			break;
 		}
 	} else if (device_state == DS_DISCONNECTED) {
@@ -448,14 +465,14 @@ void button_release()
 	}
 }
 
-int attempt_login_256(const u8 *auth_key, const u8 *auth_rand, const u8 *auth_rand_ct, const u8 *encrypt_key_ct, u8 *encrypt_key)
+int attempt_login_256(const u8 *auth_key, const u8 *auth_rand, const u8 *auth_rand_cyphertext, const u8 *encrypt_key_cyphertext, u8 *encrypt_key)
 {
-	u8 auth_rand_ct_test[AES_256_KEY_SIZE];
-	signet_aes_256_encrypt_cbc(auth_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL, auth_rand, auth_rand_ct_test);
-	if (memcmp(auth_rand_ct_test, auth_rand_ct, AES_256_KEY_SIZE)) {
+	u8 auth_rand_cyphertext_test[AES_256_KEY_SIZE];
+	signet_aes_256_encrypt_cbc(auth_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL, auth_rand, auth_rand_cyphertext_test);
+	if (memcmp(auth_rand_cyphertext_test, auth_rand_cyphertext, AES_256_KEY_SIZE)) {
 		return 0;
 	} else {
-		signet_aes_256_decrypt_cbc(auth_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL, encrypt_key_ct, encrypt_key);
+		signet_aes_256_decrypt_cbc(auth_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL, encrypt_key_cyphertext, encrypt_key);
 		return 1;
 	}
 }
@@ -468,9 +485,9 @@ void login_cmd_iter()
 				cmd_data.login.token[i] = rand_get();
 			}
 			signet_aes_256_encrypt_cbc((u8 *)cmd_data.login.token, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-			                           root_page.header.v2.auth_rand, token_auth_rand_ct);
+			                           root_page.auth_random_cleartext, token_auth_rand_cyphertext);
 			signet_aes_256_encrypt_cbc((u8 *)cmd_data.login.token, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-			                           encrypt_key, token_encrypt_key_ct);
+			                           encrypt_key, token_encrypt_key_cyphertext);
 			finish_command(OKAY, (u8 *)cmd_data.login.gen_token, AES_256_KEY_SIZE);
 			enter_state(DS_LOGGED_IN);
 		}
@@ -530,6 +547,7 @@ static void button_release_disconnected()
 
 static void long_button_press_disconnected()
 {
+#ifndef SIGNET_HC
 	switch (root_page.signature[0]) {
 	case 2: {
 		int index = cleartext_pass_index;
@@ -547,6 +565,7 @@ static void long_button_press_disconnected()
 	}
 	break;
 	}
+#endif
 }
 
 void button_press()
@@ -554,6 +573,7 @@ void button_press()
 	if (waiting_for_button_press) {
 		end_button_press_wait();
 		switch(active_cmd) {
+#ifndef SIGNET_HC
 		case READ_CLEARTEXT_PASSWORD: {
 			int idx = cmd_data.read_cleartext_password.idx;
 			struct cleartext_pass *p = root_page.header.v2.cleartext_passwords;
@@ -567,13 +587,14 @@ void button_press()
 			flash_write_page(ID_BLK(0), (u8 *)&root_page, sizeof(root_page));
 		}
 		break;
+#endif
 		case LOGIN:
-			switch (root_page.signature[0]) {
-			case 2: {
+			switch (root_page.format) {
+			case 1: {
 				int rc = attempt_login_256(cmd_data.login.password,
-				                           root_page.header.v2.auth_rand,
-				                           root_page.header.v2.auth_rand_ct,
-				                           root_page.header.v2.encrypt_key_ct,
+				                           root_page.auth_random_cleartext,
+				                           root_page.profile_auth_data[0].auth_random_cyphertext,
+				                           root_page.profile_auth_data[0].keystore_key_cyphertext,
 				                           encrypt_key);
 				if (rc) {
 					if (cmd_data.login.gen_token) {
@@ -595,12 +616,12 @@ void button_press()
 			break;
 		case LOGIN_TOKEN: {
 			int rc;
-			switch (root_page.signature[0]) {
-			case 2:
+			switch (root_page.format) {
+			case 1:
 				rc = attempt_login_256((u8 *)cmd_data.login_token.token,
-				                       root_page.header.v2.auth_rand,
-				                       token_auth_rand_ct,
-				                       token_encrypt_key_ct,
+				                       root_page.auth_random_cleartext,
+				                       token_auth_rand_cyphertext,
+				                       token_encrypt_key_cyphertext,
 				                       encrypt_key);
 				if (rc) {
 					finish_command_resp(OKAY);
@@ -681,8 +702,8 @@ void initialize_cmd_complete()
 	cmd_data.init_data.random_data_gathered = 0;
 	cmd_data.init_data.root_block_finalized = 0;
 
-	struct block *blk = db2_initialize_block(MIN_DATA_BLOCK + cmd_data.init_data.blocks_written, (struct block *)cmd_data.init_data.block);
-	flash_write_page(ID_BLK(MIN_DATA_BLOCK + cmd_data.init_data.blocks_written), (u8 *)blk, blk ? BLK_SIZE : 0);
+	struct block *blk = db3_initialize_block(cmd_data.init_data.blocks_written, (struct block *)cmd_data.init_data.block);
+	write_data_block(cmd_data.init_data.blocks_written, (u8 *)blk, blk ? BLK_SIZE : 0);
 	finish_command_resp(OKAY);
 	cmd_data.init_data.rand_avail_init = rand_avail();
 	int p = (INIT_RAND_DATA_SZ/4) - cmd_data.init_data.rand_avail_init;
@@ -734,7 +755,8 @@ void read_block_cmd(u8 *data, int data_len)
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	finish_command(OKAY, ID_BLK(idx), BLK_SIZE);
+	//NEN_TODO: need to read data from emmc to complete this command
+	finish_command(OKAY, NULL, BLK_SIZE);
 }
 
 void write_block_cmd(u8 *data, int data_len)
@@ -750,7 +772,7 @@ void write_block_cmd(u8 *data, int data_len)
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	flash_write_page(ID_BLK(idx), data, BLK_SIZE);
+	write_data_block(idx, data, BLK_SIZE);
 }
 
 void erase_block_cmd(u8 *data, int data_len)
@@ -766,7 +788,7 @@ void erase_block_cmd(u8 *data, int data_len)
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	flash_write_page(ID_BLK(idx), NULL, 0);
+	write_data_block(idx, NULL, 0);
 }
 
 void get_device_capacity_cmd(u8 *data, int data_len)
@@ -795,16 +817,16 @@ void change_master_password_cmd(u8 *data, int data_len)
 	u8 *salt = data + (AES_256_KEY_SIZE * 2) + HASH_FN_SZ;
 	memcpy(cmd_data.change_master_password.hashfn, hashfn, HASH_FN_SZ);
 	memcpy(cmd_data.change_master_password.salt, salt, SALT_SZ_V2);
-	switch (root_page.signature[0]) {
-	case 2:
+	switch (root_page.format) {
+	case 1:
 		signet_aes_256_encrypt_cbc(old_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-		                           root_page.header.v2.auth_rand, cmd_data.change_master_password.cyphertext);
-		if (memcmp(cmd_data.change_master_password.cyphertext, root_page.header.v2.auth_rand_ct, AES_256_KEY_SIZE)) {
+		                           root_page.auth_random_cleartext, cmd_data.change_master_password.cyphertext);
+		if (memcmp(cmd_data.change_master_password.cyphertext, root_page.profile_auth_data[0].auth_random_cyphertext, AES_256_KEY_SIZE)) {
 			finish_command_resp(BAD_PASSWORD);
 			return;
 		}
 		signet_aes_256_decrypt_cbc(old_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-		                           root_page.header.v2.encrypt_key_ct, encrypt_key);
+		                           root_page.profile_auth_data[0].keystore_key_cyphertext, encrypt_key);
 		memcpy(cmd_data.change_master_password.new_key, new_key, AES_256_KEY_SIZE);
 		break;
 	default:
@@ -917,8 +939,9 @@ void enter_mobile_mode_cmd()
 
 int is_device_wiped()
 {
+	//NEN_TODO: Is checking if the root blocked is wiped sufficient?
 	u32 *data_area = (u32 *)(&_root_page);
-	for (int i = 0; i < (NUM_STORAGE_BLOCKS*BLK_SIZE)/4; i++) {
+	for (int i = 0; i < (BLK_SIZE)/4; i++) {
 		if (data_area[i] != 0xffffffff) {
 			return 0;
 		}
@@ -967,10 +990,11 @@ int uninitialized_state(int cmd, u8 *data, int data_len)
 	}
 	return 0;
 }
-
+#ifndef SIGNET_HC
 void write_cleartext_password(u8 *data, int data_len);
 void read_cleartext_password(u8 *data, int data_len);
 void read_cleartext_password_names();
+#endif
 
 int logged_out_state(int cmd, u8 *data, int data_len)
 {
@@ -1022,6 +1046,7 @@ int logged_out_state(int cmd, u8 *data, int data_len)
 	return 0;
 }
 
+#ifndef SIGNET_HC
 void write_cleartext_password(u8 *data, int data_len)
 {
 	if (data_len != (CLEARTEXT_PASS_SIZE + 1)) {
@@ -1057,7 +1082,6 @@ void read_cleartext_password(u8 *data, int data_len)
 	begin_button_press_wait();
 }
 
-
 void read_cleartext_password_names()
 {
 	u8 *block = cmd_data.read_cleartext_password_names.block;
@@ -1076,6 +1100,7 @@ void read_cleartext_password_names()
 	}
 	finish_command(OKAY, (u8 *)block, NUM_CLEARTEXT_PASS * (CLEARTEXT_PASS_NAME_SIZE + 1));
 }
+#endif
 
 int logged_in_state(int cmd, u8 *data, int data_len)
 {
@@ -1158,6 +1183,7 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 	case UPDATE_FIRMWARE:
 		begin_long_button_press_wait();
 		break;
+#ifndef SIGNET_HC
 	case READ_CLEARTEXT_PASSWORD_NAMES:
 		read_cleartext_password_names();
 		break;
@@ -1167,6 +1193,7 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 	case WRITE_CLEARTEXT_PASSWORD:
 		write_cleartext_password(data, data_len);
 		break;
+#endif
 	default:
 		return -1;
 	}
@@ -1222,10 +1249,10 @@ void startup_cmd_iter()
 		finish_command(OKAY, resp, sizeof(resp));
 	} else {
 		switch (header_version) {
-		case 2:
-			memcpy(resp + 6, root_page.header.v2.hashfn, HASH_FN_SZ);
-			memcpy(resp + 6 + HASH_FN_SZ, root_page.header.v2.salt, SALT_SZ_V2);
-			db_version = root_page.header.v2.db_version;
+		case 1:
+			memcpy(resp + 6, root_page.profile_auth_data[0].hash_function_params, HASH_FUNCTION_PARAMS_LENGTH);
+			memcpy(resp + 6 + HASH_FUNCTION_PARAMS_LENGTH, root_page.profile_auth_data[0].salt, HC_HASH_FN_SALT_SZ);
+			db_version = root_page.format;
 			break;
 		default:
 			finish_command(UNKNOWN_DB_FORMAT, resp, sizeof(resp));
@@ -1234,8 +1261,8 @@ void startup_cmd_iter()
 		resp[5] = db_version;
 
 		switch (db_version) {
-		case 2:
-			if (db2_startup_scan(cmd_data.startup.block, &cmd_data.startup.blk_info)) {
+		case 1:
+			if (db3_startup_scan((struct block *)cmd_data.startup.read_block, cmd_data.startup.block, &cmd_data.startup.blk_info)) {
 				finish_command(OKAY, resp, sizeof(resp));
 			}
 			break;
@@ -1251,6 +1278,18 @@ void cmd_init()
 	memcpy(&root_page, (u8 *)(&_root_page), sizeof(root_page));
 }
 
+#ifdef SIGNET_HC
+void startup_cmd(u8 *data, int data_len)
+{
+	if (device_state != DS_DISCONNECTED) {
+		stop_blinking();
+		end_button_press_wait();
+		end_long_button_press_wait();
+		active_cmd = -1;
+	}
+	cmd_init();
+}
+#else
 void startup_cmd(u8 *data, int data_len)
 {
 	dprint_s("STARTUP\r\n");
@@ -1261,17 +1300,13 @@ void startup_cmd(u8 *data, int data_len)
 		active_cmd = -1;
 	}
 	cmd_init();
-	if (memcmp(root_page.signature + 1, root_signature + 1, AES_BLK_SIZE - 1)) {
-		dprint_s("STARTUP: uninitialized\r\n");
-		enter_state(DS_UNINITIALIZED);
-	} else {
-		dprint_s("STARTUP: logged out\r\n");
-		enter_state(DS_LOGGED_OUT);
-	}
-	header_version = root_page.signature[0];
+	//NEN_TODO: check format and CRC to decide if we enter DS_UNINITIALIZED for DS_LOGGED_OUT
+	enter_state(DS_UNINITIALIZED);
+	header_version = root_page.format;
 	startup_cmd_iter();
 	return;
 }
+#endif
 
 int cmd_packet_recv()
 {
