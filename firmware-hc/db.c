@@ -4,17 +4,6 @@
 #include "crc.h"
 
 //#include "flash.h"
-void emmc_flash_write_page(int pg, const u8 *src, int sz);
-
-void emmc_flash_read_page(int pg, u8 *dest, int sz);
-
-void emmc_flash_read_page(int pg, u8 *dest, int sz)
-{
-}
-
-void emmc_flash_write_page(int pg, const u8 *src, int sz)
-{
-}
 
 #include "commands.h"
 #include "signet_aes.h"
@@ -131,7 +120,7 @@ int db3_startup_scan_resume(struct block *block_read, u8 *block_temp, struct blo
 					if (blk_info_temp->occupied) {
 						block->header.crc = block_crc(block);
 					}
-					emmc_flash_write_page(block_num, (u8 *)block, BLK_SIZE);
+					write_data_block(block_num, (u8 *)block, BLK_SIZE);
 					return 0;
 				} else {
 					uid_map[uid] = i;
@@ -409,7 +398,7 @@ void update_uid_cmd_complete()
 	if (cmd_data.update_uid.blk_info.occupied) {
 		block->header.crc = block_crc(block);
 	}
-	emmc_flash_write_page(cmd_data.update_uid.block_num, (u8 *)block, BLK_SIZE);
+	write_data_block(cmd_data.update_uid.block_num, (u8 *)block, BLK_SIZE);
 }
 
 void update_uid_cmd_write_finished()
@@ -423,7 +412,7 @@ void update_uid_cmd_write_finished()
 			struct block *block = (struct block *)cmd_data.update_uid.block;
 			deallocate_uid(cmd_data.update_uid.uid, block, &cmd_data.update_uid.blk_info, 1 /* dellocate block*/);
 			block->header.crc = block_crc(block);
-			emmc_flash_write_page(cmd_data.update_uid.prev_block_num, (u8 *)block, BLK_SIZE);
+			write_data_block(cmd_data.update_uid.prev_block_num, (u8 *)block, BLK_SIZE);
 		} else {
 			if (!cmd_data.update_uid.sz) {
 				//Record is being deleted

@@ -123,5 +123,20 @@ void enter_state(enum device_state state);
 void enter_progressing_state(enum device_state state, int _n_progress_components, int *_progress_maximums);
 
 void cmd_rand_update();
+void write_data_block(int pg, const u8 *src, int sz);
+void read_data_block(int pg, u8 *dest, int sz);
+
+enum emmc_user {
+	EMMC_USER_NONE,
+	EMMC_USER_STORAGE_READ,
+	EMMC_USER_STORAGE_WRITE,
+	EMMC_USER_DB_READ,
+	EMMC_USER_DB_WRITE,
+	EMMC_NUM_USER
+};
+
+void emmc_user_queue(enum emmc_user user);
+void emmc_user_schedule();
+void emmc_user_done();
 
 #endif

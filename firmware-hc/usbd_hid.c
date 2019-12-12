@@ -108,7 +108,7 @@ static uint8_t USBD_HID_CfgHSDesc[USB_HID_CONFIG_DESC_SIZ] __attribute__((aligne
 	USB_DESC_TYPE_CONFIGURATION, /* bDescriptorType: Configuration */
 	USB_HID_CONFIG_DESC_SIZ, /* wTotalLength: Bytes returned */
 	0x00,
-	0x02,         /*bNumInterfaces: 1 interface*/
+	0x02,         /*bNumInterfaces: 2 interface*/
 	0x01,         /*bConfigurationValue: Configuration value*/
 	0x00,         /*iConfiguration: Index of string descriptor describing the configuration*/
 	0xE0,         /*bmAttributes: bus powered and Support Remote Wake-up */
@@ -514,19 +514,14 @@ static uint8_t  USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 		if (interfaceNum == INTERFACE_CMD) {
 			usb_raw_hid_tx();
 		} else {
-			//NEN_TODO
+			//NEN_TODO: Fido transmit
 		}
 	} break;
 	default:
-		//NEN_TODO
+		//NEN_TODO: What are we supposed to return on invalid interface?
 		break;
 	}
 	return USBD_OK;
-}
-
-void usb_fido_hid_rx(uint8_t *buffer, int len)
-{
-	//NEN_TODO
 }
 
 static uint8_t  USBD_HID_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
@@ -553,7 +548,7 @@ static uint8_t  USBD_HID_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
 	}
 	break;
 	default:
-		//NEN_TODO: Gnuk and mass storage
+		//NEN_TODO: What are we supposed to return on invalid interface?
 		break;
 	}
 	return USBD_OK;
@@ -575,7 +570,7 @@ void usb_send_bytes(int ep, const u8 *data, int length)
 	}
 	break;
 	default:
-		//NEN_TODO: Gnuk and mass storage
+		//NEN_TODO: What are we supposed to do if the interface is invalid? 
 		break;
 	}
 }
@@ -591,7 +586,7 @@ int usb_tx_pending(int ep)
 	}
 	break;
 	default:
-		return 0; //NEN_TODO
+		return 0;
 		break;
 	}
 }

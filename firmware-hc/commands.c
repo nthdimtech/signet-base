@@ -4,6 +4,7 @@
 #include "commands.h"
 #include "signetdev_common.h"
 #include "types.h"
+#include "stm32f7xx_hal.h"
 
 //#include "usb_keyboard.h"
 void usb_keyboard_type(const u8 *keys, int num)
@@ -74,6 +75,114 @@ static int waiting_for_button_press = 0;
 static int waiting_for_long_button_press = 0;
 
 //
+// Read/write database blocks
+//
+extern volatile MMC_HandleTypeDef hmmc1;
+
+enum emmc_user g_emmc_user = EMMC_USER_NONE;
+
+int g_emmc_user_ready[EMMC_NUM_USER];
+
+static int g_db_read_idx;
+static u8 *g_db_read_dest;
+static int g_db_read_sz;
+
+static int g_db_write_idx;
+static const u8 *g_db_write_src;
+static int g_db_write_sz;
+
+void emmc_user_read_storage_rx_complete();
+void emmc_user_read_storage_start();
+
+void emmc_user_read_db_start()
+{
+	int idx = g_db_read_idx;
+	u8 *dest = g_db_read_dest;
+	int sz = g_db_read_sz;
+	HAL_MMC_CardStateTypeDef cardState;
+	do {
+		cardState = HAL_MMC_GetCardState(&hmmc1);
+	} while (cardState != HAL_MMC_CARD_TRANSFER);
+	HAL_MMC_ReadBlocks_DMA(&hmmc1,
+			dest,
+			idx + EMMC_DB_FIRST_BLOCK,
+			1);
+}
+
+void assert(int cond)
+{
+	if (!cond);
+	while(1);
+}
+
+void emmc_user_read_db_rx_complete()
+{
+	emmc_user_done();
+}
+
+void emmc_user_write_db_start()
+{
+	//NEN_TODO
+}
+
+void emmc_user_schedule()
+{
+	if (g_emmc_user == EMMC_USER_NONE) {
+		if (g_emmc_user_ready[EMMC_USER_DB_READ]) {
+			emmc_user_read_db_start();
+		} else if (g_emmc_user_ready[EMMC_USER_DB_WRITE]) {
+			emmc_user_write_db_start();
+		} else if (g_emmc_user_ready[EMMC_USER_STORAGE_READ]) {
+			emmc_user_read_storage_start();
+		}
+	}
+}
+
+void emmc_user_done()
+{
+	g_emmc_user = EMMC_USER_NONE;
+	emmc_user_schedule();
+}
+
+void emmc_user_queue(enum emmc_user user)
+{
+	assert(!g_emmc_user_ready[user]);
+	g_emmc_user_ready[user] = 1;
+}
+
+void read_data_block(int idx, u8 *dest, int sz)
+{
+	emmc_user_queue(EMMC_USER_DB_READ);
+	g_db_read_idx = idx;
+	g_db_read_dest = dest;
+	g_db_read_sz = sz;
+	emmc_user_schedule();
+}
+
+void write_data_block(int idx, const u8 *src, int sz)
+{
+	emmc_user_queue(EMMC_USER_STORAGE_WRITE);
+	g_db_write_idx = idx;
+	g_db_write_src = src;
+	g_db_write_sz = sz;
+	emmc_user_schedule();
+}
+
+void HAL_MMC_RxCpltCallback(MMC_HandleTypeDef *hmmc1)
+{
+	switch(g_emmc_user) {
+		case EMMC_USER_STORAGE_READ:
+			emmc_user_read_storage_rx_complete();
+			break;
+		case EMMC_USER_DB_READ:
+			emmc_user_read_db_rx_complete();
+			break;
+		default:
+			assert(0);
+	}
+}
+
+//
 // Misc functions
 //
 
@@ -89,11 +198,6 @@ u32 rand_get()
 	u32 rtc_val = rtc_rand_get();
 	u32 rng_val = rng_rand_get();
 	return rtc_val ^ rng_val;
-}
-
-void write_data_block(int num, const u8 *data, int sz)
-{
-	//NEN_TODO
 }
 
 void write_root_block(const u8 *data, int sz)
@@ -408,7 +512,8 @@ void long_button_press()
 		case UPDATE_UIDS:
 			update_uid_cmd_complete();
 			break;
-#if NEN_TODO
+//NEN_TODO: implement
+#ifndef SIGNET_HC
 		case UPDATE_FIRMWARE:
 			finish_command_resp(OKAY);
 			enter_state(DS_FIRMWARE_UPDATE);
@@ -650,6 +755,7 @@ void button_press()
 			break;
 		default:
 			cmd_event_send(1, NULL, 0);
+			break;
 		}
 	} else if (waiting_for_long_button_press) {
 		pause_blinking();
@@ -755,8 +861,8 @@ void read_block_cmd(u8 *data, int data_len)
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	//NEN_TODO: need to read data from emmc to complete this command
-	finish_command(OKAY, NULL, BLK_SIZE);
+	read_data_block(idx, data, data_len);
+	//NEN_TODO: need to finish this command in the emmc complete handler
 }
 
 void write_block_cmd(u8 *data, int data_len)
@@ -928,7 +1034,7 @@ int wiping_state(int cmd, u8 *data, int data_len)
 	return 0;
 }
 
-#if NEN_TODO
+#ifndef SIGNET_HC
 void enter_mobile_mode_cmd()
 {
 	cmd_disconnect();
@@ -964,7 +1070,7 @@ int uninitialized_state(int cmd, u8 *data, int data_len)
 	case GET_DEVICE_CAPACITY:
 		get_device_capacity_cmd(data, data_len);
 		break;
-#if NEN_TODO
+#ifndef SIGNET_HC
 	case ENTER_MOBILE_MODE:
 		enter_mobile_mode_cmd();
 		break;
@@ -1288,6 +1394,9 @@ void startup_cmd(u8 *data, int data_len)
 		active_cmd = -1;
 	}
 	cmd_init();
+	enter_state(DS_UNINITIALIZED);
+	header_version = root_page.format;
+	startup_cmd_iter();
 }
 #else
 void startup_cmd(u8 *data, int data_len)
