@@ -28,7 +28,7 @@ chmod u+w $SYSROOT/lib
 #
 # Install mini-gmp
 #
-pushd mini-gmp/mini-gmp
+pushd external/mini-gmp/mini-gmp
 $TARGET_TUPLE-gcc $CFLAGS -c mini-gmp.c
 rm libmini-gmp.a
 $TARGET_TUPLE-ar -r libmini-gmp.a mini-gmp.o
@@ -39,8 +39,8 @@ popd
 #
 # Install nettle
 #
-mkdir -p nettle/build-hc
-pushd nettle
+mkdir -p external/nettle/build-hc
+pushd external/nettle
 autoconf
 autoheader
 pushd build-hc
