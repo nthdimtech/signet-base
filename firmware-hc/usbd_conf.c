@@ -269,9 +269,10 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
 	HAL_PCD_Init(&hpcd);
 
 	HAL_PCDEx_SetRxFiFo(&hpcd, 0x100);
-	HAL_PCDEx_SetTxFiFo(&hpcd, 0, 0x80);
-	HAL_PCDEx_SetTxFiFo(&hpcd, 1, 0x80);
-	HAL_PCDEx_SetTxFiFo(&hpcd, 2, 0x80);
+	HAL_PCDEx_SetTxFiFo(&hpcd, 0, 0x40);
+	HAL_PCDEx_SetTxFiFo(&hpcd, 1, 0x40);
+	HAL_PCDEx_SetTxFiFo(&hpcd, 2, 0x40);
+	HAL_PCDEx_SetTxFiFo(&hpcd, 3, 0x80);
 	return USBD_OK;
 }
 

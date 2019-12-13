@@ -278,7 +278,7 @@ uint8_t  USBD_MSC_DeInit (USBD_HandleTypeDef *pdev,
 */
 uint8_t  USBD_MSC_Setup (USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req)
 {
-  USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*) pdev->pClassData;
+  USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*) pdev->pClassData[req->wIndex];
   uint8_t ret = USBD_OK;
   uint16_t status_info = 0U;
 

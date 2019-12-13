@@ -1,5 +1,6 @@
 
 #include "usbd_hid.h"
+#include "usbd_msc.h"
 #include "usbd_ctlreq.h"
 #include "signetdev_common.h"
 #include "usb_raw_hid.h"
@@ -23,42 +24,41 @@ static uint8_t interfaceToEndpointOut(int interfaceNum)
 	return (uint8_t)(interfaceNum + 1);
 }
 
-static uint8_t  USBD_HID_Init (USBD_HandleTypeDef *pdev,
+static uint8_t  USBD_Multi_Init (USBD_HandleTypeDef *pdev,
                                uint8_t cfgidx);
 
-static uint8_t  USBD_HID_DeInit (USBD_HandleTypeDef *pdev,
+static uint8_t  USBD_Multi_DeInit (USBD_HandleTypeDef *pdev,
                                  uint8_t cfgidx);
 
-static uint8_t  USBD_HID_Setup (USBD_HandleTypeDef *pdev,
+static uint8_t  USBD_Multi_Setup (USBD_HandleTypeDef *pdev,
                                 USBD_SetupReqTypedef *req);
 
-static uint8_t  *USBD_HID_GetFSCfgDesc (uint16_t *length);
+static uint8_t  *USBD_Multi_GetFSCfgDesc (uint16_t *length);
 
-static uint8_t  *USBD_HID_GetHSCfgDesc (uint16_t *length);
+static uint8_t  *USBD_Multi_GetHSCfgDesc (uint16_t *length);
 
-static uint8_t  *USBD_HID_GetOtherSpeedCfgDesc (uint16_t *length);
+static uint8_t  *USBD_Multi_GetOtherSpeedCfgDesc (uint16_t *length);
 
-static uint8_t  *USBD_HID_GetDeviceQualifierDesc (uint16_t *length);
+static uint8_t  *USBD_Multi_GetDeviceQualifierDesc (uint16_t *length);
 
-static uint8_t  USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum);
-
-static uint8_t  USBD_HID_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum);
+static uint8_t  USBD_Multi_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum);
+static uint8_t  USBD_Multi_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum);
 
 USBD_ClassTypeDef  USBD_HID = {
-	USBD_HID_Init,
-	USBD_HID_DeInit,
-	USBD_HID_Setup,
+	USBD_Multi_Init,
+	USBD_Multi_DeInit,
+	USBD_Multi_Setup,
 	NULL, /*EP0_TxSent*/
 	NULL, /*EP0_RxReady*/
-	USBD_HID_DataIn, /*DataIn*/
-	USBD_HID_DataOut, /*DataOut*/
+	USBD_Multi_DataIn, /*DataIn*/
+	USBD_Multi_DataOut, /*DataOut*/
 	NULL, /*SOF */
 	NULL,
 	NULL,
-	USBD_HID_GetHSCfgDesc,
-	USBD_HID_GetFSCfgDesc,
-	USBD_HID_GetOtherSpeedCfgDesc,
-	USBD_HID_GetDeviceQualifierDesc,
+	USBD_Multi_GetHSCfgDesc,
+	USBD_Multi_GetFSCfgDesc,
+	USBD_Multi_GetOtherSpeedCfgDesc,
+	USBD_Multi_GetDeviceQualifierDesc,
 };
 
 static const u8 cmd_hid_report_descriptor[] __attribute__((aligned (4))) = {
@@ -108,12 +108,15 @@ static uint8_t USBD_HID_CfgHSDesc[USB_HID_CONFIG_DESC_SIZ] __attribute__((aligne
 	USB_DESC_TYPE_CONFIGURATION, /* bDescriptorType: Configuration */
 	USB_HID_CONFIG_DESC_SIZ, /* wTotalLength: Bytes returned */
 	0x00,
+#ifdef ENABLE_MSC
+	0x03,         /*bNumInterfaces: 3 interface*/
+#else
 	0x02,         /*bNumInterfaces: 2 interface*/
+#endif
 	0x01,         /*bConfigurationValue: Configuration value*/
 	0x00,         /*iConfiguration: Index of string descriptor describing the configuration*/
 	0xE0,         /*bmAttributes: bus powered and Support Remote Wake-up */
 	0x32,         /*MaxPower 100 mA: this current is used for detecting Vbus*/
-
 
 	/************** Descriptor of Command RAW HID interface  ****************/
 	0x09,         /*bLength: Interface Descriptor size*/
@@ -188,6 +191,35 @@ static uint8_t USBD_HID_CfgHSDesc[USB_HID_CONFIG_DESC_SIZ] __attribute__((aligne
 	HID_FIDO_EPOUT_SIZE,
 	0x00,
 	HID_HS_BINTERVAL,          /*bInterval: Polling Interval */
+
+#ifdef ENABLE_MSC
+	/********************  Mass Storage interface ********************/
+	0x09,   /* bLength: Interface Descriptor size */
+	0x04,   /* bDescriptorType: */
+	INTERFACE_MSC,   /* bInterfaceNumber: Number of Interface */
+	0x00,   /* bAlternateSetting: Alternate setting */
+	0x02,   /* bNumEndpoints*/
+	0x08,   /* bInterfaceClass: MSC Class */
+	0x06,   /* bInterfaceSubClass : SCSI transparent*/
+	0x50,   /* nInterfaceProtocol */
+	0x05,          /* iInterface: */
+	/********************  Mass Storage Endpoints ********************/
+	0x07,   /*Endpoint descriptor length = 7*/
+	0x05,   /*Endpoint descriptor type */
+	MSC_EPIN_ADDR,   /*Endpoint address (IN, address 1) */
+	0x02,   /*Bulk endpoint type */
+	LOBYTE(MSC_MAX_HS_PACKET),
+	HIBYTE(MSC_MAX_HS_PACKET),
+	0x00,   /*Polling interval in milliseconds */
+
+	0x07,   /*Endpoint descriptor length = 7 */
+	0x05,   /*Endpoint descriptor type */
+	MSC_EPOUT_ADDR,   /*Endpoint address (OUT, address 1) */
+	0x02,   /*Bulk endpoint type */
+	LOBYTE(MSC_MAX_HS_PACKET),
+	HIBYTE(MSC_MAX_HS_PACKET),
+	0x00     /*Polling interval in milliseconds*/
+#endif
 };
 
 /* USB HID device Configuration Descriptor */
@@ -216,7 +248,7 @@ static uint8_t USBD_HID_FIDO_Desc[USB_HID_DESC_SIZ] __attribute__((aligned (4)))
 };
 
 /* USB Standard Device Descriptor */
-static uint8_t USBD_HID_DeviceQualifierDesc[USB_LEN_DEV_QUALIFIER_DESC] __attribute__((aligned (4))) = {
+static uint8_t USBD_Multi_DeviceQualifierDesc[USB_LEN_DEV_QUALIFIER_DESC] __attribute__((aligned (4))) = {
 	USB_LEN_DEV_QUALIFIER_DESC,
 	USB_DESC_TYPE_DEVICE_QUALIFIER,
 	0x00,
@@ -232,17 +264,26 @@ static uint8_t USBD_HID_DeviceQualifierDesc[USB_LEN_DEV_QUALIFIER_DESC] __attrib
 static USBD_HID_HandleTypeDef s_cmdHIDClassData;
 static USBD_HID_HandleTypeDef s_fidoHIDClassData;
 
-static uint8_t  USBD_HID_Init (USBD_HandleTypeDef *pdev, uint8_t cfgidx)
+#ifdef ENABLE_MSC
+static USBD_MSC_BOT_HandleTypeDef s_SCSIMSCClassData;
+#endif
+
+static uint8_t  USBD_Multi_Init (USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 {
 	/* Open EP IN */
 	USBD_LL_OpenEP(pdev, HID_CMD_EPIN_ADDR, USBD_EP_TYPE_INTR, HID_CMD_EPIN_SIZE);
 	pdev->ep_in[HID_CMD_EPIN_ADDR & 0xFU].is_used = 1U;
 	USBD_LL_OpenEP(pdev, HID_FIDO_EPIN_ADDR, USBD_EP_TYPE_INTR, HID_FIDO_EPIN_SIZE);
 	pdev->ep_in[HID_FIDO_EPIN_ADDR & 0xFU].is_used = 1U;
-
+#ifdef ENABLE_MSC
+	USBD_LL_OpenEP(pdev, MSC_EPIN_ADDR, USBD_EP_TYPE_BULK, MSC_MAX_HS_PACKET);
+	pdev->ep_in[MSC_EPIN_ADDR & 0xFU].is_used = 1U;
+#endif
 	pdev->pClassData[0] = &s_cmdHIDClassData;
 	pdev->pClassData[1] = &s_fidoHIDClassData;
-
+#ifdef ENABLE_MSC
+	pdev->pClassData[2] = &s_SCSIMSCClassData;
+#endif
 	USBD_LL_OpenEP(pdev, HID_CMD_EPOUT_ADDR, USBD_EP_TYPE_INTR, HID_CMD_EPOUT_SIZE);
 	pdev->ep_in[HID_CMD_EPOUT_ADDR & 0xFU].is_used = 1U;
 	USBD_LL_PrepareReceive (pdev, HID_CMD_EPOUT_ADDR, s_cmdHIDClassData.rx_buffer, HID_CMD_EPOUT_SIZE);
@@ -253,17 +294,15 @@ static uint8_t  USBD_HID_Init (USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 	USBD_LL_PrepareReceive (pdev, HID_FIDO_EPOUT_ADDR, s_fidoHIDClassData.rx_buffer, HID_FIDO_EPOUT_SIZE);
 	s_fidoHIDClassData.state = HID_IDLE;
 
+#ifdef ENABLE_MSC
+	USBD_LL_OpenEP(pdev, MSC_EPOUT_ADDR, USBD_EP_TYPE_BULK, MSC_MAX_HS_PACKET);
+	pdev->ep_out[MSC_EPOUT_ADDR & 0xFU].is_used = 1U;
+	MSC_BOT_Init(pdev);
+#endif
 	return USBD_OK;
 }
 
-/**
-  * @brief  USBD_HID_Init
-  *         DeInitialize the HID layer
-  * @param  pdev: device instance
-  * @param  cfgidx: Configuration index
-  * @retval status
-  */
-static uint8_t  USBD_HID_DeInit (USBD_HandleTypeDef *pdev,
+static uint8_t  USBD_Multi_DeInit (USBD_HandleTypeDef *pdev,
                                  uint8_t cfgidx)
 {
 	/* Close HID EPs */
@@ -282,26 +321,75 @@ static uint8_t  USBD_HID_DeInit (USBD_HandleTypeDef *pdev,
 	return USBD_OK;
 }
 
-/**
-  * @brief  USBD_HID_Setup
-  *         Handle the HID specific requests
-  * @param  pdev: instance
-  * @param  req: usb requests
-  * @retval status
-  */
 static uint8_t  USBD_HID_Setup (USBD_HandleTypeDef *pdev,
+                                USBD_SetupReqTypedef *req);
+
+static uint8_t  USBD_Multi_Setup_Device(USBD_HandleTypeDef *pdev,
+                                USBD_SetupReqTypedef *req);
+
+static uint8_t  USBD_Multi_Setup (USBD_HandleTypeDef *pdev,
                                 USBD_SetupReqTypedef *req)
 {
-	USBD_HID_HandleTypeDef *hhid = NULL;
-	uint16_t len = 0U;
-	uint8_t *pbuf = NULL;
-	uint16_t status_info = 0U;
 	USBD_StatusTypeDef ret = USBD_OK;
 
 	if ((req->bmRequest & USB_REQ_RECIPIENT_MASK) == USB_REQ_RECIPIENT_INTERFACE) {
-		hhid = (USBD_HID_HandleTypeDef*) pdev->pClassData[req->wIndex];
+		switch (req->wIndex) {
+		case INTERFACE_CMD:
+		case INTERFACE_FIDO:
+			return USBD_HID_Setup(pdev, req);
+			break;
+		case INTERFACE_MSC:
+			return USBD_MSC_Setup(pdev, req);
+			break;
+		default:
+			//NEN_TODO
+			break;
+		}
+	} else {
+		return USBD_Multi_Setup_Device(pdev, req);
+	}
+	return ret;
+}
+
+static uint8_t  USBD_Multi_Setup_Device(USBD_HandleTypeDef *pdev,
+                                USBD_SetupReqTypedef *req)
+{
+	USBD_StatusTypeDef ret = USBD_OK;
+	uint16_t status_info = 0U;
+	switch (req->bmRequest & USB_REQ_TYPE_MASK) {
+	case USB_REQ_TYPE_STANDARD:
+		switch (req->bRequest) {
+		case USB_REQ_GET_STATUS:
+			if (pdev->dev_state == USBD_STATE_CONFIGURED) {
+				USBD_CtlSendData (pdev, (uint8_t *)(void *)&status_info, 2U);
+			} else {
+				USBD_CtlError (pdev, req);
+				ret = USBD_FAIL;
+			}
+			break;
+		default:
+			USBD_CtlError (pdev, req);
+			ret = USBD_FAIL;
+			break;
+		}
+		break;
+
+	default:
+		USBD_CtlError (pdev, req);
+		ret = USBD_FAIL;
+		break;
 	}
 
+	return ret;
+}
+
+static uint8_t  USBD_HID_Setup (USBD_HandleTypeDef *pdev,
+                                USBD_SetupReqTypedef *req)
+{
+	uint16_t len = 0U;
+	uint8_t *pbuf = NULL;
+	USBD_StatusTypeDef ret = USBD_OK;
+	USBD_HID_HandleTypeDef *hhid = (USBD_HID_HandleTypeDef*) pdev->pClassData[req->wIndex];
 	switch (req->bmRequest & USB_REQ_TYPE_MASK) {
 	case USB_REQ_TYPE_CLASS:
 		switch (req->bRequest) {
@@ -329,15 +417,6 @@ static uint8_t  USBD_HID_Setup (USBD_HandleTypeDef *pdev,
 		break;
 	case USB_REQ_TYPE_STANDARD:
 		switch (req->bRequest) {
-		case USB_REQ_GET_STATUS:
-			if (pdev->dev_state == USBD_STATE_CONFIGURED) {
-				USBD_CtlSendData (pdev, (uint8_t *)(void *)&status_info, 2U);
-			} else {
-				USBD_CtlError (pdev, req);
-				ret = USBD_FAIL;
-			}
-			break;
-
 		case USB_REQ_GET_DESCRIPTOR:
 			if(req->wValue >> 8 == HID_REPORT_DESC) {
 				if (req->wIndex == 0) {
@@ -397,13 +476,6 @@ static uint8_t  USBD_HID_Setup (USBD_HandleTypeDef *pdev,
 	return ret;
 }
 
-/**
-  * @brief  USBD_HID_SendReport
-  *         Send HID Report
-  * @param  pdev: device instance
-  * @param  buff: pointer to report
-  * @retval status
-  */
 uint8_t USBD_HID_SendReport     (USBD_HandleTypeDef  *pdev,
                                  int interfaceNum,
                                  uint8_t *report,
@@ -448,56 +520,27 @@ uint32_t USBD_HID_GetPollingInterval (USBD_HandleTypeDef *pdev)
 	return ((uint32_t)(polling_interval));
 }
 
-/**
-  * @brief  USBD_HID_GetCfgFSDesc
-  *         return FS configuration descriptor
-  * @param  speed : current device speed
-  * @param  length : pointer data length
-  * @retval pointer to descriptor buffer
-  */
-static uint8_t  *USBD_HID_GetFSCfgDesc (uint16_t *length)
+static uint8_t  *USBD_Multi_GetFSCfgDesc (uint16_t *length)
 {
 	*length = sizeof (USBD_HID_CfgHSDesc);
 	return USBD_HID_CfgHSDesc;
 }
 
-/**
-  * @brief  USBD_HID_GetCfgHSDesc
-  *         return HS configuration descriptor
-  * @param  speed : current device speed
-  * @param  length : pointer data length
-  * @retval pointer to descriptor buffer
-  */
-static uint8_t  *USBD_HID_GetHSCfgDesc (uint16_t *length)
+static uint8_t  *USBD_Multi_GetHSCfgDesc (uint16_t *length)
 {
 	*length = sizeof (USBD_HID_CfgHSDesc);
 	return USBD_HID_CfgHSDesc;
 }
 
-/**
-  * @brief  USBD_HID_GetOtherSpeedCfgDesc
-  *         return other speed configuration descriptor
-  * @param  speed : current device speed
-  * @param  length : pointer data length
-  * @retval pointer to descriptor buffer
-  */
-static uint8_t  *USBD_HID_GetOtherSpeedCfgDesc (uint16_t *length)
+static uint8_t  *USBD_Multi_GetOtherSpeedCfgDesc (uint16_t *length)
 {
 	*length = sizeof (USBD_HID_CfgHSDesc);
 	return USBD_HID_CfgHSDesc;
 }
-
-/**
-  * @brief  USBD_HID_DataIn
-  *         handle data IN Stage
-  * @param  pdev: device instance
-  * @param  epnum: endpoint index
-  * @retval status
-  */
 
 USBD_HandleTypeDef *s_pdev = NULL;
 
-static uint8_t  USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
+static uint8_t  USBD_Multi_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 {
 	/* Ensure that the FIFO is empty before a new transfer, this condition could
 	be caused by  a new transfer before the end of the previous transfer */
@@ -517,6 +560,9 @@ static uint8_t  USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 			//NEN_TODO: Fido transmit
 		}
 	} break;
+	case INTERFACE_MSC: {
+		USBD_MSC_DataIn(pdev, epnum);
+	} break;
 	default:
 		//NEN_TODO: What are we supposed to return on invalid interface?
 		break;
@@ -524,7 +570,7 @@ static uint8_t  USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 	return USBD_OK;
 }
 
-static uint8_t  USBD_HID_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
+static uint8_t  USBD_Multi_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
 {
 	s_pdev = pdev;
 	int interfaceNum = endpointToInterface(epnum);
@@ -547,6 +593,9 @@ static uint8_t  USBD_HID_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
 		USBD_LL_PrepareReceive (pdev, epnum, rx_buffer, 64);
 	}
 	break;
+	case INTERFACE_MSC: {
+		USBD_MSC_DataOut(pdev, epnum);
+	} break;
 	default:
 		//NEN_TODO: What are we supposed to return on invalid interface?
 		break;
@@ -570,7 +619,7 @@ void usb_send_bytes(int ep, const u8 *data, int length)
 	}
 	break;
 	default:
-		//NEN_TODO: What are we supposed to do if the interface is invalid? 
+		//NEN_TODO: What are we supposed to do if the interface is invalid?
 		break;
 	}
 }
@@ -590,14 +639,9 @@ int usb_tx_pending(int ep)
 		break;
 	}
 }
-/**
-* @brief  DeviceQualifierDescriptor
-*         return Device Qualifier descriptor
-* @param  length : pointer data length
-* @retval pointer to descriptor buffer
-*/
-static uint8_t  *USBD_HID_GetDeviceQualifierDesc (uint16_t *length)
+
+static uint8_t  *USBD_Multi_GetDeviceQualifierDesc (uint16_t *length)
 {
-	*length = sizeof (USBD_HID_DeviceQualifierDesc);
-	return USBD_HID_DeviceQualifierDesc;
+	*length = sizeof (USBD_Multi_DeviceQualifierDesc);
+	return USBD_Multi_DeviceQualifierDesc;
 }

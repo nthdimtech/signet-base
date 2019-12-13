@@ -289,6 +289,7 @@ int main(void)
 
 	USBD_Init(&USBD_Device, &MSC_Desc, 0);
 	USBD_RegisterClass(&USBD_Device, USBD_HID_CLASS);
+	USBD_MSC_RegisterStorage(&USBD_Device, &USBD_MSC_Template_fops);
 	USBD_Start(&USBD_Device);
 
 	while (1) {

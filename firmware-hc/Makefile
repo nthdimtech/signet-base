@@ -14,7 +14,7 @@ all: $(TARGET_BIN)
 HTUPLE:=arm-none-eabi
 
 LIBS=-lnettle -lhogweed -lmini-gmp
-CFLAGS=-ffunction-sections -fdata-sections -O2 -Os -DSIGNET_HC
+CFLAGS=-ffunction-sections -fdata-sections -O0 -g -Os -DSIGNET_HC
 ASFLAGS=
 LDFLAGS=-Wl,"--gc-sections"
 LDFLAGS+=-Wl,"-Map=$(TARGET_MAP)"
@@ -27,7 +27,7 @@ LDFLAGS+= -Wl,"-Tstm32f733iekx_a.ld"
 CFLAGS+= -DBOOT_MODE_A
 else
 LDFLAGS+= -Wl,"-Tstm32f733iekx_b.ld"
-CFLAGS+= -DBOOT_MODE_B -DENABLE_FIDO2
+CFLAGS+= -DBOOT_MODE_B -DENABLE_FIDO2 -DENABLE_MSC
 endif
 
 clean:

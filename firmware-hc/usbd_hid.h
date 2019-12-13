@@ -52,10 +52,17 @@ extern "C" {
 #define HID_FIDO_EPIN_SIZE                 64U
 #define HID_FIDO_EPOUT_SIZE                64U
 
-#define USB_HID_CONFIG_DESC_SIZ       (((7+7+9+9)*2) + 9)
+#ifdef ENABLE_MSC
+#define USB_HID_CONFIG_DESC_SIZ       (9 + /* Config descriptor */ \
+				((9 + 9 + 7 + 7) * 2) + /* FIDO and U2F HID */ \
+				(9 + 7 + 7)*1) /* SCSI MSC */
+#else
+#define USB_HID_CONFIG_DESC_SIZ       (9 + /* Config descriptor */ \
+				((9 + 9 + 7 + 7) * 2) + /* FIDO and U2F HID */ \
+				(9 + 7 + 7)*0) /* SCSI MSC */
+#endif
 
 #define USB_HID_DESC_SIZ              9U
-#define HID_MOUSE_REPORT_DESC_SIZE    74U
 
 #define HID_DESCRIPTOR_TYPE           0x21U
 #define HID_REPORT_DESC               0x22U
@@ -83,8 +90,6 @@ extern "C" {
 enum usb_interfaces {
 	INTERFACE_CMD,
 	INTERFACE_FIDO,
-	INTERFACE_KEYBOARD,
-	INTERFACE_OPENPGP,
 	INTERFACE_MSC,
 	INTERFACE_MAX
 };
