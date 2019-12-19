@@ -35,6 +35,7 @@ clean:
 		fido2/*.o? fido2/*.d \
 		fido2/extensions/*.o? fido2/extensions/*.d \
 		tinycbor/*.o? tinycbor/*.d \
+		stm32f7xx/*.o? stm32f7xx/*.d \
 		signet-fw-a.* signet-fw-b.*
 
 ifeq ($(BT_MODE), A)
