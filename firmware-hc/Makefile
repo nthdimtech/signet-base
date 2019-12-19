@@ -91,6 +91,7 @@ SOURCES = commands.c \
 	usbd_ctlreq.c \
 	usbd_ioreq.c \
 	usbd_msc.c \
+	usbd_hid.c \
 	usbd_multi.c \
 	usbd_msc_bot.c \
 	usbd_msc_data.c \
