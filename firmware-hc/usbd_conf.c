@@ -269,10 +269,10 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
 	HAL_PCD_Init(&hpcd);
 
 	HAL_PCDEx_SetRxFiFo(&hpcd, 0x100);
-	HAL_PCDEx_SetTxFiFo(&hpcd, 0, 0x40);
-	HAL_PCDEx_SetTxFiFo(&hpcd, 1, 0x40);
+	HAL_PCDEx_SetTxFiFo(&hpcd, 0, 0x80);
+	HAL_PCDEx_SetTxFiFo(&hpcd, 1, 0x80);
 	HAL_PCDEx_SetTxFiFo(&hpcd, 2, 0x40);
-	HAL_PCDEx_SetTxFiFo(&hpcd, 3, 0x80);
+	HAL_PCDEx_SetTxFiFo(&hpcd, 3, 0x40);
 	return USBD_OK;
 }
 
@@ -433,9 +433,9 @@ USBD_StatusTypeDef USBD_LL_Transmit(USBD_HandleTypeDef *pdev,
   * @retval USBD Status
   */
 USBD_StatusTypeDef USBD_LL_PrepareReceive(USBD_HandleTypeDef *pdev,
-        uint8_t ep_addr,
-        uint8_t *pbuf,
-        uint16_t size)
+                uint8_t ep_addr,
+                uint8_t *pbuf,
+                uint16_t size)
 {
 	HAL_PCD_EP_Receive(pdev->pData, ep_addr, pbuf, size);
 	return USBD_OK;

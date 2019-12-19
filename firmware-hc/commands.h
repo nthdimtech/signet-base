@@ -128,10 +128,8 @@ void read_data_block(int pg, u8 *dest, int sz);
 
 enum emmc_user {
 	EMMC_USER_NONE,
-	EMMC_USER_STORAGE_READ,
-	EMMC_USER_STORAGE_WRITE,
-	EMMC_USER_DB_READ,
-	EMMC_USER_DB_WRITE,
+	EMMC_USER_STORAGE,
+	EMMC_USER_DB,
 	EMMC_NUM_USER
 };
 

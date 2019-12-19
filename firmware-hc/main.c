@@ -70,10 +70,10 @@ static void MX_DMA_Init(void);
 
 #include "buffer_manager.h"
 
-#define USB_BULK_BUFFER_SIZE (16384)
+#define USB_BULK_BUFFER_SIZE (4096)
 #define USB_BULK_BUFFER_COUNT (4)
 
-static uint8_t usbBulkBuffer[USB_BULK_BUFFER_SIZE * USB_BULK_BUFFER_COUNT];
+static uint8_t usbBulkBuffer[USB_BULK_BUFFER_SIZE * USB_BULK_BUFFER_COUNT] __attribute__((aligned(16)));
 struct bufferFIFO usbBulkBufferFIFO;
 
 static int ms_last_pressed = 0;
@@ -256,12 +256,7 @@ int main(void)
 
 	//MX_USART1_UART_Init();
 
-#ifdef BOOT_MODE_A
-	int blink_duration = 500;
-#else
-	int blink_duration = 2000;
-#endif
-
+	int blink_duration = 200;
 
 	HAL_Delay(blink_duration);
 	led_on();
@@ -287,8 +282,8 @@ int main(void)
 
 	HAL_FLASH_Unlock();
 
-	USBD_Init(&USBD_Device, &MSC_Desc, 0);
-	USBD_RegisterClass(&USBD_Device, USBD_HID_CLASS);
+	USBD_Init(&USBD_Device, &Multi_Desc, 0);
+	USBD_RegisterClass(&USBD_Device, USBD_MULTI_CLASS);
 	USBD_MSC_RegisterStorage(&USBD_Device, &USBD_MSC_Template_fops);
 	USBD_Start(&USBD_Device);
 
@@ -305,6 +300,13 @@ int main(void)
 		flash_idle();
 		int current_button_state = buttonState() ? 0 : 1;
 
+#if 0
+		if (current_button_state) {
+			led_on();
+		} else {
+			led_off();
+		}
+#endif
 		int press_pending = 0;
 		if (current_button_state == 1 && button_state == 0) {
 			press_pending = 1;
@@ -372,7 +374,7 @@ static void SystemClock_Config(void)
 		Error_Handler();
 	}
 	PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_SDMMC1
-	        |RCC_PERIPHCLK_CLK48;
+	                |RCC_PERIPHCLK_CLK48;
 	PeriphClkInitStruct.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
 	PeriphClkInitStruct.Clk48ClockSelection = RCC_CLK48SOURCE_PLL;
 	PeriphClkInitStruct.Sdmmc1ClockSelection = RCC_SDMMC1CLKSOURCE_CLK48;

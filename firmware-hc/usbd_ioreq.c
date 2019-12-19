@@ -107,7 +107,7 @@ USBD_StatusTypeDef USBD_CtlSendData (USBD_HandleTypeDef *pdev, uint8_t *pbuf,
 * @retval status
 */
 USBD_StatusTypeDef USBD_CtlContinueSendData (USBD_HandleTypeDef *pdev,
-        uint8_t *pbuf, uint16_t len)
+                uint8_t *pbuf, uint16_t len)
 {
 	/* Start the next transfer */
 	USBD_LL_Transmit (pdev, 0x00U, pbuf, len);

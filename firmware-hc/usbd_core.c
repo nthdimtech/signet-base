@@ -303,7 +303,7 @@ USBD_StatusTypeDef USBD_LL_DataOutStage(USBD_HandleTypeDef *pdev,
 				                    (uint16_t)MIN(pep->rem_length, pep->maxpacket));
 			} else {
 				if((pdev->pClass->EP0_RxReady != NULL)&&
-				   (pdev->dev_state == USBD_STATE_CONFIGURED)) {
+				    (pdev->dev_state == USBD_STATE_CONFIGURED)) {
 					pdev->pClass->EP0_RxReady(pdev);
 				}
 				USBD_CtlSendStatus(pdev);
@@ -354,8 +354,8 @@ USBD_StatusTypeDef USBD_LL_DataInStage(USBD_HandleTypeDef *pdev, uint8_t epnum,
 			} else {
 				/* last packet is MPS multiple, so send ZLP packet */
 				if((pep->total_length % pep->maxpacket == 0U) &&
-				   (pep->total_length >= pep->maxpacket) &&
-				   (pep->total_length < pdev->ep0_data_len)) {
+				    (pep->total_length >= pep->maxpacket) &&
+				    (pep->total_length < pdev->ep0_data_len)) {
 					USBD_CtlContinueSendData(pdev, NULL, 0U);
 					pdev->ep0_data_len = 0U;
 
@@ -363,7 +363,7 @@ USBD_StatusTypeDef USBD_LL_DataInStage(USBD_HandleTypeDef *pdev, uint8_t epnum,
 					USBD_LL_PrepareReceive (pdev, 0U, NULL, 0U);
 				} else {
 					if((pdev->pClass->EP0_TxSent != NULL)&&
-					   (pdev->dev_state == USBD_STATE_CONFIGURED)) {
+					    (pdev->dev_state == USBD_STATE_CONFIGURED)) {
 						pdev->pClass->EP0_TxSent(pdev);
 					}
 					USBD_LL_StallEP(pdev, 0x80U);

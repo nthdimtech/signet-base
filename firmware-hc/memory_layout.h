@@ -40,7 +40,7 @@ struct hcdb_profile {
 	u16 id;
 	u16 parent_id;
 	u8 profile_name[MAX_PROFILE_NAME_LENGTH];
-        u16 num_tags;
+	u16 num_tags;
 	u16 tag_ids[MAX_PROFILE_TAGS];
 	u16 user_data_size;
 	u8 user_data[];

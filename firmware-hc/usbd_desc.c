@@ -28,7 +28,7 @@ uint8_t *USBD_HID_USRStringDesc (USBD_SpeedTypeDef speed, uint8_t idx, uint16_t 
 #endif /* USB_SUPPORT_USER_STRING_DESC */
 
 /* Private variables ---------------------------------------------------------*/
-USBD_DescriptorsTypeDef MSC_Desc = {
+USBD_DescriptorsTypeDef Multi_Desc = {
 	USBD_HID_DeviceDescriptor,
 	USBD_HID_LangIDStrDescriptor,
 	USBD_HID_ManufacturerStrDescriptor,

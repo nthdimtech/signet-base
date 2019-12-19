@@ -2040,8 +2040,8 @@ __STATIC_INLINE uint32_t NVIC_EncodePriority (uint32_t PriorityGroup, uint32_t P
 	SubPriorityBits     = ((PriorityGroupTmp + (uint32_t)(__NVIC_PRIO_BITS)) < (uint32_t)7UL) ? (uint32_t)0UL : (uint32_t)((PriorityGroupTmp - 7UL) + (uint32_t)(__NVIC_PRIO_BITS));
 
 	return (
-	           ((PreemptPriority & (uint32_t)((1UL << (PreemptPriorityBits)) - 1UL)) << SubPriorityBits) |
-	           ((SubPriority     & (uint32_t)((1UL << (SubPriorityBits    )) - 1UL)))
+	               ((PreemptPriority & (uint32_t)((1UL << (PreemptPriorityBits)) - 1UL)) << SubPriorityBits) |
+	               ((SubPriority     & (uint32_t)((1UL << (SubPriorityBits    )) - 1UL)))
 	       );
 }
 

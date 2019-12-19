@@ -10,10 +10,10 @@ static void bufferFIFO_execStage(struct bufferFIFO *bf, int stageIdx)
 	int writeBufferIdx = bf->_stageWriteIndex[stageIdx] % bf->bufferCount;
 	bf->_stageProcessing[stageIdx] = 1;
 	bf->processStage[stageIdx](bf,
-			bf->_bufferSize[readBufferIdx],
-			bf->bufferStorage + bf->maxBufferSize * readBufferIdx,
-			bf->bufferStorage + bf->maxBufferSize * writeBufferIdx,
-			stageIdx);
+	                           bf->_bufferSize[readBufferIdx],
+	                           bf->bufferStorage + bf->maxBufferSize * readBufferIdx,
+	                           bf->bufferStorage + bf->maxBufferSize * writeBufferIdx,
+	                           stageIdx);
 }
 
 static int bufferFIFO_stageStalled(struct bufferFIFO *bf, int stage)

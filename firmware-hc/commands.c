@@ -83,6 +83,14 @@ enum emmc_user g_emmc_user = EMMC_USER_NONE;
 
 int g_emmc_user_ready[EMMC_NUM_USER];
 
+enum db_action {
+	DB_ACTION_NONE,
+	DB_ACTION_READ,
+	DB_ACTION_WRITE
+};
+
+static enum db_action g_db_action = DB_ACTION_NONE;
+
 static int g_db_read_idx;
 static u8 *g_db_read_dest;
 static int g_db_read_sz;
@@ -92,48 +100,69 @@ static const u8 *g_db_write_src;
 static int g_db_write_sz;
 
 void emmc_user_read_storage_rx_complete();
-void emmc_user_read_storage_start();
 
-void emmc_user_read_db_start()
+void emmc_user_storage_start();
+
+void emmc_user_db_start()
 {
-	int idx = g_db_read_idx;
-	u8 *dest = g_db_read_dest;
-	int sz = g_db_read_sz;
 	HAL_MMC_CardStateTypeDef cardState;
-	do {
-		cardState = HAL_MMC_GetCardState(&hmmc1);
-	} while (cardState != HAL_MMC_CARD_TRANSFER);
-	HAL_MMC_ReadBlocks_DMA(&hmmc1,
-			dest,
-			idx + EMMC_DB_FIRST_BLOCK,
-			1);
+	switch (g_db_action) {
+	case DB_ACTION_READ: {
+		int idx = g_db_read_idx;
+		u8 *dest = g_db_read_dest;
+		int sz = g_db_read_sz;
+		do {
+			cardState = HAL_MMC_GetCardState(&hmmc1);
+		} while (cardState != HAL_MMC_CARD_TRANSFER);
+		HAL_MMC_ReadBlocks_DMA(&hmmc1,
+		                       dest,
+		                       idx - MIN_DATA_BLOCK + EMMC_DB_FIRST_BLOCK,
+		                       1);
+	}
+	break;
+	case DB_ACTION_WRITE: {
+		int idx = g_db_write_idx;
+		u8 *dest = g_db_write_src;
+		int sz = g_db_write_sz;
+		do {
+			cardState = HAL_MMC_GetCardState(&hmmc1);
+		} while (cardState != HAL_MMC_CARD_TRANSFER);
+
+		HAL_MMC_WriteBlocks_DMA_Initial(&hmmc1,
+		                                dest,
+		                                BLK_SIZE,
+		                                idx - MIN_DATA_BLOCK +  EMMC_DB_FIRST_BLOCK,
+		                                1);
+	}
+	break;
+	default:
+		break;
+	}
 }
 
 void assert(int cond)
 {
-	if (!cond);
-	while(1);
+//	if (!cond)
+//		while(1);
 }
 
 void emmc_user_read_db_rx_complete()
 {
-	emmc_user_done();
-}
 
-void emmc_user_write_db_start()
-{
-	//NEN_TODO
+	emmc_user_done();
 }
 
 void emmc_user_schedule()
 {
 	if (g_emmc_user == EMMC_USER_NONE) {
-		if (g_emmc_user_ready[EMMC_USER_DB_READ]) {
-			emmc_user_read_db_start();
-		} else if (g_emmc_user_ready[EMMC_USER_DB_WRITE]) {
-			emmc_user_write_db_start();
-		} else if (g_emmc_user_ready[EMMC_USER_STORAGE_READ]) {
-			emmc_user_read_storage_start();
+		if (g_emmc_user_ready[EMMC_USER_DB]) {
+			g_emmc_user = EMMC_USER_DB;
+			g_emmc_user_ready[EMMC_USER_DB] = 0;
+			emmc_user_db_start();
+		} else if (g_emmc_user_ready[EMMC_USER_STORAGE]) {
+			g_emmc_user = EMMC_USER_STORAGE;
+			g_emmc_user_ready[EMMC_USER_STORAGE] = 0;
+			emmc_user_storage_start();
 		}
 	}
 }
@@ -152,7 +181,8 @@ void emmc_user_queue(enum emmc_user user)
 
 void read_data_block(int idx, u8 *dest, int sz)
 {
-	emmc_user_queue(EMMC_USER_DB_READ);
+	emmc_user_queue(EMMC_USER_DB);
+	g_db_action = DB_ACTION_READ;
 	g_db_read_idx = idx;
 	g_db_read_dest = dest;
 	g_db_read_sz = sz;
@@ -161,7 +191,8 @@ void read_data_block(int idx, u8 *dest, int sz)
 
 void write_data_block(int idx, const u8 *src, int sz)
 {
-	emmc_user_queue(EMMC_USER_STORAGE_WRITE);
+	emmc_user_queue(EMMC_USER_DB);
+	g_db_action = DB_ACTION_WRITE;
 	g_db_write_idx = idx;
 	g_db_write_src = src;
 	g_db_write_sz = sz;
@@ -170,15 +201,55 @@ void write_data_block(int idx, const u8 *src, int sz)
 
 void HAL_MMC_RxCpltCallback(MMC_HandleTypeDef *hmmc1)
 {
-	switch(g_emmc_user) {
-		case EMMC_USER_STORAGE_READ:
-			emmc_user_read_storage_rx_complete();
-			break;
-		case EMMC_USER_DB_READ:
-			emmc_user_read_db_rx_complete();
-			break;
-		default:
-			assert(0);
+	switch (g_emmc_user) {
+	case EMMC_USER_STORAGE:
+		emmc_user_read_storage_rx_complete();
+		break;
+	case EMMC_USER_DB:
+		emmc_user_read_db_rx_complete();
+		break;
+	default:
+		assert(0);
+	}
+}
+
+void emmc_user_write_storage_tx_dma_complete(MMC_HandleTypeDef *hmmc);
+
+void emmc_user_write_db_tx_dma_complete(MMC_HandleTypeDef *hmmc)
+{
+	HAL_MMC_WriteBlocks_DMA_Cont(&hmmc1, NULL, 0);
+}
+
+void MMC_DMATXTransmitComplete(MMC_HandleTypeDef *hmmc)
+{
+	switch (g_emmc_user) {
+	case EMMC_USER_STORAGE:
+		emmc_user_write_storage_tx_dma_complete(hmmc);
+		break;
+	case EMMC_USER_DB:
+		emmc_user_write_db_tx_dma_complete(hmmc);
+		break;
+	default:
+		assert(0);
+	}
+}
+
+void emmc_user_write_db_tx_complete(MMC_HandleTypeDef *hmmc1)
+{
+	emmc_user_done();
+}
+
+void HAL_MMC_TxCpltCallback(MMC_HandleTypeDef *hmmc1)
+{
+	switch (g_emmc_user) {
+	case EMMC_USER_STORAGE:
+		emmc_user_write_storage_tx_complete(hmmc1);
+		break;
+	case EMMC_USER_DB:
+		emmc_user_write_db_tx_complete(hmmc1);
+		break;
+	default:
+		assert(0);
 	}
 }
 
@@ -351,10 +422,13 @@ static void finalize_root_page_check()
 		root_page.format = 1;
 		u8 *random = cmd_data.init_data.rand;
 
-		u8 *device_id = random; random += DEVICE_ID_LEN;
-		u8 *auth_rand_data = random; random += AUTH_RANDOM_DATA_LEN;
-		u8 *keystore_key = random; random += AES_256_KEY_SIZE;
-		
+		u8 *device_id = random;
+		random += DEVICE_ID_LEN;
+		u8 *auth_rand_data = random;
+		random += AUTH_RANDOM_DATA_LEN;
+		u8 *keystore_key = random;
+		random += AES_256_KEY_SIZE;
+
 
 		memcpy(root_page.device_id, device_id, DEVICE_ID_LEN);
 		memcpy(root_page.auth_random_cleartext, auth_rand_data, AUTH_RANDOM_DATA_LEN);
@@ -421,8 +495,8 @@ void flash_write_complete()
 		} else {
 			dprint_s("DONE INITIALIZING\r\n");
 			//TODO: fix magic numbers
-			header_version = 2;
-			db_version = 2;
+			header_version = 1;
+			db_version = 1;
 			if (db3_startup_scan((struct block *)cmd_data.startup.read_block, cmd_data.init_data.block, &cmd_data.init_data.blk_info)) {
 				enter_state(DS_LOGGED_OUT);
 			} else {

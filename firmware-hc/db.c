@@ -19,7 +19,7 @@ extern struct root_page _crypt_data2;
 
 extern u8 encrypt_key[AES_256_KEY_SIZE];
 
-struct block_info block_info_tbl[NUM_STORAGE_BLOCKS];
+struct block_info g_block_info_tbl[NUM_STORAGE_BLOCKS];
 
 static u8 uid_map[MAX_UID + 1]; //0 == invalid, block #
 
@@ -43,6 +43,11 @@ struct block {
 	struct uid_ent uid_tbl[];
 } __attribute__((__packed__));
 
+static int db3_startup_scan_running = 0;
+static int db3_startup_scan_blk_num = -1;
+static struct block *db3_startup_scan_block_read;
+static u8 *db3_startup_scan_block_temp;
+static struct blk_info *db3_startup_scan_blk_info_temp;
 
 static const struct uid_ent *find_uid(int uid, int *block_num, int *index);
 static int deallocate_uid(int uid, struct block *block_temp, struct block_info *blk_info_temp, int dellocate_block);
@@ -86,13 +91,11 @@ static u8 *get_part(const struct block *block, const struct block_info *info, in
 	return ((u8 *)block) + ((info->part_tbl_offs + (info->part_size * n)) * SUB_BLK_SIZE);
 }
 
-
-static int db3_startup_scan_blk_num = -1;
-
-int db3_startup_scan_resume(struct block *block_read, u8 *block_temp, struct block_info *blk_info_temp)
+int db3_startup_scan_resume(int blk_num, struct block *block_read, u8 *block_temp, struct block_info *blk_info_temp)
 {
-	int i = db3_startup_scan_blk_num;
-	struct block_info *blk_info = block_info_tbl + i;
+	int i = blk_num;
+
+	struct block_info *blk_info = g_block_info_tbl + i;
 	blk_info->part_size = block_read->header.part_size;
 	blk_info->valid = block_crc_check(block_read) || blk_info->part_size == INVALID_PART_SIZE;
 	blk_info->occupied = (blk_info->part_size != INVALID_PART_SIZE);
@@ -128,19 +131,18 @@ int db3_startup_scan_resume(struct block *block_read, u8 *block_temp, struct blo
 			}
 		}
 	}
-	db3_startup_scan_blk_num++;
 }
 
-//Scans blocks on startup to initialize 'block_info_tbl' and 'uid_map'
+//Scans blocks on startup to initialize 'g_block_info_tbl' and 'uid_map'
 int db3_startup_scan(u8 *block_read, u8 *block_temp, struct block_info *blk_info_temp)
 {
 	int i;
 	for (i = MIN_UID; i <= MAX_UID; i++) {
 		uid_map[i] = INVALID_BLOCK;
 	}
-	//NEN_TODO: this is not ready yet
-	//db3_startup_scan_blk_num = MIN_DATA_BLOCK;
-	//emmc_flash_read_page(db3_startup_scan_blk_num, block_read, BLK_SIZE);
+	db3_startup_scan_blk_num = MIN_DATA_BLOCK;
+	db3_startup_scan_running = 1;
+	read_data_block(db3_startup_scan_blk_num, block_read, BLK_SIZE);
 	return 1;
 }
 
@@ -164,7 +166,7 @@ static int target_part_size(int data_bytes)
 static int find_free_block()
 {
 	for (int i = MIN_DATA_BLOCK; i <= MAX_DATA_BLOCK; i++) {
-		struct block_info *blk_info = block_info_tbl + i;
+		struct block_info *blk_info = g_block_info_tbl + i;
 		if (blk_info->valid && !blk_info->occupied) {
 			return i;
 		}
@@ -222,12 +224,12 @@ static int allocate_uid(int uid, const u8 *data, int sz, int rev, const u8 *iv, 
 
 	//Try to find a block with the right partition size
 	for (int i = MIN_DATA_BLOCK; i <= MAX_DATA_BLOCK; i++) {
-		struct block_info *blk_info = block_info_tbl + i;
+		struct block_info *blk_info = g_block_info_tbl + i;
 		if (!blk_info->valid || !blk_info->occupied)
 			continue;
 		if (blk_info->part_size == part_size && blk_info->part_occupancy < blk_info->part_count) {
 			block_num = i;
-			memcpy(blk_info_temp, block_info_tbl + block_num, sizeof(*blk_info_temp));
+			memcpy(blk_info_temp, g_block_info_tbl + block_num, sizeof(*blk_info_temp));
 			break;
 		}
 	}
@@ -250,13 +252,13 @@ static int allocate_uid(int uid, const u8 *data, int sz, int rev, const u8 *iv, 
 		//an exact match or new block can't be found
 		int found_part_size = BLK_SIZE;
 		for (int i = MIN_DATA_BLOCK; i <= MAX_DATA_BLOCK; i++) {
-			struct block_info *blk_info = block_info_tbl + i;
+			struct block_info *blk_info = g_block_info_tbl + i;
 			if (!blk_info->valid || !blk_info->occupied)
 				continue;
 			if (blk_info->part_size >= part_size && blk_info->part_size < found_part_size && blk_info->part_occupancy < blk_info->part_count) {
 				block_num = i;
 				found_part_size = blk_info->part_size;
-				memcpy(blk_info_temp, block_info_tbl + block_num, sizeof(*blk_info_temp));
+				memcpy(blk_info_temp, g_block_info_tbl + block_num, sizeof(*blk_info_temp));
 			}
 		}
 	}
@@ -279,7 +281,7 @@ static const struct uid_ent *find_uid(int uid, int *block_num, int *index)
 		return NULL;
 	}
 	const struct block *blk = BLOCK(*block_num);
-	struct block_info *blk_info = block_info_tbl + *block_num;
+	struct block_info *blk_info = g_block_info_tbl + *block_num;
 	*index = -1;
 	for (int j = 0; j < blk_info->part_occupancy; j++) {
 		const struct uid_ent *ent = blk->uid_tbl + j;
@@ -299,7 +301,7 @@ static int deallocate_uid(int uid, struct block *block_temp, struct block_info *
 	if (!ent) {
 		return INVALID_BLOCK;
 	}
-	struct block_info *blk_info = block_info_tbl + block_num;
+	struct block_info *blk_info = g_block_info_tbl + block_num;
 	memcpy(blk_info_temp, blk_info, sizeof(*blk_info_temp));
 	if (blk_info_temp->part_occupancy == 1 && deallocate_block) {
 		//Free the block
@@ -343,7 +345,7 @@ static int update_uid(int uid, u8 *data, int sz, int *prev_block_num, const u8 *
 			if (!part_size) {
 				return INVALID_BLOCK;
 			}
-			struct block_info *blk_info = block_info_tbl + block_num;
+			struct block_info *blk_info = g_block_info_tbl + block_num;
 			memcpy(blk_info_temp, blk_info, sizeof(*blk_info_temp));
 			if (blk_info_temp->part_size == part_size) {
 				//shuffle parts
@@ -406,7 +408,7 @@ void update_uid_cmd_write_finished()
 	cmd_data.update_uid.write_count++;
 	if (cmd_data.update_uid.write_count == 1) {
 		//This is the first write completed
-		memcpy(block_info_tbl + cmd_data.update_uid.block_num, &cmd_data.update_uid.blk_info, sizeof(struct block_info));
+		memcpy(g_block_info_tbl + cmd_data.update_uid.block_num, &cmd_data.update_uid.blk_info, sizeof(struct block_info));
 		if (cmd_data.update_uid.prev_block_num != cmd_data.update_uid.block_num && cmd_data.update_uid.prev_block_num != INVALID_BLOCK) {
 			//Record has moved to a new block. Need to dellocate from original block now
 			struct block *block = (struct block *)cmd_data.update_uid.block;
@@ -424,7 +426,7 @@ void update_uid_cmd_write_finished()
 			finish_command_resp(OKAY);
 		}
 	} else {
-		memcpy(block_info_tbl + cmd_data.update_uid.prev_block_num, &cmd_data.update_uid.blk_info, sizeof(struct block_info));
+		memcpy(g_block_info_tbl + cmd_data.update_uid.prev_block_num, &cmd_data.update_uid.blk_info, sizeof(struct block_info));
 		uid_map[cmd_data.update_uid.uid] = cmd_data.update_uid.block_num;
 		finish_command_resp(OKAY);
 	}
@@ -450,7 +452,7 @@ static void mask_uid_data(u8 *data, int blk_count)
 static int decode_uid(int sz, int block_num, int index, int masked, const u8 *iv, u8 *dest)
 {
 	const struct block *blk = BLOCK(block_num);
-	struct block_info *blk_info = block_info_tbl + block_num;
+	struct block_info *blk_info = g_block_info_tbl + block_num;
 	int blk_count = SIZE_TO_SUB_BLK_COUNT(sz);
 	signet_aes_256_decrypt_cbc(encrypt_key, blk_count, iv, get_part(blk, blk_info, index), dest);
 	if (masked) {

@@ -1545,7 +1545,7 @@ HAL_StatusTypeDef HAL_TIMEx_ConfigCommutEvent_DMA(TIM_HandleTypeDef *htim, uint3
   * @retval HAL status
   */
 HAL_StatusTypeDef HAL_TIMEx_MasterConfigSynchronization(TIM_HandleTypeDef *htim,
-        TIM_MasterConfigTypeDef *sMasterConfig)
+                TIM_MasterConfigTypeDef *sMasterConfig)
 {
 	uint32_t tmpcr2;
 	uint32_t tmpsmcr;
@@ -1611,7 +1611,7 @@ HAL_StatusTypeDef HAL_TIMEx_MasterConfigSynchronization(TIM_HandleTypeDef *htim,
   * @retval HAL status
   */
 HAL_StatusTypeDef HAL_TIMEx_ConfigBreakDeadTime(TIM_HandleTypeDef *htim,
-        TIM_BreakDeadTimeConfigTypeDef *sBreakDeadTimeConfig)
+                TIM_BreakDeadTimeConfigTypeDef *sBreakDeadTimeConfig)
 {
 	/* Keep this variable initialized to 0 as it is used to configure BDTR register */
 	uint32_t tmpbdtr = 0U;
@@ -1675,8 +1675,8 @@ HAL_StatusTypeDef HAL_TIMEx_ConfigBreakDeadTime(TIM_HandleTypeDef *htim,
   * @retval HAL status
   */
 HAL_StatusTypeDef HAL_TIMEx_ConfigBreakInput(TIM_HandleTypeDef *htim,
-        uint32_t BreakInput,
-        TIMEx_BreakInputConfigTypeDef *sBreakInputConfig)
+                uint32_t BreakInput,
+                TIMEx_BreakInputConfigTypeDef *sBreakInputConfig)
 
 {
 	uint32_t tmporx;

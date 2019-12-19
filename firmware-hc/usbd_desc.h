@@ -14,6 +14,6 @@
 
 /* Exported macro ------------------------------------------------------------*/
 /* Exported functions ------------------------------------------------------- */
-extern USBD_DescriptorsTypeDef MSC_Desc;
+extern USBD_DescriptorsTypeDef Multi_Desc;
 
 #endif /* __USBD_DESC_H */

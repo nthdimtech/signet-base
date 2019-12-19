@@ -216,7 +216,7 @@ static void TIM_DMAPeriodElapsedHalfCplt(DMA_HandleTypeDef *hdma);
 static void TIM_DMATriggerCplt(DMA_HandleTypeDef *hdma);
 static void TIM_DMATriggerHalfCplt(DMA_HandleTypeDef *hdma);
 static HAL_StatusTypeDef TIM_SlaveTimer_SetConfig(TIM_HandleTypeDef *htim,
-        TIM_SlaveConfigTypeDef *sSlaveConfig);
+                TIM_SlaveConfigTypeDef *sSlaveConfig);
 /**
   * @}
   */
@@ -3176,8 +3176,8 @@ void HAL_TIM_IRQHandler(TIM_HandleTypeDef *htim)
   * @retval HAL status
   */
 HAL_StatusTypeDef HAL_TIM_OC_ConfigChannel(TIM_HandleTypeDef *htim,
-        TIM_OC_InitTypeDef *sConfig,
-        uint32_t Channel)
+                TIM_OC_InitTypeDef *sConfig,
+                uint32_t Channel)
 {
 	/* Check the parameters */
 	assert_param(IS_TIM_CHANNELS(Channel));
@@ -3361,8 +3361,8 @@ HAL_StatusTypeDef HAL_TIM_IC_ConfigChannel(TIM_HandleTypeDef *htim, TIM_IC_InitT
   * @retval HAL status
   */
 HAL_StatusTypeDef HAL_TIM_PWM_ConfigChannel(TIM_HandleTypeDef *htim,
-        TIM_OC_InitTypeDef *sConfig,
-        uint32_t Channel)
+                TIM_OC_InitTypeDef *sConfig,
+                uint32_t Channel)
 {
 	/* Check the parameters */
 	assert_param(IS_TIM_CHANNELS(Channel));
@@ -3635,7 +3635,7 @@ HAL_StatusTypeDef HAL_TIM_OnePulse_ConfigChannel(TIM_HandleTypeDef *htim,  TIM_O
   * @retval HAL status
   */
 HAL_StatusTypeDef HAL_TIM_DMABurst_WriteStart(TIM_HandleTypeDef *htim, uint32_t BurstBaseAddress, uint32_t BurstRequestSrc,
-        uint32_t *BurstBuffer, uint32_t  BurstLength)
+                uint32_t *BurstBuffer, uint32_t  BurstLength)
 {
 	/* Check the parameters */
 	assert_param(IS_TIM_DMABURST_INSTANCE(htim->Instance));
@@ -3869,7 +3869,7 @@ HAL_StatusTypeDef HAL_TIM_DMABurst_WriteStop(TIM_HandleTypeDef *htim, uint32_t B
   * @retval HAL status
   */
 HAL_StatusTypeDef HAL_TIM_DMABurst_ReadStart(TIM_HandleTypeDef *htim, uint32_t BurstBaseAddress, uint32_t BurstRequestSrc,
-        uint32_t  *BurstBuffer, uint32_t  BurstLength)
+                uint32_t  *BurstBuffer, uint32_t  BurstLength)
 {
 	/* Check the parameters */
 	assert_param(IS_TIM_DMABURST_INSTANCE(htim->Instance));
@@ -4119,8 +4119,8 @@ HAL_StatusTypeDef HAL_TIM_GenerateEvent(TIM_HandleTypeDef *htim, uint32_t EventS
   * @retval HAL status
   */
 HAL_StatusTypeDef HAL_TIM_ConfigOCrefClear(TIM_HandleTypeDef *htim,
-        TIM_ClearInputConfigTypeDef *sClearInputConfig,
-        uint32_t Channel)
+                TIM_ClearInputConfigTypeDef *sClearInputConfig,
+                uint32_t Channel)
 {
 	/* Check the parameters */
 	assert_param(IS_TIM_OCXREF_CLEAR_INSTANCE(htim->Instance));
@@ -4457,7 +4457,7 @@ HAL_StatusTypeDef HAL_TIM_SlaveConfigSynchro(TIM_HandleTypeDef *htim, TIM_SlaveC
   * @retval HAL status
   */
 HAL_StatusTypeDef HAL_TIM_SlaveConfigSynchro_IT(TIM_HandleTypeDef *htim,
-        TIM_SlaveConfigTypeDef *sSlaveConfig)
+                TIM_SlaveConfigTypeDef *sSlaveConfig)
 {
 	/* Check the parameters */
 	assert_param(IS_TIM_SLAVE_INSTANCE(htim->Instance));
@@ -5943,7 +5943,7 @@ static void TIM_OC6_SetConfig(TIM_TypeDef *TIMx,
   * @retval None
   */
 static HAL_StatusTypeDef TIM_SlaveTimer_SetConfig(TIM_HandleTypeDef *htim,
-        TIM_SlaveConfigTypeDef *sSlaveConfig)
+                TIM_SlaveConfigTypeDef *sSlaveConfig)
 {
 	uint32_t tmpsmcr;
 	uint32_t tmpccmr1;

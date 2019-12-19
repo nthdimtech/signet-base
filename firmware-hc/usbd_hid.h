@@ -42,25 +42,29 @@ extern "C" {
   * @{
   */
 
-#define HID_CMD_EPOUT_ADDR                0x01U
-#define HID_CMD_EPIN_ADDR                 0x81U
+#define MSC_EPOUT_ADDR               0x01U
+#define MSC_EPIN_ADDR                0x81U
+
+#define HID_CMD_EPOUT_ADDR                0x02U
+#define HID_CMD_EPIN_ADDR                 0x82U
 #define HID_CMD_EPIN_SIZE                 64U
 #define HID_CMD_EPOUT_SIZE                64U
 
-#define HID_FIDO_EPOUT_ADDR                0x02U
-#define HID_FIDO_EPIN_ADDR                 0x82U
+#define HID_FIDO_EPOUT_ADDR                0x03U
+#define HID_FIDO_EPIN_ADDR                 0x83U
 #define HID_FIDO_EPIN_SIZE                 64U
 #define HID_FIDO_EPOUT_SIZE                64U
 
-#ifdef ENABLE_MSC
-#define USB_HID_CONFIG_DESC_SIZ       (9 + /* Config descriptor */ \
-				((9 + 9 + 7 + 7) * 2) + /* FIDO and U2F HID */ \
-				(9 + 7 + 7)*1) /* SCSI MSC */
-#else
-#define USB_HID_CONFIG_DESC_SIZ       (9 + /* Config descriptor */ \
-				((9 + 9 + 7 + 7) * 2) + /* FIDO and U2F HID */ \
-				(9 + 7 + 7)*0) /* SCSI MSC */
-#endif
+enum usb_interfaces {
+	INTERFACE_MSC,
+	INTERFACE_CMD,
+	INTERFACE_FIDO,
+	INTERFACE_MAX
+};
+
+#define USB_HID_CONFIG_DESC_SIZ       (9 + \
+				(9 + 7 + 7)*1 + \
+				((9 + 9 + 7 + 7) * 2))
 
 #define USB_HID_DESC_SIZ              9U
 
@@ -86,13 +90,6 @@ extern "C" {
 /**
   * @}
   */
-
-enum usb_interfaces {
-	INTERFACE_CMD,
-	INTERFACE_FIDO,
-	INTERFACE_MSC,
-	INTERFACE_MAX
-};
 
 /** @defgroup USBD_CORE_Exported_TypesDefinitions
   * @{
@@ -133,8 +130,8 @@ void usb_send_bytes(int ep, const u8 *data, int length);
   * @{
   */
 
-extern USBD_ClassTypeDef  USBD_HID;
-#define USBD_HID_CLASS    &USBD_HID
+extern USBD_ClassTypeDef  USBD_Multi;
+#define USBD_MULTI_CLASS    &USBD_Multi
 /**
   * @}
   */

@@ -879,19 +879,23 @@ HAL_StatusTypeDef HAL_PCD_Stop(PCD_HandleTypeDef *hpcd)
   * @retval HAL status
   */
 
-static int irqCount = 0;
-static int invalidIrqCount = 0;
-static int mmisIrqCount = 0;
-static int oepIrqCount = 0;
-static int iepIrqCount = 0;
-static int wkuIrqCount = 0;
-static int lpmIrqCount = 0;
-static int rstIrqCount = 0;
-static int enumdneIrqCount = 0;
-static int rxflvlIrqCount = 0;
-static int sofIrqCount = 0;
-static int fifoEmptyIrqCount = 0;
-static int xfrcIrqCount = 0;
+int irqCount = 0;
+int invalidIrqCount = 0;
+int mmisIrqCount = 0;
+int oepIrqCount = 0;
+int iepIrqCount = 0;
+int wkuIrqCount = 0;
+int lpmIrqCount = 0;
+int rstIrqCount = 0;
+int enumdneIrqCount = 0;
+int rxflvlIrqCount = 0;
+int sofIrqCount = 0;
+int fifoEmptyIrqCount = 0;
+int xfrcIrqCount = 0;
+int tocIrqCount = 0;
+int ittxfeIrqCount = 0;
+int inepneIrqCount = 0;
+int epdisdIrqCount = 0;
 
 void HAL_PCD_IRQHandler(PCD_HandleTypeDef *hpcd)
 {
@@ -999,15 +1003,19 @@ void HAL_PCD_IRQHandler(PCD_HandleTypeDef *hpcd)
 					}
 					if ((epint & USB_OTG_DIEPINT_TOC) == USB_OTG_DIEPINT_TOC) {
 						CLEAR_IN_EP_INTR(epnum, USB_OTG_DIEPINT_TOC);
+						tocIrqCount++;
 					}
 					if ((epint & USB_OTG_DIEPINT_ITTXFE) == USB_OTG_DIEPINT_ITTXFE) {
 						CLEAR_IN_EP_INTR(epnum, USB_OTG_DIEPINT_ITTXFE);
+						ittxfeIrqCount++;
 					}
 					if ((epint & USB_OTG_DIEPINT_INEPNE) == USB_OTG_DIEPINT_INEPNE) {
 						CLEAR_IN_EP_INTR(epnum, USB_OTG_DIEPINT_INEPNE);
+						inepneIrqCount++;
 					}
 					if ((epint & USB_OTG_DIEPINT_EPDISD) == USB_OTG_DIEPINT_EPDISD) {
 						CLEAR_IN_EP_INTR(epnum, USB_OTG_DIEPINT_EPDISD);
+						epdisdIrqCount++;
 					}
 					if ((epint & USB_OTG_DIEPINT_TXFE) == USB_OTG_DIEPINT_TXFE) {
 						(void)PCD_WriteEmptyTxFifo(hpcd, epnum);
@@ -1859,8 +1867,8 @@ static HAL_StatusTypeDef PCD_EP_OutXfrComplete_int(PCD_HandleTypeDef *hpcd, uint
 			} else {
 				/* out data packet received over EP0 */
 				hpcd->OUT_ep[epnum].xfer_count =
-				    hpcd->OUT_ep[epnum].maxpacket -
-				    (USBx_OUTEP(epnum)->DOEPTSIZ & USB_OTG_DOEPTSIZ_XFRSIZ);
+				        hpcd->OUT_ep[epnum].maxpacket -
+				        (USBx_OUTEP(epnum)->DOEPTSIZ & USB_OTG_DOEPTSIZ_XFRSIZ);
 
 				hpcd->OUT_ep[epnum].xfer_buff += hpcd->OUT_ep[epnum].maxpacket;
 

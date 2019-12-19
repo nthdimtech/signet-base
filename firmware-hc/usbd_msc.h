@@ -29,6 +29,18 @@ extern "C" {
 #include  "usbd_msc_bot.h"
 #include  "usbd_msc_scsi.h"
 #include  "usbd_ioreq.h"
+#include  "usbd_hid.h"
+
+uint8_t  *USBD_MSC_GetHSCfgDesc (uint16_t *length);
+uint8_t  *USBD_MSC_GetFSCfgDesc (uint16_t *length);
+uint8_t  *USBD_MSC_GetOtherSpeedCfgDesc (uint16_t *length);
+uint8_t  USBD_MSC_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum);
+uint8_t  USBD_MSC_DataOut (USBD_HandleTypeDef *pdev,
+                           uint8_t epnum);
+uint8_t  USBD_MSC_Init (USBD_HandleTypeDef *pdev, uint8_t cfgidx);
+uint8_t  USBD_MSC_DeInit (USBD_HandleTypeDef *pdev,
+                          uint8_t cfgidx);
+uint8_t  USBD_MSC_Setup (USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req);
 
 /** @addtogroup USBD_MSC_BOT
   * @{
@@ -55,9 +67,6 @@ extern "C" {
 #define BOT_RESET                    0xFF
 #define USB_MSC_CONFIG_DESC_SIZ      32
 
-#define MSC_EPOUT_ADDR               0x03U
-#define MSC_EPIN_ADDR                0x83U
-
 /**
   * @}
   */
@@ -79,20 +88,12 @@ typedef struct _USBD_STORAGE {
 
 typedef struct {
 	uint32_t                 max_lun;
+	uint8_t                  bot_data[MSC_MEDIA_PACKET * 16];
 	uint32_t                 interface;
+	uint16_t                 bot_data_length;
 	uint8_t                  bot_state;
 	uint8_t                  bot_status;
 
-	struct buffer *txBufferFifo[4];
-	int txBufferFifoHeadIdx;
-	int txBufferFifoTailIdx;
-
-	struct buffer *rxBufferFifo[4];
-	int rxBufferFifoHeadIdx;
-	int rxBufferFifoTailIdx;
-
-	uint8_t                  bot_data[MSC_MEDIA_PACKET * 16];
-	uint16_t                 bot_data_length;
 
 	int stageIdx;
 	uint8_t *writeBuffer;
@@ -111,7 +112,7 @@ typedef struct {
 	uint64_t                 scsi_blk_addr;
 	uint64_t                 scsi_blk_len;
 }
-USBD_MSC_BOT_HandleTypeDef;
+USBD_MSC_BOT_HandleTypeDef __attribute__((packed));
 
 /* Structure for MSC process */
 extern USBD_ClassTypeDef  USBD_MSC;

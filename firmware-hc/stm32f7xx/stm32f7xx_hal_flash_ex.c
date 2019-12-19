@@ -107,7 +107,7 @@ static uint32_t           FLASH_OB_GetBootAddress(uint32_t BootOption);
 #if defined (FLASH_OPTCR_nDBANK)
 static void               FLASH_MassErase(uint8_t VoltageRange, uint32_t Banks);
 static HAL_StatusTypeDef  FLASH_OB_UserConfig(uint32_t Wwdg, uint32_t Iwdg, uint32_t Stop, uint32_t Stdby, uint32_t Iwdgstop, \
-        uint32_t Iwdgstdby, uint32_t NDBank, uint32_t NDBoot);
+                uint32_t Iwdgstdby, uint32_t NDBank, uint32_t NDBoot);
 #else
 static void               FLASH_MassErase(uint8_t VoltageRange);
 static HAL_StatusTypeDef  FLASH_OB_UserConfig(uint32_t Wwdg, uint32_t Iwdg, uint32_t Stop, uint32_t Stdby, uint32_t Iwdgstop, uint32_t Iwdgstdby);
@@ -543,7 +543,7 @@ static uint32_t FLASH_OB_GetWRP(void)
   * @retval HAL Status
   */
 static HAL_StatusTypeDef FLASH_OB_UserConfig(uint32_t Wwdg, uint32_t Iwdg, uint32_t Stop, uint32_t Stdby, uint32_t Iwdgstop, \
-        uint32_t Iwdgstdby, uint32_t NDBank, uint32_t NDBoot)
+                uint32_t Iwdgstdby, uint32_t NDBank, uint32_t NDBoot)
 {
 	uint32_t useroptionmask = 0x00;
 	uint32_t useroptionvalue = 0x00;
