@@ -3,7 +3,7 @@
 #include "usbd_msc.h"
 #include "usbd_msc_scsi.h"
 #include "usbd_ioreq.h"
-#include "usbd_hid.h"
+#include "usbd_multi.h"
 
 /** @defgroup MSC_BOT_Private_FunctionPrototypes
   * @{

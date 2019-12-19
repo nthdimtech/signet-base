@@ -91,11 +91,11 @@ SOURCES = commands.c \
 	usbd_ctlreq.c \
 	usbd_ioreq.c \
 	usbd_msc.c \
-	usbd_hid.c \
+	usbd_multi.c \
 	usbd_msc_bot.c \
 	usbd_msc_data.c \
 	usbd_msc_scsi.c \
-	usbd_msc_storage_template.c \
+	usbd_msc_ops.c \
 	buffer_manager.c \
 	$(MCU_SOURCES)
 

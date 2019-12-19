@@ -1,5 +1,5 @@
 
-#include "usbd_hid.h"
+#include "usbd_multi.h"
 #include "usbd_msc.h"
 #include "usbd_ctlreq.h"
 #include "signetdev_common.h"

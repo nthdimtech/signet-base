@@ -31,7 +31,7 @@ EndBSPDependencies */
 #include "stm32f7xx_hal.h"
 #include "commands.h"
 #include "buffer_manager.h"
-#include "usbd_hid.h"
+#include "usbd_multi.h"
 extern struct bufferFIFO usbBulkBufferFIFO;
 
 static int8_t SCSI_TestUnitReady(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params);

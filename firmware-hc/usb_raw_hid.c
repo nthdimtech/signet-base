@@ -5,7 +5,7 @@
 #include "commands.h"
 #include "print.h"
 #include "signetdev_common.h"
-#include "usbd_hid.h"
+#include "usbd_multi.h"
 
 static const u8 *raw_hid_tx_data = NULL;
 static int raw_hid_tx_seq = 0;

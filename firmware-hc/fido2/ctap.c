@@ -116,7 +116,7 @@ void device_wink()
 	//NEN_TODO
 }
 
-#include "usbd_hid.h"
+#include "usbd_multi.h"
 
 void ctaphid_write_block(uint8_t * data)
 {

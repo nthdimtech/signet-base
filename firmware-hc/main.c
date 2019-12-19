@@ -3,7 +3,7 @@
 #include "stm32f7xx_hal.h"
 #include "usbd_core.h"
 #include "usbd_desc.h"
-#include "usbd_hid.h"
+#include "usbd_multi.h"
 #include "flash.h"
 
 #include "memory_layout.h"
@@ -13,7 +13,7 @@ void Error_Handler(void);
 
 
 #include "usbd_core.h"
-#include "usbd_msc_storage_template.h"
+#include "usbd_msc_ops.h"
 #include "commands.h"
 
 /* Private variables ---------------------------------------------------------*/

@@ -29,7 +29,7 @@ extern "C" {
 #include  "usbd_msc_bot.h"
 #include  "usbd_msc_scsi.h"
 #include  "usbd_ioreq.h"
-#include  "usbd_hid.h"
+#include  "usbd_multi.h"
 
 uint8_t  *USBD_MSC_GetHSCfgDesc (uint16_t *length);
 uint8_t  *USBD_MSC_GetFSCfgDesc (uint16_t *length);

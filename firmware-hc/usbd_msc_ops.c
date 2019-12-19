@@ -24,7 +24,7 @@
 EndBSPDependencies */
 
 /* Includes ------------------------------------------------------------------*/
-#include "usbd_msc_storage_template.h"
+#include "usbd_msc_ops.h"
 
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,8 +36,6 @@ EndBSPDependencies */
 /* Private functions ---------------------------------------------------------*/
 
 #define STORAGE_LUN_NBR                  1
-#define STORAGE_BLK_NBR                  0x80000
-#define STORAGE_BLK_SIZ                  0x200
 
 int8_t STORAGE_Init (uint8_t lun);
 
