@@ -29,7 +29,7 @@ void usb_keyboard_type(const u8 *keys, int num)
 //
 
 //Command code of the currently executing command or -1 if no command is executing
-static int active_cmd = -1;
+int active_cmd = -1;
 static int cmd_iter_count = 0;
 static int cmd_messages_remaining = 0;
 
@@ -103,6 +103,9 @@ void emmc_user_read_storage_rx_complete();
 
 void emmc_user_storage_start();
 
+static void read_block_complete();
+static void write_block_complete();
+
 void emmc_user_db_start()
 {
 	HAL_MMC_CardStateTypeDef cardState;
@@ -148,8 +151,8 @@ void assert(int cond)
 
 void emmc_user_read_db_rx_complete()
 {
-
 	emmc_user_done();
+	read_block_complete();
 }
 
 void emmc_user_schedule()
@@ -191,12 +194,16 @@ void read_data_block(int idx, u8 *dest, int sz)
 
 void write_data_block(int idx, const u8 *src, int sz)
 {
-	emmc_user_queue(EMMC_USER_DB);
-	g_db_action = DB_ACTION_WRITE;
-	g_db_write_idx = idx;
-	g_db_write_src = src;
-	g_db_write_sz = sz;
-	emmc_user_schedule();
+	if (idx == ROOT_DATA_BLOCK) {
+		write_root_block(src, sz);
+	} else {
+		emmc_user_queue(EMMC_USER_DB);
+		g_db_action = DB_ACTION_WRITE;
+		g_db_write_idx = idx;
+		g_db_write_src = src;
+		g_db_write_sz = sz;
+		emmc_user_schedule();
+	}
 }
 
 void HAL_MMC_RxCpltCallback(MMC_HandleTypeDef *hmmc1)
@@ -237,6 +244,7 @@ void MMC_DMATXTransmitComplete(MMC_HandleTypeDef *hmmc)
 void emmc_user_write_db_tx_complete(MMC_HandleTypeDef *hmmc1)
 {
 	emmc_user_done();
+	write_block_complete();
 }
 
 void HAL_MMC_TxCpltCallback(MMC_HandleTypeDef *hmmc1)
@@ -274,7 +282,7 @@ u32 rand_get()
 void write_root_block(const u8 *data, int sz)
 {
 	u8 *temp = (u8 *)&_root_page;
-	//NEN_TODO
+	flash_write_page(temp, data, sz);
 }
 
 void get_progress_check();
@@ -474,37 +482,19 @@ void cmd_rand_update()
 	}
 }
 
-void flash_write_storage_complete();
-void startup_cmd_iter();
+extern int block_read_cache_updating;
 
-void flash_write_complete()
+static void read_block_complete()
 {
-	switch (device_state) {
-	case DS_INITIALIZING:
-		cmd_data.init_data.blocks_written++;
-		progress_level[0] = cmd_data.init_data.blocks_written;
-		if (progress_level[0] > progress_maximum[0]) progress_level[0] = progress_maximum[0];
-		progress_level[1] = cmd_data.init_data.random_data_gathered;
-		get_progress_check();
+	if (db3_read_block_complete())
+		return;
+}
 
-		if (cmd_data.init_data.blocks_written < NUM_DATA_BLOCKS) {
-			struct block *blk = db3_initialize_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (struct block *)cmd_data.init_data.block);
-			write_data_block(cmd_data.init_data.blocks_written, (u8 *)blk, blk ? BLK_SIZE : 0);
-		} else if (cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS) {
-			finalize_root_page_check();
-		} else {
-			dprint_s("DONE INITIALIZING\r\n");
-			//TODO: fix magic numbers
-			header_version = 1;
-			db_version = 1;
-			if (db3_startup_scan((struct block *)cmd_data.startup.read_block, cmd_data.init_data.block, &cmd_data.init_data.blk_info)) {
-				enter_state(DS_LOGGED_OUT);
-			} else {
-				//Shouldn't be possible to have a INITIAL database in an inconsistent state
-				enter_state(DS_UNINITIALIZED);
-			}
-		}
-		break;
+static void write_block_complete()
+{
+	if (db3_write_block_complete)
+		return;
+	switch (device_state) {
 	case DS_WIPING:
 		cmd_data.wipe_data.block++;
 		progress_level[0] = cmd_data.wipe_data.block;
@@ -513,17 +503,6 @@ void flash_write_complete()
 			enter_state(DS_UNINITIALIZED);
 		} else {
 			write_data_block(cmd_data.wipe_data.block, NULL, 0);
-		}
-		break;
-	case DS_ERASING_PAGES:
-		cmd_data.erase_flash_pages.index++;
-		progress_level[0] = cmd_data.erase_flash_pages.index;
-		get_progress_check();
-		if (cmd_data.erase_flash_pages.index == cmd_data.erase_flash_pages.num_pages) {
-			enter_state(DS_FIRMWARE_UPDATE);
-		} else {
-			flash_write_page((void *)(FLASH_MEM_BASE_ADDR +
-			                          FLASH_PAGE_SIZE * cmd_data.erase_flash_pages.index), NULL, 0);
 		}
 		break;
 	default:
@@ -537,16 +516,21 @@ void flash_write_complete()
 	case WRITE_FLASH:
 		finish_command_resp(OKAY);
 		break;
-	case UPDATE_UIDS:
-	case UPDATE_UID:
-		update_uid_cmd_write_finished();
-		break;
 	case STARTUP:
 		startup_cmd_iter();
 		break;
 	default:
 		break;
 	}
+}
+
+void flash_write_storage_complete();
+void startup_cmd_iter();
+static void write_block_complete();
+
+void flash_write_complete()
+{
+	write_block_complete();
 }
 
 void flash_write_failed()
@@ -570,7 +554,7 @@ void cmd_packet_sent()
 {
 	switch(active_cmd) {
 	case READ_ALL_UIDS:
-		read_all_uids_cmd_iter();
+		read_all_uids_cmd_complete();
 		break;
 	}
 }
@@ -1417,7 +1401,7 @@ int restoring_device_state(int cmd, u8 *data, int data_len)
 
 void startup_cmd_iter()
 {
-	u8 resp[6+(HASH_FN_SZ + SALT_SZ_V2)];
+	u8 *resp = cmd_data.startup.resp;
 	memset(resp, 0, sizeof(resp));
 	resp[0] = SIGNET_MAJOR_VERSION;
 	resp[1] = SIGNET_MINOR_VERSION;
@@ -1426,7 +1410,7 @@ void startup_cmd_iter()
 	resp[4] = header_version;
 	resp[5] = 0;
 	if (device_state == DS_UNINITIALIZED) {
-		finish_command(OKAY, resp, sizeof(resp));
+		finish_command(OKAY, resp, sizeof(cmd_data.startup.resp));
 	} else {
 		switch (header_version) {
 		case 1:
@@ -1435,19 +1419,17 @@ void startup_cmd_iter()
 			db_version = root_page.format;
 			break;
 		default:
-			finish_command(UNKNOWN_DB_FORMAT, resp, sizeof(resp));
+			finish_command(UNKNOWN_DB_FORMAT, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
 			return;
 		}
 		resp[5] = db_version;
 
 		switch (db_version) {
 		case 1:
-			if (db3_startup_scan((struct block *)cmd_data.startup.read_block, cmd_data.startup.block, &cmd_data.startup.blk_info)) {
-				finish_command(OKAY, resp, sizeof(resp));
-			}
+			db3_startup_scan((struct block *)cmd_data.startup.read_block, cmd_data.startup.block, &cmd_data.startup.blk_info);
 			break;
 		default:
-			finish_command(UNKNOWN_DB_FORMAT, resp, sizeof(resp));
+			finish_command(UNKNOWN_DB_FORMAT, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
 			return;
 		}
 	}
@@ -1572,9 +1554,6 @@ int cmd_packet_recv()
 		ret = restoring_device_state(active_cmd, data, data_len);
 		break;
 #if NEN_TODO
-	case DS_ERASING_PAGES:
-		ret = erasing_pages_state(active_cmd, data, data_len);
-		break;
 	case DS_FIRMWARE_UPDATE:
 		ret = firmware_update_state(active_cmd, data, data_len);
 		break;

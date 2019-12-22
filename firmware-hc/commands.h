@@ -15,6 +15,7 @@ void begin_long_button_press_wait();
 extern u8 cmd_resp[];
 
 extern enum device_state device_state;
+extern int active_cmd;
 
 union state_data_u {
 	struct {
@@ -47,6 +48,7 @@ union cmd_data_u {
 	struct {
 		u8 read_block[BLK_SIZE];
 		u8 block[BLK_SIZE];
+		u8 resp[6+(HASH_FN_SZ + SALT_SZ_V2)];
 		struct block_info blk_info;
 	} startup;
 	struct {
@@ -76,8 +78,12 @@ union cmd_data_u {
 		int write_count;
 		int block_num;
 		int prev_block_num;
+		int press_type;
 		struct block_info blk_info;
+		u8 entry[BLK_SIZE];
+		int entry_sz;
 		u8 block[BLK_SIZE];
+		int update_uid_stage;
 	} update_uid;
 	struct {
 		u8 block[NUM_CLEARTEXT_PASS * 64];
@@ -89,6 +95,7 @@ union cmd_data_u {
 		int index;
 		const struct uid_ent *ent;
 		int masked;
+		int waiting_for_button_press;
 		u8 block[BLK_SIZE];
 	} read_uid;
 	struct {
