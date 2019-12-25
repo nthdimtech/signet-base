@@ -42,10 +42,17 @@ int db3_read_block_complete()
 		case READ_ALL_UIDS:
 			read_all_uids_cmd_iter();
 			break;
-		case STARTUP:
-			db3_startup_scan_resume();
-			break;
 		}
+	}
+	switch(device_state) {
+	case DS_INITIALIZING:
+		db3_startup_scan_resume();
+		break;
+	}
+	switch(active_cmd) {
+	case STARTUP:
+		db3_startup_scan_resume();
+		break;
 	}
 }
 
@@ -210,12 +217,13 @@ static void db3_startup_scan_resume()
 		read_data_block(db3_startup_scan_blk_num, block_read, BLK_SIZE);
 	} else {
 		db3_startup_scan_running = 0;
+		enter_state(DS_LOGGED_OUT);
 		finish_command(OKAY, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
 	}
 }
 
 //Scans blocks on startup to initialize 'g_block_info_tbl' and 'uid_map'
-void db3_startup_scan(u8 *block_read, u8 *block_temp, struct block_info *blk_info_temp)
+void db3_startup_scan (u8 *block_read, u8 *block_temp, struct block_info *blk_info_temp)
 {
 	int i;
 	for (i = MIN_UID; i <= MAX_UID; i++) {
@@ -226,7 +234,7 @@ void db3_startup_scan(u8 *block_read, u8 *block_temp, struct block_info *blk_inf
 	read_data_block(db3_startup_scan_blk_num, block_read, BLK_SIZE);
 }
 
-#define NUM_PART_SIZES 11
+#define NUM_PART_SIZES 4
 
 static int part_sizes[NUM_PART_SIZES] = {/*1,2,3,4,6,7,12,*/15,31,63,127};
 

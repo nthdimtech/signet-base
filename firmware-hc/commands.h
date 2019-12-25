@@ -121,6 +121,7 @@ union cmd_data_u {
 extern union cmd_data_u cmd_data;
 
 int cmd_packet_recv();
+void cmd_init();
 void cmd_packet_send(const u8 *data, u16 len);
 void cmd_event_send(int event_num, const u8 *data, int data_len);
 

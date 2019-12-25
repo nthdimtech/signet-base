@@ -486,15 +486,45 @@ extern int block_read_cache_updating;
 
 static void read_block_complete()
 {
+	switch (device_state) {
+	case DS_INITIALIZING:
+		//NEN_TODO
+		break;
+	}
 	if (db3_read_block_complete())
 		return;
 }
 
+static void initializing_iter()
+{
+	cmd_data.init_data.blocks_written++;
+	progress_level[0] = cmd_data.init_data.blocks_written;
+	if (progress_level[0] > progress_maximum[0]) progress_level[0] = progress_maximum[0];
+	progress_level[1] = cmd_data.init_data.random_data_gathered;
+	get_progress_check();
+
+	if (cmd_data.init_data.blocks_written < NUM_DATA_BLOCKS) {
+		struct block *blk = db3_initialize_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (struct block *)cmd_data.init_data.block);
+		write_data_block(cmd_data.init_data.blocks_written, (u8 *)blk, blk ? BLK_SIZE : 0);
+	} else if (cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS) {
+		finalize_root_page_check();
+	} else {
+		dprint_s("DONE INITIALIZING\r\n");
+		//TODO: fix magic numbers
+		header_version = 1;
+		db_version = 1;
+		db3_startup_scan((struct block *)cmd_data.startup.read_block, cmd_data.init_data.block, &cmd_data.init_data.blk_info);
+	}
+}
+
 static void write_block_complete()
 {
-	if (db3_write_block_complete)
+	if (db3_write_block_complete())
 		return;
 	switch (device_state) {
+	case DS_INITIALIZING:
+		initializing_iter();
+		break;
 	case DS_WIPING:
 		cmd_data.wipe_data.block++;
 		progress_level[0] = cmd_data.wipe_data.block;
@@ -523,6 +553,75 @@ static void write_block_complete()
 		break;
 	}
 }
+
+#if 0
+void flash_write_complete()
+{
+	switch (device_state) {
+	case DS_INITIALIZING:
+		cmd_data.init_data.blocks_written++;
+		progress_level[0] = cmd_data.init_data.blocks_written;
+		if (progress_level[0] > progress_maximum[0]) progress_level[0] = progress_maximum[0];
+		progress_level[1] = cmd_data.init_data.random_data_gathered;
+		get_progress_check();
+
+		if (cmd_data.init_data.blocks_written < NUM_DATA_BLOCKS) {
+			struct block *blk = db3_initialize_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (struct block *)cmd_data.init_data.block);
+			write_data_block(cmd_data.init_data.blocks_written, (u8 *)blk, blk ? BLK_SIZE : 0);
+		} else if (cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS) {
+			finalize_root_page_check();
+		} else {
+			dprint_s("DONE INITIALIZING\r\n");
+			//TODO: fix magic numbers
+			header_version = 1;
+			db_version = 1;
+			db3_startup_scan((struct block *)cmd_data.startup.read_block, cmd_data.init_data.block, &cmd_data.init_data.blk_info);
+		}
+		break;
+	case DS_WIPING:
+		cmd_data.wipe_data.block++;
+		progress_level[0] = cmd_data.wipe_data.block;
+		get_progress_check();
+		if (cmd_data.wipe_data.block == NUM_STORAGE_BLOCKS) {
+			enter_state(DS_UNINITIALIZED);
+		} else {
+			write_data_block(cmd_data.wipe_data.block, NULL, 0);
+		}
+		break;
+	case DS_ERASING_PAGES:
+		cmd_data.erase_flash_pages.index++;
+		progress_level[0] = cmd_data.erase_flash_pages.index;
+		get_progress_check();
+		if (cmd_data.erase_flash_pages.index == cmd_data.erase_flash_pages.num_pages) {
+			enter_state(DS_FIRMWARE_UPDATE);
+		} else {
+			flash_write_page((void *)(FLASH_MEM_BASE_ADDR +
+			                          FLASH_PAGE_SIZE * cmd_data.erase_flash_pages.index), NULL, 0);
+		}
+		break;
+	default:
+		break;
+	}
+	switch (active_cmd) {
+	case WRITE_CLEARTEXT_PASSWORD:
+	case CHANGE_MASTER_PASSWORD:
+	case WRITE_BLOCK:
+	case ERASE_BLOCK:
+	case WRITE_FLASH:
+		finish_command_resp(OKAY);
+		break;
+	case UPDATE_UIDS:
+	case UPDATE_UID:
+		update_uid_cmd_write_finished();
+		break;
+	case STARTUP:
+		startup_cmd_iter();
+		break;
+	default:
+		break;
+	}
+}
+#endif
 
 void flash_write_storage_complete();
 void startup_cmd_iter();
@@ -866,7 +965,7 @@ void initialize_cmd_complete()
 	cmd_data.init_data.random_data_gathered = 0;
 	cmd_data.init_data.root_block_finalized = 0;
 
-	struct block *blk = db3_initialize_block(cmd_data.init_data.blocks_written, (struct block *)cmd_data.init_data.block);
+	struct block *blk = db3_initialize_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (struct block *)cmd_data.init_data.block);
 	write_data_block(cmd_data.init_data.blocks_written, (u8 *)blk, blk ? BLK_SIZE : 0);
 	finish_command_resp(OKAY);
 	cmd_data.init_data.rand_avail_init = rand_avail();
@@ -1419,6 +1518,7 @@ void startup_cmd_iter()
 			db_version = root_page.format;
 			break;
 		default:
+			enter_state(DS_UNINITIALIZED);
 			finish_command(UNKNOWN_DB_FORMAT, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
 			return;
 		}
@@ -1426,9 +1526,10 @@ void startup_cmd_iter()
 
 		switch (db_version) {
 		case 1:
-			db3_startup_scan((struct block *)cmd_data.startup.read_block, cmd_data.startup.block, &cmd_data.startup.blk_info);
+			db3_startup_scan((struct block *)cmd_data.startup.read_block, cmd_data.init_data.block, &cmd_data.init_data.blk_info);
 			break;
 		default:
+			enter_state(DS_UNINITIALIZED);
 			finish_command(UNKNOWN_DB_FORMAT, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
 			return;
 		}
