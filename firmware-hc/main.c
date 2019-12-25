@@ -5,6 +5,7 @@
 #include "usbd_desc.h"
 #include "usbd_multi.h"
 #include "flash.h"
+#include "commands.h"
 
 #include "memory_layout.h"
 
@@ -35,7 +36,9 @@ static void MX_GPIO_Init(void);
 static void MX_AES_Init(void);
 static void MX_RNG_Init(void);
 static void MX_SDMMC1_MMC_Init(void);
+#ifdef USE_UART
 static void MX_USART1_UART_Init(void);
+#endif
 USBD_HandleTypeDef USBD_Device;
 
 #define LED1_PORT GPIOI
@@ -205,6 +208,8 @@ int is_blinking()
 
 #ifdef ENABLE_FIDO2
 #include "mini-gmp.h"
+#include "fido2/crypto.h"
+#include "fido2/ctaphid.h"
 
 __attribute__ ((aligned (8))) uint8_t heap[8192];
 int heap_idx = 0;
@@ -254,8 +259,9 @@ int main(void)
 	MX_RNG_Init();
 	MX_SDMMC1_MMC_Init();
 
-	//MX_USART1_UART_Init();
-
+#ifdef USE_UART
+	MX_USART1_UART_Init();
+#endif
 	int blink_duration = 200;
 
 	HAL_Delay(blink_duration);
@@ -445,6 +451,8 @@ static void MX_DMA_Init(void)
   * @param None
   * @retval None
   */
+
+#ifdef USE_UART
 static void MX_USART1_UART_Init(void)
 {
 	huart1.Instance = USART1;
@@ -461,6 +469,7 @@ static void MX_USART1_UART_Init(void)
 		Error_Handler();
 	}
 }
+#endif
 
 static void MX_GPIO_Init(void)
 {

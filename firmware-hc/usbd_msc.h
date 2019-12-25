@@ -86,7 +86,7 @@ typedef struct _USBD_STORAGE {
 
 } USBD_StorageTypeDef;
 
-typedef struct {
+typedef struct __attribute__((packed)) {
 	uint32_t                 max_lun;
 	uint8_t                  bot_data[MSC_MEDIA_PACKET * 16];
 	uint32_t                 interface;
@@ -112,7 +112,7 @@ typedef struct {
 	uint64_t                 scsi_blk_addr;
 	uint64_t                 scsi_blk_len;
 }
-USBD_MSC_BOT_HandleTypeDef __attribute__((packed));
+USBD_MSC_BOT_HandleTypeDef;
 
 /* Structure for MSC process */
 extern USBD_ClassTypeDef  USBD_MSC;
