@@ -14,7 +14,7 @@ all: $(TARGET_BIN)
 HTUPLE:=arm-none-eabi
 
 LIBS=-lnettle -lhogweed -lmini-gmp
-CFLAGS=-ffunction-sections -fdata-sections -O2 -DSIGNET_HC
+CFLAGS=-Wno-unused -Werror -ffunction-sections -fdata-sections -O2 -DSIGNET_HC
 ASFLAGS=
 LDFLAGS=-Wl,"--gc-sections"
 LDFLAGS+=-Wl,"-Map=$(TARGET_MAP)"
@@ -112,8 +112,7 @@ SOURCES+= tinycbor/cborencoder.c \
 	  tinycbor/cborpretty.c \
 	  tinycbor/cborpretty_stdio.c \
 	  tinycbor/cbortojson.c \
-	  tinycbor/cborvalidation.c \
-	  tinycbor/open_memstream.c
+	  tinycbor/cborvalidation.c
 
 SOURCES+= fido2/crypto.c \
 	  fido2/ctap.c \

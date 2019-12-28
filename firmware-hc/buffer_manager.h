@@ -10,7 +10,7 @@ struct bufferFIFO {
 	int bufferCount;
 	uint8_t *bufferStorage;
 	int numStages;
-	int ((*processStage[BUFFER_FIFO_MAX_STAGES])(struct bufferFIFO *bf, int readSize, const uint8_t *bufferRead, uint8_t *bufferWrite, int stageIdx));
+	void ((*processStage[BUFFER_FIFO_MAX_STAGES])(struct bufferFIFO *bf, int readSize, const uint8_t *bufferRead, uint8_t *bufferWrite, int stageIdx));
 
 	void (*processingComplete)(struct bufferFIFO *bf);
 	int _bufferSize[BUFFER_FIFO_MAX_BUFFERS];

@@ -534,7 +534,7 @@ HAL_StatusTypeDef HAL_MMC_ReadBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, ui
 	SDMMC_DataInitTypeDef config;
 	uint32_t errorstate = HAL_MMC_ERROR_NONE;
 	uint32_t tickstart = HAL_GetTick();
-	uint32_t count = 0, *tempbuff = (uint32_t *)pData;
+	uint32_t *tempbuff = (uint32_t *)pData;
 
 	if(NULL == pData) {
 		hmmc->ErrorCode |= HAL_MMC_ERROR_PARAM;
@@ -602,11 +602,6 @@ HAL_StatusTypeDef HAL_MMC_ReadBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, ui
 		while(!__HAL_MMC_GET_FLAG(hmmc, SDMMC_FLAG_RXOVERR | SDMMC_FLAG_DCRCFAIL | SDMMC_FLAG_DTIMEOUT | SDMMC_FLAG_DATAEND)) {
 			if(__HAL_MMC_GET_FLAG(hmmc, SDMMC_FLAG_RXFIFOHF)) {
 				/* Read data from SDMMC Rx FIFO */
-#if 0
-				for(count = 0U; count < 8U; count++) {
-					*(tempbuff + count) = SDMMC_ReadFIFO(hmmc->Instance);
-				}
-#endif
 				tempbuff[0] = hmmc->Instance->FIFO;
 				tempbuff[1] = hmmc->Instance->FIFO;
 				tempbuff[2] = hmmc->Instance->FIFO;
@@ -705,7 +700,6 @@ HAL_StatusTypeDef HAL_MMC_WriteBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, u
 	SDMMC_DataInitTypeDef config;
 	uint32_t errorstate = HAL_MMC_ERROR_NONE;
 	uint32_t tickstart = HAL_GetTick();
-	uint32_t count = 0;
 	uint32_t *tempbuff = (uint32_t *)pData;
 
 	if(NULL == pData) {
@@ -773,12 +767,6 @@ HAL_StatusTypeDef HAL_MMC_WriteBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, u
 		/* Write block(s) in polling mode */
 		while(!__HAL_MMC_GET_FLAG(hmmc, SDMMC_FLAG_TXUNDERR | SDMMC_FLAG_DCRCFAIL | SDMMC_FLAG_DTIMEOUT | SDMMC_FLAG_DATAEND)) {
 			if(__HAL_MMC_GET_FLAG(hmmc, SDMMC_FLAG_TXFIFOHE)) {
-#if 0
-				/* Write data to SDMMC Tx FIFO */
-				for(count = 0U; count < 8U; count++) {
-					SDMMC_WriteFIFO(hmmc->Instance, (tempbuff + count));
-				}
-#endif
 				hmmc->Instance->FIFO = tempbuff[0];
 				hmmc->Instance->FIFO = tempbuff[1];
 				hmmc->Instance->FIFO = tempbuff[2];
@@ -1240,7 +1228,7 @@ HAL_StatusTypeDef HAL_MMC_WriteBlocks_DMA(MMC_HandleTypeDef *hmmc, uint8_t *pDat
 	}
 }
 
-HAL_StatusTypeDef HAL_MMC_WriteBlocks_DMA_Cont(MMC_HandleTypeDef *hmmc, uint8_t *pData, uint32_t txSize)
+HAL_StatusTypeDef HAL_MMC_WriteBlocks_DMA_Cont(MMC_HandleTypeDef *hmmc, const uint8_t *pData, uint32_t txSize)
 {
 	if (pData == NULL || txSize == 0) {
 		__HAL_MMC_ENABLE_IT(hmmc, (SDMMC_IT_DATAEND));
@@ -1252,7 +1240,7 @@ HAL_StatusTypeDef HAL_MMC_WriteBlocks_DMA_Cont(MMC_HandleTypeDef *hmmc, uint8_t 
 	return HAL_OK;
 }
 
-HAL_StatusTypeDef HAL_MMC_WriteBlocks_DMA_Initial(MMC_HandleTypeDef *hmmc, uint8_t *pData, uint32_t txSize, uint32_t BlockAdd, uint32_t NumberOfBlocks)
+HAL_StatusTypeDef HAL_MMC_WriteBlocks_DMA_Initial(MMC_HandleTypeDef *hmmc, const uint8_t *pData, uint32_t txSize, uint32_t BlockAdd, uint32_t NumberOfBlocks)
 {
 	SDMMC_DataInitTypeDef config;
 	uint32_t errorstate = HAL_MMC_ERROR_NONE;
@@ -1281,7 +1269,7 @@ HAL_StatusTypeDef HAL_MMC_WriteBlocks_DMA_Initial(MMC_HandleTypeDef *hmmc, uint8
 		hmmc->hdmatx->XferErrorCallback = MMC_DMAError;
 
 		/* Set the DMA Abort callback */
-		hmmc->hdmatx->XferAbortCallback = HAL_MMC_AbortCallback;
+		hmmc->hdmatx->XferAbortCallback = MMC_DMATxAbort;
 
 		/* Check the Card capacity in term of Logical number of blocks */
 		if ((hmmc->MmcCard.LogBlockNbr) < CAPACITY) {

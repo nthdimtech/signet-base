@@ -319,7 +319,7 @@ static int8_t SCSI_RequestSense (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t
 	uint8_t i;
 	USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*) pdev->pClassData[INTERFACE_MSC];
 
-	uint8_t *bot_data = hmsc->bot_data[0];
+	uint8_t *bot_data = hmsc->bot_data;
 
 	for(i = 0U ; i < REQUEST_SENSE_DATA_LEN; i++) {
 		bot_data[i] = 0U;
@@ -383,7 +383,7 @@ static int8_t SCSI_StartStopUnit(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t
 
 USBD_HandleTypeDef  *s_pdev;
 
-extern volatile MMC_HandleTypeDef hmmc1;
+extern MMC_HandleTypeDef hmmc1;
 static volatile int mmcStageIdx;
 static volatile int mmcReadLen;
 static volatile int mmcBlockAddr = -1;
@@ -410,6 +410,7 @@ static int8_t SCSI_ProcessRead (USBD_HandleTypeDef  *pdev, uint8_t lun)
 		bufferFIFO_stallStage(&usbBulkBufferFIFO, hmsc->stageIdx);
 	}
 	bufferFIFO_processingComplete(&usbBulkBufferFIFO, hmsc->stageIdx, len);
+	return 0;
 }
 
 static void processUSBReadBuffer(struct bufferFIFO *bf, int readSize, const uint8_t *bufferRead, uint8_t *bufferWrite, int stageIdx)
@@ -497,7 +498,6 @@ static int8_t SCSI_Read10(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *params
 			SCSI_SenseCode(pdev, hmsc->cbw.bLUN, ILLEGAL_REQUEST, INVALID_CDB);
 			return -1;
 		}
-		uint32_t len = MIN(hmsc->scsi_blk_len, usbBulkBufferFIFO.maxBufferSize);
 		mmcDataToTransfer = hmsc->scsi_blk_len;
 		mmcBlocksToTransfer = blk_len;
 		mmcBlockAddr = blk_addr;
@@ -507,7 +507,7 @@ static int8_t SCSI_Read10(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *params
 		usbBulkBufferFIFO.processingComplete = readProcessingComplete;
 		emmc_user_queue(EMMC_USER_STORAGE);
 		emmc_user_schedule();
-		return;
+		return 0;
 	}
 	hmsc->bot_data_length = MSC_MEDIA_PACKET;
 
@@ -558,7 +558,8 @@ void emmc_user_write_storage_tx_dma_complete(MMC_HandleTypeDef *hmmc)
 	mmcDataTransferred += mmcReadLen;
 	mmcBlockAddr += mmcReadLen/512;
 	mmcBlocksToTransfer -= mmcReadLen/512;
-	HAL_StatusTypeDef ret = HAL_MMC_WriteBlocks_DMA_Cont(&hmmc1, NULL, 0);
+	//TODO: handle return error code
+	HAL_MMC_WriteBlocks_DMA_Cont(&hmmc1, NULL, 0);
 }
 
 void HAL_MMC_AbortCallback(MMC_HandleTypeDef *hmmc)
@@ -642,7 +643,6 @@ static int8_t SCSI_Write10 (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *par
 		hmsc->bot_state = USBD_BOT_DATA_OUT;
 
 		/* Prepare EP to receive first data packet */
-		uint32_t len = MIN(hmsc->scsi_blk_len, usbBulkBufferFIFO.maxBufferSize);
 		mmcDataToTransfer = hmsc->scsi_blk_len;
 		mmcBlocksToTransfer = blk_len;
 		mmcBlockAddr = blk_addr;
@@ -712,14 +712,6 @@ static int8_t SCSI_CheckAddressRange (USBD_HandleTypeDef *pdev, uint8_t lun,
 */
 
 extern PCD_HandleTypeDef hpcd;
-
-static void SCSI_UserReadDone(uint8_t *buf)
-{
-}
-
-static void SCSI_UserWriteDone(uint8_t *buf)
-{
-}
 
 /**
 * @brief  SCSI_ProcessWrite

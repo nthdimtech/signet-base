@@ -117,6 +117,7 @@ void device_wink()
 }
 
 #include "usbd_multi.h"
+#include "usbd_hid.h"
 
 void ctaphid_write_block(uint8_t * data)
 {
@@ -1036,6 +1037,7 @@ static int cred_cmp_func(const void * _a, const void * _b)
 static void add_existing_user_info(CTAP_credentialDescriptor * cred)
 {
     CTAP_residentKey rk;
+    rk.user.id_size = 0; //Adding this to supress uninitialized warning
     int index = STATE.rk_stored;
     int i;
     for (i = 0; i < index; i++)
@@ -1060,6 +1062,7 @@ int ctap_filter_invalid_credentials(CTAP_getAssertion * GA)
     int count = 0;
     uint8_t rpIdHash[32];
     CTAP_residentKey rk;
+    rk.user.id_size = 0; //Adding this to supress uninitialized warning
 
     for (i = 0; i < GA->credLen; i++)
     {

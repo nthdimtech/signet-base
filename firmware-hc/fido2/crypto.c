@@ -72,7 +72,7 @@ static SHA256_CTX sha256_ctx;
 static const struct uECC_Curve_t * _es256_curve = NULL;
 #else
 struct sha256_ctx sha256_ctx;
-static struct ecc_curve * _es256_curve = NULL;
+static const struct ecc_curve * _es256_curve = NULL;
 #endif
 static const uint8_t * _signing_key = NULL;
 static int _key_len = 0;
@@ -217,7 +217,7 @@ static void crypto_random_func(void *ctx, size_t length, uint8_t *dst)
 	//NEN_TODO
 }
 
-static void crypto_sign(struct ecc_curve *curve, const uint8_t * data, int len, uint8_t * sig);
+static void crypto_sign(const struct ecc_curve *curve, const uint8_t * data, int len, uint8_t * sig);
 
 void crypto_ecc256_sign(uint8_t * data, int len, uint8_t * sig)
 {
@@ -233,7 +233,7 @@ void crypto_ecc256_sign(uint8_t * data, int len, uint8_t * sig)
 }
 
 #ifndef ORIGINAL_VER
-static void crypto_sign(struct ecc_curve *curve, const uint8_t * data, int len, uint8_t * sig)
+static void crypto_sign(const struct ecc_curve *curve, const uint8_t * data, int len, uint8_t * sig)
 {
     struct dsa_signature signature_pt;
     struct ecc_scalar signing_key_pt;
@@ -323,7 +323,7 @@ fail:
     printf2(TAG_ERR,"error, invalid key length\n");
     exit(1);
 #else
-    struct ecc_curve *curve = NULL;
+    const struct ecc_curve *curve = NULL;
 
     switch(MBEDTLS_ECP_ID)
     {
@@ -369,14 +369,14 @@ void generate_private_key(uint8_t * data, int len, uint8_t * data2, int len2, ui
 
 #ifndef ORIGINAL_VER
 
-static void mpz_from_buffer(mpz_t *val, struct ecc_curve *curve, const uint8_t *buffer)
+static void mpz_from_buffer(mpz_t *val, const struct ecc_curve *curve, const uint8_t *buffer)
 {
     mpz_init(*val);
     mp_limb_t *l = mpz_limbs_write(*val, ecc_size(curve)/4);
     memcpy(l, buffer, ecc_size(curve));
 }
 
-static void scalar_from_key_buffer(struct ecc_curve *curve, struct ecc_scalar *key, const uint8_t *key_buffer)
+static void scalar_from_key_buffer(const struct ecc_curve *curve, struct ecc_scalar *key, const uint8_t *key_buffer)
 {
     mpz_t val;
     mpz_from_buffer(&val, curve, key_buffer);
@@ -385,7 +385,7 @@ static void scalar_from_key_buffer(struct ecc_curve *curve, struct ecc_scalar *k
     //NEN_TODO: cleanup gmp memory
 }
 
-static void crypto_compute_public_key(struct ecc_curve *curve, uint8_t *pubkey, const uint8_t *privkey)
+static void crypto_compute_public_key(const struct ecc_curve *curve, uint8_t *pubkey, const uint8_t *privkey)
 {
 	struct ecc_point pub_pt;
 	struct ecc_scalar priv_scalar;

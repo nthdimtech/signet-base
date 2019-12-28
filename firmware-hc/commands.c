@@ -50,8 +50,6 @@ u8 token_encrypt_key_cyphertext[AES_256_KEY_SIZE];
 u8 header_version;
 u8 db_version;
 
-static const u8 root_signature[AES_BLK_SIZE] = {2 /*root block format */,3,4,5, 6,7,8,9, 10,11,12,13, 14,15,0};
-
 static union state_data_u state_data;
 
 static void long_button_press_disconnected();
@@ -77,7 +75,7 @@ static int waiting_for_long_button_press = 0;
 //
 // Read/write database blocks
 //
-extern volatile MMC_HandleTypeDef hmmc1;
+extern MMC_HandleTypeDef hmmc1;
 
 enum emmc_user g_emmc_user = EMMC_USER_NONE;
 
@@ -93,18 +91,21 @@ static enum db_action g_db_action = DB_ACTION_NONE;
 
 static int g_db_read_idx;
 static u8 *g_db_read_dest;
-static int g_db_read_sz;
 
 static int g_db_write_idx;
 static const u8 *g_db_write_src;
-static int g_db_write_sz;
 
-void emmc_user_read_storage_rx_complete();
+#include "usbd_msc_scsi.h"
 
 void emmc_user_storage_start();
 
 static void read_block_complete();
 static void write_block_complete();
+
+void flash_write_storage_complete();
+void startup_cmd_iter();
+static void write_block_complete();
+void write_root_block(const u8 *data, int sz);
 
 void emmc_user_db_start()
 {
@@ -113,7 +114,6 @@ void emmc_user_db_start()
 	case DB_ACTION_READ: {
 		int idx = g_db_read_idx;
 		u8 *dest = g_db_read_dest;
-		int sz = g_db_read_sz;
 		do {
 			cardState = HAL_MMC_GetCardState(&hmmc1);
 		} while (cardState != HAL_MMC_CARD_TRANSFER);
@@ -125,8 +125,7 @@ void emmc_user_db_start()
 	break;
 	case DB_ACTION_WRITE: {
 		int idx = g_db_write_idx;
-		u8 *dest = g_db_write_src;
-		int sz = g_db_write_sz;
+		const u8 *dest = g_db_write_src;
 		do {
 			cardState = HAL_MMC_GetCardState(&hmmc1);
 		} while (cardState != HAL_MMC_CARD_TRANSFER);
@@ -182,26 +181,24 @@ void emmc_user_queue(enum emmc_user user)
 	g_emmc_user_ready[user] = 1;
 }
 
-void read_data_block(int idx, u8 *dest, int sz)
+void read_data_block(int idx, u8 *dest)
 {
 	emmc_user_queue(EMMC_USER_DB);
 	g_db_action = DB_ACTION_READ;
 	g_db_read_idx = idx;
 	g_db_read_dest = dest;
-	g_db_read_sz = sz;
 	emmc_user_schedule();
 }
 
-void write_data_block(int idx, const u8 *src, int sz)
+void write_data_block(int idx, const u8 *src)
 {
 	if (idx == ROOT_DATA_BLOCK) {
-		write_root_block(src, sz);
+		write_root_block(src, BLK_SIZE);
 	} else {
 		emmc_user_queue(EMMC_USER_DB);
 		g_db_action = DB_ACTION_WRITE;
 		g_db_write_idx = idx;
 		g_db_write_src = src;
-		g_db_write_sz = sz;
 		emmc_user_schedule();
 	}
 }
@@ -446,7 +443,7 @@ static void finalize_root_page_check()
 		                           keystore_key, root_page.profile_auth_data[0].keystore_key_cyphertext);
 		memcpy(root_page.profile_auth_data[0].salt, cmd_data.init_data.salt, HC_HASH_FN_SALT_SZ);
 		memcpy(root_page.profile_auth_data[0].hash_function_params, cmd_data.init_data.hashfn, HASH_FUNCTION_PARAMS_LENGTH);
-		write_root_block((u8 *)&root_page, sizeof(struct root_page));
+		write_root_block((const u8 *)&root_page, sizeof(struct root_page));
 	}
 }
 
@@ -490,6 +487,8 @@ static void read_block_complete()
 	case DS_INITIALIZING:
 		//NEN_TODO
 		break;
+	default:
+		break;
 	}
 	if (db3_read_block_complete())
 		return;
@@ -505,7 +504,7 @@ static void initializing_iter()
 
 	if (cmd_data.init_data.blocks_written < NUM_DATA_BLOCKS) {
 		struct block *blk = db3_initialize_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (struct block *)cmd_data.init_data.block);
-		write_data_block(cmd_data.init_data.blocks_written, (u8 *)blk, blk ? BLK_SIZE : 0);
+		write_data_block(cmd_data.init_data.blocks_written, (u8 *)blk);
 	} else if (cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS) {
 		finalize_root_page_check();
 	} else {
@@ -513,7 +512,7 @@ static void initializing_iter()
 		//TODO: fix magic numbers
 		header_version = 1;
 		db_version = 1;
-		db3_startup_scan((struct block *)cmd_data.startup.read_block, cmd_data.init_data.block, &cmd_data.init_data.blk_info);
+		db3_startup_scan(cmd_data.init_data.block, &cmd_data.init_data.blk_info);
 	}
 }
 
@@ -532,7 +531,7 @@ static void write_block_complete()
 		if (cmd_data.wipe_data.block == NUM_STORAGE_BLOCKS) {
 			enter_state(DS_UNINITIALIZED);
 		} else {
-			write_data_block(cmd_data.wipe_data.block, NULL, 0);
+			write_data_block(cmd_data.wipe_data.block, NULL);
 		}
 		break;
 	default:
@@ -553,79 +552,6 @@ static void write_block_complete()
 		break;
 	}
 }
-
-#if 0
-void flash_write_complete()
-{
-	switch (device_state) {
-	case DS_INITIALIZING:
-		cmd_data.init_data.blocks_written++;
-		progress_level[0] = cmd_data.init_data.blocks_written;
-		if (progress_level[0] > progress_maximum[0]) progress_level[0] = progress_maximum[0];
-		progress_level[1] = cmd_data.init_data.random_data_gathered;
-		get_progress_check();
-
-		if (cmd_data.init_data.blocks_written < NUM_DATA_BLOCKS) {
-			struct block *blk = db3_initialize_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (struct block *)cmd_data.init_data.block);
-			write_data_block(cmd_data.init_data.blocks_written, (u8 *)blk, blk ? BLK_SIZE : 0);
-		} else if (cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS) {
-			finalize_root_page_check();
-		} else {
-			dprint_s("DONE INITIALIZING\r\n");
-			//TODO: fix magic numbers
-			header_version = 1;
-			db_version = 1;
-			db3_startup_scan((struct block *)cmd_data.startup.read_block, cmd_data.init_data.block, &cmd_data.init_data.blk_info);
-		}
-		break;
-	case DS_WIPING:
-		cmd_data.wipe_data.block++;
-		progress_level[0] = cmd_data.wipe_data.block;
-		get_progress_check();
-		if (cmd_data.wipe_data.block == NUM_STORAGE_BLOCKS) {
-			enter_state(DS_UNINITIALIZED);
-		} else {
-			write_data_block(cmd_data.wipe_data.block, NULL, 0);
-		}
-		break;
-	case DS_ERASING_PAGES:
-		cmd_data.erase_flash_pages.index++;
-		progress_level[0] = cmd_data.erase_flash_pages.index;
-		get_progress_check();
-		if (cmd_data.erase_flash_pages.index == cmd_data.erase_flash_pages.num_pages) {
-			enter_state(DS_FIRMWARE_UPDATE);
-		} else {
-			flash_write_page((void *)(FLASH_MEM_BASE_ADDR +
-			                          FLASH_PAGE_SIZE * cmd_data.erase_flash_pages.index), NULL, 0);
-		}
-		break;
-	default:
-		break;
-	}
-	switch (active_cmd) {
-	case WRITE_CLEARTEXT_PASSWORD:
-	case CHANGE_MASTER_PASSWORD:
-	case WRITE_BLOCK:
-	case ERASE_BLOCK:
-	case WRITE_FLASH:
-		finish_command_resp(OKAY);
-		break;
-	case UPDATE_UIDS:
-	case UPDATE_UID:
-		update_uid_cmd_write_finished();
-		break;
-	case STARTUP:
-		startup_cmd_iter();
-		break;
-	default:
-		break;
-	}
-}
-#endif
-
-void flash_write_storage_complete();
-void startup_cmd_iter();
-static void write_block_complete();
 
 void flash_write_complete()
 {
@@ -710,7 +636,7 @@ void long_button_press()
 				finish_command_resp(UNKNOWN_DB_FORMAT);
 				return;
 			}
-			write_root_block((u8 *)&root_page, sizeof(root_page));
+			write_root_block((const u8 *)&root_page, sizeof(root_page));
 			break;
 		}
 	} else if (device_state == DS_DISCONNECTED) {
@@ -966,7 +892,7 @@ void initialize_cmd_complete()
 	cmd_data.init_data.root_block_finalized = 0;
 
 	struct block *blk = db3_initialize_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (struct block *)cmd_data.init_data.block);
-	write_data_block(cmd_data.init_data.blocks_written, (u8 *)blk, blk ? BLK_SIZE : 0);
+	write_data_block(cmd_data.init_data.blocks_written, (u8 *)blk);
 	finish_command_resp(OKAY);
 	cmd_data.init_data.rand_avail_init = rand_avail();
 	int p = (INIT_RAND_DATA_SZ/4) - cmd_data.init_data.rand_avail_init;
@@ -1018,8 +944,7 @@ void read_block_cmd(u8 *data, int data_len)
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	read_data_block(idx, data, data_len);
-	//NEN_TODO: need to finish this command in the emmc complete handler
+	read_data_block(idx, data);
 }
 
 void write_block_cmd(u8 *data, int data_len)
@@ -1035,7 +960,7 @@ void write_block_cmd(u8 *data, int data_len)
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	write_data_block(idx, data, BLK_SIZE);
+	write_data_block(idx, data);
 }
 
 void erase_block_cmd(u8 *data, int data_len)
@@ -1051,7 +976,7 @@ void erase_block_cmd(u8 *data, int data_len)
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	write_data_block(idx, NULL, 0);
+	write_data_block(idx, NULL);
 }
 
 void get_device_capacity_cmd(u8 *data, int data_len)
@@ -1501,7 +1426,7 @@ int restoring_device_state(int cmd, u8 *data, int data_len)
 void startup_cmd_iter()
 {
 	u8 *resp = cmd_data.startup.resp;
-	memset(resp, 0, sizeof(resp));
+	memset(cmd_data.startup.resp, 0, sizeof(cmd_data.startup.resp));
 	resp[0] = SIGNET_MAJOR_VERSION;
 	resp[1] = SIGNET_MINOR_VERSION;
 	resp[2] = SIGNET_STEP_VERSION;
@@ -1526,7 +1451,7 @@ void startup_cmd_iter()
 
 		switch (db_version) {
 		case 1:
-			db3_startup_scan((struct block *)cmd_data.startup.read_block, cmd_data.init_data.block, &cmd_data.init_data.blk_info);
+			db3_startup_scan(cmd_data.startup.block, &cmd_data.startup.blk_info);
 			break;
 		default:
 			enter_state(DS_UNINITIALIZED);
@@ -1541,7 +1466,6 @@ void cmd_init()
 	memcpy(&root_page, (u8 *)(&_root_page), sizeof(root_page));
 }
 
-#ifdef SIGNET_HC
 void startup_cmd(u8 *data, int data_len)
 {
 	if (device_state != DS_DISCONNECTED) {
@@ -1555,24 +1479,6 @@ void startup_cmd(u8 *data, int data_len)
 	header_version = root_page.format;
 	startup_cmd_iter();
 }
-#else
-void startup_cmd(u8 *data, int data_len)
-{
-	dprint_s("STARTUP\r\n");
-	if (device_state != DS_DISCONNECTED) {
-		stop_blinking();
-		end_button_press_wait();
-		end_long_button_press_wait();
-		active_cmd = -1;
-	}
-	cmd_init();
-	//NEN_TODO: check format and CRC to decide if we enter DS_UNINITIALIZED for DS_LOGGED_OUT
-	enter_state(DS_UNINITIALIZED);
-	header_version = root_page.format;
-	startup_cmd_iter();
-	return;
-}
-#endif
 
 int cmd_packet_recv()
 {

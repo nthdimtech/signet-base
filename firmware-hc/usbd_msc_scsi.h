@@ -117,14 +117,6 @@ extern  uint8_t Mode_Sense10_data[];
 extern  uint8_t Scsi_Sense_Data[];
 extern  uint8_t ReadCapacity10_Data[];
 extern  uint8_t ReadFormatCapacity_Data [];
-/**
-  * @}
-  */
-
-
-/** @defgroup USBD_SCSI_Exported_TypesDefinitions
-  * @{
-  */
 
 typedef struct _SENSE_ITEM {
 	char Skey;
@@ -137,53 +129,17 @@ typedef struct _SENSE_ITEM {
 		char *pData;
 	} w;
 } USBD_SCSI_SenseTypeDef;
-/**
-  * @}
-  */
 
-/** @defgroup USBD_SCSI_Exported_Macros
-  * @{
-  */
-
-/**
-  * @}
-  */
-
-/** @defgroup USBD_SCSI_Exported_Variables
-  * @{
-  */
-
-/**
-  * @}
-  */
-/** @defgroup USBD_SCSI_Exported_FunctionsPrototype
-  * @{
-  */
 int8_t SCSI_ProcessCmd(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *cmd);
 
 void SCSI_SenseCode(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t sKey,
                     uint8_t ASC);
 
-/**
-  * @}
-  */
+void emmc_user_read_storage_rx_complete();
+void emmc_user_write_storage_tx_complete(MMC_HandleTypeDef *hmmc1);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __USBD_MSC_SCSI_H */
-/**
-  * @}
-  */
-
-/**
-  * @}
-  */
-
-/**
-* @}
-*/
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
-
+#endif

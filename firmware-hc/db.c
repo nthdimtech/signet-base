@@ -35,25 +35,30 @@ int db3_read_block_complete()
 		case UPDATE_UID:
 		case UPDATE_UIDS:
 			update_uid_cmd_iter();
-			break;
+			return 1;
 		case READ_UID:
 			read_uid_cmd_iter();
-			break;
+			return 1;
 		case READ_ALL_UIDS:
 			read_all_uids_cmd_iter();
-			break;
+			return 1;
 		}
 	}
 	switch(device_state) {
 	case DS_INITIALIZING:
 		db3_startup_scan_resume();
+		return 1;
+	default:
 		break;
 	}
 	switch(active_cmd) {
 	case STARTUP:
 		db3_startup_scan_resume();
+		return 1;
+	default:
 		break;
 	}
+	return 0;
 }
 
 int db3_write_block_complete()
@@ -71,14 +76,14 @@ int db3_write_block_complete()
 
 //NEN_TODO: Keep cache up to date when writes occur
 // Should we invalidate the cache or update it?
-static u8 *get_cached_data_block(int idx)
+static const u8 *get_cached_data_block(int idx)
 {
 	if (block_read_cache_idx == idx) {
 		return block_read_cache;
 	} else {
 		block_read_cache_idx = idx;
 		block_read_cache_updating = 1;
-		read_data_block(idx, block_read_cache, BLK_SIZE);
+		read_data_block(idx, block_read_cache);
 		return NULL;
 	}
 }
@@ -115,11 +120,10 @@ struct block {
 int db3_startup_scan_running = 0;
 static int db3_startup_scan_blk_num = -1;
 static struct block *db3_startup_scan_block_read;
-static u8 *db3_startup_scan_block_temp;
-static struct blk_info *db3_startup_scan_blk_info_temp;
+static struct block_info *db3_startup_scan_blk_info_temp;
 
 static enum update_uid_status find_uid (int uid, const struct uid_ent **, int *block_num, struct block **block, int *index);
-static enum update_uid_status deallocate_uid (int uid, int block_num, struct block *block_temp, struct block_info *blk_info_temp, int deallocate_block);
+static enum update_uid_status deallocate_uid (int uid, int *block_num, struct block *block_temp, struct block_info *blk_info_temp, int deallocate_block);
 static int block_crc(const struct block *blk)
 {
 	return crc_32((&blk->header.crc) + 1, (BLK_SIZE/4) - 1);
@@ -164,8 +168,9 @@ static void db3_startup_scan_resume()
 {
 	int i = db3_startup_scan_blk_num;
 	struct block *block_read = db3_startup_scan_block_read;
-	u8 *block_temp = db3_startup_scan_block_temp;
+#if 0
 	struct block_info *blk_info_temp = db3_startup_scan_blk_info_temp;
+#endif
 
 	struct block_info *blk_info = g_block_info_tbl + i;
 	blk_info->part_size = block_read->header.part_size;
@@ -214,7 +219,7 @@ static void db3_startup_scan_resume()
 	}
 	db3_startup_scan_blk_num++;
 	if (db3_startup_scan_blk_num <= MAX_DATA_BLOCK) {
-		read_data_block(db3_startup_scan_blk_num, block_read, BLK_SIZE);
+		read_data_block(db3_startup_scan_blk_num, (u8 *)block_read);
 	} else {
 		db3_startup_scan_running = 0;
 		enter_state(DS_LOGGED_OUT);
@@ -223,7 +228,7 @@ static void db3_startup_scan_resume()
 }
 
 //Scans blocks on startup to initialize 'g_block_info_tbl' and 'uid_map'
-void db3_startup_scan (u8 *block_read, u8 *block_temp, struct block_info *blk_info_temp)
+void db3_startup_scan (u8 *block_read, struct block_info *blk_info_temp)
 {
 	int i;
 	for (i = MIN_UID; i <= MAX_UID; i++) {
@@ -231,7 +236,8 @@ void db3_startup_scan (u8 *block_read, u8 *block_temp, struct block_info *blk_in
 	}
 	db3_startup_scan_blk_num = MIN_DATA_BLOCK;
 	db3_startup_scan_running = 1;
-	read_data_block(db3_startup_scan_blk_num, block_read, BLK_SIZE);
+	db3_startup_scan_blk_info_temp = blk_info_temp;
+	read_data_block(db3_startup_scan_blk_num, block_read);
 }
 
 #define NUM_PART_SIZES 4
@@ -352,7 +358,7 @@ static enum update_uid_status allocate_uid(int uid, const u8 *data, int sz, int 
 	}
 
 	if (*block_num != INVALID_BLOCK && !allocating_block) {
-		const struct block *blk = get_cached_data_block(*block_num);
+		const u8 *blk = get_cached_data_block(*block_num);
 		if (!blk) {
 			return UPDATE_UID_DATA_LOADING;
 		}
@@ -373,17 +379,17 @@ static enum update_uid_status find_uid (int uid, const struct uid_ent **ent, int
 	if (*block_num == INVALID_BLOCK) {
 		return UPDATE_UID_INVALID;
 	}
-	const struct block *blk = get_cached_data_block(*block_num);
+	const u8 *blk = get_cached_data_block(*block_num);
 	if (!blk) {
 		return UPDATE_UID_DATA_LOADING;
 	}
 	if (block) {
-		*block = blk;
+		*block = (struct block *)blk;
 	}
 	struct block_info *blk_info = g_block_info_tbl + *block_num;
 	*index = -1;
 	for (int j = 0; j < blk_info->part_occupancy; j++) {
-		*ent = blk->uid_tbl + j;
+		*ent = (*block)->uid_tbl + j;
 		if ((*ent)->uid == uid) {
 			*index = j;
 			return UPDATE_UID_SUCCESS;
@@ -393,19 +399,19 @@ static enum update_uid_status find_uid (int uid, const struct uid_ent **ent, int
 	return UPDATE_UID_INVALID;
 }
 
-static enum update_uid_status deallocate_uid (int uid, int block_num, struct block *block_temp, struct block_info *blk_info_temp, int deallocate_block)
+static enum update_uid_status deallocate_uid (int uid, int *block_num, struct block *block_temp, struct block_info *blk_info_temp, int deallocate_block)
 {
 	struct block *blk = NULL;
 	int index;
-	struct uid_ent *ent = NULL;
-	enum update_uid_status rc = find_uid(uid, &ent, &block_num, &blk, &index);
+	const struct uid_ent *ent = NULL;
+	enum update_uid_status rc = find_uid(uid, &ent, block_num, &blk, &index);
 	if (rc != UPDATE_UID_SUCCESS) {
 		return rc;
 	}
 	if (!ent) {
 		return UPDATE_UID_INVALID;
 	}
-	struct block_info *blk_info = g_block_info_tbl + block_num;
+	struct block_info *blk_info = g_block_info_tbl + *block_num;
 	memcpy(blk_info_temp, blk_info, sizeof(*blk_info_temp));
 	if (blk_info_temp->part_occupancy == 1 && deallocate_block) {
 		//Free the block
@@ -427,7 +433,7 @@ static enum update_uid_status deallocate_uid (int uid, int block_num, struct blo
 			       sizeof(struct uid_ent));
 		}
 	}
-	return block_num;
+	return UPDATE_UID_SUCCESS;
 }
 
 static enum update_uid_status update_uid (int uid, u8 *data, int sz,
@@ -440,12 +446,12 @@ static enum update_uid_status update_uid (int uid, u8 *data, int sz,
 	enum update_uid_status rc;
 	if (!sz) {
 		*prev_block_num = INVALID_BLOCK;
-		return deallocate_uid(uid, &next_block_num, block_temp, blk_info_temp, 1 /* dellocate block */);
+		return deallocate_uid(uid, next_block_num, block_temp, blk_info_temp, 1 /* dellocate block */);
 	} else {
 		int index;
 		const struct uid_ent *ent;
 		struct block *blk;
-		rc = find_uid(uid, &ent, &next_block_num, &blk, &index);
+		rc = find_uid(uid, &ent, next_block_num, &blk, &index);
 		switch (rc) {
 		case UPDATE_UID_INVALID: {
 			//Allocate for the first time
@@ -468,7 +474,7 @@ static enum update_uid_status update_uid (int uid, u8 *data, int sz,
 				memcpy(block_temp, blk, BLK_SIZE);
 				*prev_block_num = *next_block_num;
 
-				rc = deallocate_uid(uid, &prev_block_num, block_temp, blk_info_temp, 0 /* deallocate block */);
+				rc = deallocate_uid(uid, prev_block_num, block_temp, blk_info_temp, 0 /* deallocate block */);
 				if (rc != UPDATE_UID_SUCCESS) {
 					return rc;
 				}
@@ -479,7 +485,7 @@ static enum update_uid_status update_uid (int uid, u8 *data, int sz,
 				//Move entry to new block first
 				int new_rev = (ent->rev + 1) & 0x3;
 				*prev_block_num = *next_block_num;
-				rc = allocate_uid(uid, data, sz, new_rev, iv, &next_block_num, block_temp, blk_info_temp);
+				rc = allocate_uid(uid, data, sz, new_rev, iv, next_block_num, block_temp, blk_info_temp);
 				if (rc != UPDATE_UID_SUCCESS) {
 					return rc;
 				}
@@ -490,6 +496,7 @@ static enum update_uid_status update_uid (int uid, u8 *data, int sz,
 			break;
 		}
 	}
+	return UPDATE_UID_SUCCESS;
 }
 
 void update_uid_cmd(int uid, u8 *data, int sz, int press_type)
@@ -507,14 +514,13 @@ void update_uid_cmd(int uid, u8 *data, int sz, int press_type)
 
 static void update_uid_cmd_iter()
 {
-	struct block *block = (struct block *)cmd_data.update_uid.block;
 	enum update_uid_status rc = update_uid(cmd_data.update_uid.uid,
 	                                cmd_data.update_uid.entry,
 	                                cmd_data.update_uid.entry_sz,
 	                                &cmd_data.update_uid.prev_block_num,
 	                                &cmd_data.update_uid.block_num,
 	                                cmd_data.update_uid.iv,
-	                                cmd_data.update_uid.block,
+	                                (struct block *)cmd_data.update_uid.block,
 	                                &cmd_data.update_uid.blk_info);
 	switch (rc) {
 	case UPDATE_UID_SUCCESS:
@@ -542,7 +548,7 @@ void update_uid_cmd_complete()
 	if (cmd_data.update_uid.blk_info.occupied) {
 		block->header.crc = block_crc(block);
 	}
-	write_data_block(cmd_data.update_uid.block_num, (u8 *)block, BLK_SIZE);
+	write_data_block(cmd_data.update_uid.block_num, (u8 *)block);
 }
 
 void update_uid_cmd_write_finished()
@@ -554,9 +560,9 @@ void update_uid_cmd_write_finished()
 		if (cmd_data.update_uid.prev_block_num != cmd_data.update_uid.block_num && cmd_data.update_uid.prev_block_num != INVALID_BLOCK) {
 			//Record has moved to a new block. Need to dellocate from original block now
 			struct block *block = (struct block *)cmd_data.update_uid.block;
-			deallocate_uid(cmd_data.update_uid.uid, cmd_data.update_uid.prev_block_num, block, &cmd_data.update_uid.blk_info, 1 /* dellocate block*/);
+			deallocate_uid(cmd_data.update_uid.uid, &cmd_data.update_uid.prev_block_num, block, &cmd_data.update_uid.blk_info, 1 /* dellocate block*/);
 			block->header.crc = block_crc(block);
-			write_data_block(cmd_data.update_uid.prev_block_num, (u8 *)block, BLK_SIZE);
+			write_data_block(cmd_data.update_uid.prev_block_num, (u8 *)block);
 		} else {
 			if (!cmd_data.update_uid.sz) {
 				//Record is being deleted
@@ -643,11 +649,11 @@ void read_uid_cmd_complete()
 	u8 *block = cmd_data.read_uid.block;
 	block[0] = cmd_data.read_uid.ent->sz & 0xff;
 	block[1] = cmd_data.read_uid.ent->sz >> 8;
-	const struct block *blk = get_cached_data_block(cmd_data.read_uid.block_num);
+	const u8 *blk = get_cached_data_block(cmd_data.read_uid.block_num);
 	if (!blk) {
 		return;
 	}
-	int blk_count = decode_uid(cmd_data.read_uid.ent->sz, cmd_data.read_uid.block_num, blk, cmd_data.read_uid.index, cmd_data.read_uid.masked, cmd_data.read_uid.iv, block + 2);
+	int blk_count = decode_uid(cmd_data.read_uid.ent->sz, cmd_data.read_uid.block_num, (struct block *)blk, cmd_data.read_uid.index, cmd_data.read_uid.masked, cmd_data.read_uid.iv, block + 2);
 	finish_command(OKAY, block, (blk_count * SUB_BLK_SIZE) + 2);
 }
 

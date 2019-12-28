@@ -589,8 +589,8 @@ HAL_StatusTypeDef HAL_MMC_WriteBlocks_IT(MMC_HandleTypeDef *hmmc, uint8_t *pData
 HAL_StatusTypeDef HAL_MMC_ReadBlocks_DMA(MMC_HandleTypeDef *hmmc, uint8_t *pData, uint32_t BlockAdd, uint32_t NumberOfBlocks);
 HAL_StatusTypeDef HAL_MMC_WriteBlocks_DMA(MMC_HandleTypeDef *hmmc, uint8_t *pData, uint32_t BlockAdd, uint32_t NumberOfBlocks);
 
-HAL_StatusTypeDef HAL_MMC_WriteBlocks_DMA_Cont(MMC_HandleTypeDef *hmmc, uint8_t *pData, uint32_t txSize);
-HAL_StatusTypeDef HAL_MMC_WriteBlocks_DMA_Initial(MMC_HandleTypeDef *hmmc, uint8_t *pData, uint32_t txSize, uint32_t BlockAdd, uint32_t NumberOfBlocks);
+HAL_StatusTypeDef HAL_MMC_WriteBlocks_DMA_Cont(MMC_HandleTypeDef *hmmc, const uint8_t *pData, uint32_t txSize);
+HAL_StatusTypeDef HAL_MMC_WriteBlocks_DMA_Initial(MMC_HandleTypeDef *hmmc, const uint8_t *pData, uint32_t txSize, uint32_t BlockAdd, uint32_t NumberOfBlocks);
 
 
 void HAL_MMC_IRQHandler(MMC_HandleTypeDef *hmmc);

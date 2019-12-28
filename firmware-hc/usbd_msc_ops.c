@@ -100,7 +100,7 @@ int8_t STORAGE_Init (uint8_t lun)
 	return (0);
 }
 
-extern volatile MMC_HandleTypeDef hmmc1;
+extern MMC_HandleTypeDef hmmc1;
 
 /*******************************************************************************
 * Function Name  : Read_Memory

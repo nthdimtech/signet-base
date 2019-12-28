@@ -131,8 +131,8 @@ void enter_state(enum device_state state);
 void enter_progressing_state(enum device_state state, int _n_progress_components, int *_progress_maximums);
 
 void cmd_rand_update();
-void write_data_block(int pg, const u8 *src, int sz);
-void read_data_block(int pg, u8 *dest, int sz);
+void write_data_block(int pg, const u8 *src);
+void read_data_block(int pg, u8 *dest);
 
 enum emmc_user {
 	EMMC_USER_NONE,

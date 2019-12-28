@@ -1,6 +1,10 @@
 #include "usbd_hid.h"
 #include "usbd_multi.h"
 #include "signetdev_common.h"
+#ifdef ENABLE_FIDO2
+#include "fido2/ctaphid.h"
+#endif
+#include "usb_raw_hid.h"
 
 #define LSB(X) ((X) & 0xff)
 #define MSB(X) ((X) >> 8)
@@ -56,7 +60,7 @@ static const u8 fido_hid_report_descriptor[] __attribute__((aligned (4))) = {
 };
 
 /* USB HID device Configuration Descriptor */
-static uint8_t USBD_HID_Cmd_Desc[USB_HID_DESC_SIZ] __attribute__((aligned (4))) = {
+static const uint8_t USBD_HID_Cmd_Desc[USB_HID_DESC_SIZ] __attribute__((aligned (4))) = {
 	0x09,         /*bLength: HID Descriptor size*/
 	HID_DESCRIPTOR_TYPE, /*bDescriptorType: HID*/
 	0x11,         /*bcdHID: HID Class Spec release number*/
@@ -68,7 +72,7 @@ static uint8_t USBD_HID_Cmd_Desc[USB_HID_DESC_SIZ] __attribute__((aligned (4))) 
 	0x00,
 };
 
-static uint8_t USBD_HID_FIDO_Desc[USB_HID_DESC_SIZ] __attribute__((aligned (4))) = {
+static const uint8_t USBD_HID_FIDO_Desc[USB_HID_DESC_SIZ] __attribute__((aligned (4))) = {
 	0x09,         /*bLength: HID Descriptor size*/
 	HID_DESCRIPTOR_TYPE, /*bDescriptorType: HID*/
 	0x11,         /*bcdHID: HID Class Spec release number*/
@@ -83,7 +87,7 @@ static uint8_t USBD_HID_FIDO_Desc[USB_HID_DESC_SIZ] __attribute__((aligned (4)))
 uint8_t  USBD_HID_Setup (USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req)
 {
 	uint16_t len = 0U;
-	uint8_t *pbuf = NULL;
+	const uint8_t *pbuf = NULL;
 	USBD_StatusTypeDef ret = USBD_OK;
 	int iface = req->wIndex;
 	USBD_HID_HandleTypeDef *hhid = (USBD_HID_HandleTypeDef*) pdev->pClassData[iface];
@@ -179,7 +183,7 @@ uint8_t  USBD_HID_Setup (USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req)
 	return ret;
 }
 
-uint8_t  USBD_HID_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
+void USBD_HID_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
 {
 	int interfaceNum = endpointToInterface(epnum);
 	USBD_HID_HandleTypeDef *hhid = ((USBD_HID_HandleTypeDef *)pdev->pClassData[interfaceNum]);
@@ -195,10 +199,9 @@ uint8_t  USBD_HID_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
 	USBD_LL_PrepareReceive (pdev, epnum, rx_buffer, 64);
 }
 
-uint8_t  USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
+void USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 {
 	int interfaceNum = endpointToInterface(epnum);
-	USBD_HID_HandleTypeDef *hhid = ((USBD_HID_HandleTypeDef *)pdev->pClassData[interfaceNum]);
 	switch (interfaceNum) {
 	case INTERFACE_CMD:
 	case INTERFACE_FIDO: {
@@ -222,7 +225,7 @@ uint8_t  USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 
 uint8_t USBD_HID_SendReport     (USBD_HandleTypeDef  *pdev,
                                  int interfaceNum,
-                                 uint8_t *report,
+                                 const uint8_t *report,
                                  uint16_t len)
 {
 	USBD_HID_HandleTypeDef     *hhid = (USBD_HID_HandleTypeDef*)pdev->pClassData[interfaceNum];

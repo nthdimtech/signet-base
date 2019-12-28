@@ -14,4 +14,7 @@ void resume_blinking();
 int is_blinking();
 void timer_start(int ms);
 void timer_stop();
+
+void Error_Handler();
+
 #endif

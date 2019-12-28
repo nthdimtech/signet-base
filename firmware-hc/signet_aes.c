@@ -40,7 +40,7 @@ void signet_aes_128_encrypt_cbc(const u8 *key, int n_blocks, const u8 *iv, const
 	for (i = 0; i < n_blocks; i++) {
 		u8 temp[AES_BLK_SIZE];
 		xor_block(din, iv, temp);
-		stm_aes_128_encrypt(key, temp, dout);
+		signet_aes_128_encrypt(key, temp, dout);
 		iv = dout;
 		din += AES_BLK_SIZE;
 		dout += AES_BLK_SIZE;

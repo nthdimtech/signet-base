@@ -16,10 +16,11 @@ void read_all_uids_cmd(int masked);
 void read_all_uids_cmd_iter();
 
 void read_uid_cmd_complete();
+void read_all_uids_cmd_complete();
 void update_uid_cmd_complete();
 void update_uid_cmd_write_finished();
 
-void db3_startup_scan(u8 *block_read, u8 *block_temp, struct block_info *blk_info_temp);
+void db3_startup_scan(u8 *block_read, struct block_info *blk_info_temp);
 struct block *db3_initialize_block(int block_num, struct block *block_temp);
 
 int db3_read_block_complete();
