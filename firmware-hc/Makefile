@@ -41,14 +41,14 @@ clean:
 ifeq ($(BT_MODE), A)
 %.oa: %.c
 	$(HTUPLE)-gcc  $(CFLAGS) $< -c -o $@
-	@$(HTUPLE)-gcc  $(CFLAGS) $< -M -MF $@.d
+#	@$(HTUPLE)-gcc  $(CFLAGS) $< -M -MF $@.d
 
 %.oa: %.S
 	$(HTUPLE)-gcc $(ASFLAGS) $< -c -o $@
 else
 %.ob: %.c
-	$(HTUPLE)-gcc  $(CFLAGS) $< -c -o $@
-	@$(HTUPLE)-gcc  $(CFLAGS) $< -M -MF $@.d
+	$(HTUPLE)-gcc  $(CFLAGS) $< -c -o $@ -MD
+#	@$(HTUPLE)-gcc $(CFLAGS) $< -o $@ -MD $@.d
 
 %.ob: %.S
 	$(HTUPLE)-gcc $(ASFLAGS) $< -c -o $@
@@ -132,11 +132,11 @@ ALL_SOURCES = $(SOURCES) $(ASM_SOURCES)
 ifeq ($(BT_MODE), A)
 OBJECTS = $(SOURCES:.c=.oa)
 ASM_OBJECTS = $(ASM_SOURCES:.S=.oa)
-DEPFILES = $(SOURCES:.c=.oa.d)
+DEPFILES = $(SOURCES:.c=.d)
 else
 OBJECTS = $(SOURCES:.c=.ob)
 ASM_OBJECTS = $(ASM_SOURCES:.S=.ob)
-DEPFILES = $(SOURCES:.c=.ob.d)
+DEPFILES = $(SOURCES:.c=.d)
 endif
 
 $(TARGET_ELF): $(OBJECTS) $(ASM_OBJECTS)
