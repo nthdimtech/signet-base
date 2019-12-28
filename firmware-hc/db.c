@@ -44,7 +44,7 @@ int db3_read_block_complete()
 			return 1;
 		}
 	}
-	switch(device_state) {
+	switch (device_state) {
 	case DS_INITIALIZING:
 		db3_startup_scan_resume();
 		return 1;
@@ -93,7 +93,7 @@ static const u8 *get_cached_data_block(int idx)
 
 extern u8 encrypt_key[AES_256_KEY_SIZE];
 
-struct block_info g_block_info_tbl[NUM_STORAGE_BLOCKS];
+struct block_info g_block_info_tbl[MAX_DATA_BLOCK + 1];
 
 static u8 uid_map[MAX_UID + 1]; //0 == invalid, block #
 
@@ -164,7 +164,7 @@ static u8 *get_part(const struct block *block, const struct block_info *info, in
 	return ((u8 *)block) + ((info->part_tbl_offs + (info->part_size * n)) * SUB_BLK_SIZE);
 }
 
-static void db3_startup_scan_resume()
+static void db3_startup_scan_resume ()
 {
 	int i = db3_startup_scan_blk_num;
 	struct block *block_read = db3_startup_scan_block_read;
@@ -172,14 +172,13 @@ static void db3_startup_scan_resume()
 	struct block_info *blk_info_temp = db3_startup_scan_blk_info_temp;
 #endif
 
-	struct block_info *blk_info = g_block_info_tbl + i;
+	struct block_info *blk_info = g_block_info_tbl + i - MIN_DATA_BLOCK;
 	blk_info->part_size = block_read->header.part_size;
 	blk_info->valid = block_crc_check(block_read) || blk_info->part_size == INVALID_PART_SIZE;
 	blk_info->occupied = (blk_info->part_size != INVALID_PART_SIZE);
 	if (!blk_info->valid) {
 		//NEN_TODO: What do we do here?
 	}
-
 	if (blk_info->occupied) {
 		blk_info->part_occupancy = block_read->header.occupancy;
 		blk_info->part_count = get_part_count(block_read->header.part_size);
@@ -222,8 +221,12 @@ static void db3_startup_scan_resume()
 		read_data_block(db3_startup_scan_blk_num, (u8 *)block_read);
 	} else {
 		db3_startup_scan_running = 0;
-		enter_state(DS_LOGGED_OUT);
-		finish_command(OKAY, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
+		if (active_cmd == STARTUP) {
+			enter_state(DS_LOGGED_OUT);
+			finish_command(OKAY, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
+		} else if (device_state == DS_INITIALIZING) {
+			enter_state(DS_LOGGED_OUT);
+		}
 	}
 }
 
@@ -234,15 +237,16 @@ void db3_startup_scan (u8 *block_read, struct block_info *blk_info_temp)
 	for (i = MIN_UID; i <= MAX_UID; i++) {
 		uid_map[i] = INVALID_BLOCK;
 	}
-	db3_startup_scan_blk_num = MIN_DATA_BLOCK;
 	db3_startup_scan_running = 1;
 	db3_startup_scan_blk_info_temp = blk_info_temp;
-	read_data_block(db3_startup_scan_blk_num, block_read);
+	db3_startup_scan_block_read = (struct block *)block_read;
+	db3_startup_scan_blk_num = MIN_DATA_BLOCK;
+	read_data_block(db3_startup_scan_blk_num, (u8 *)db3_startup_scan_block_read);
 }
 
-#define NUM_PART_SIZES 4
+#define NUM_PART_SIZES 11
 
-static int part_sizes[NUM_PART_SIZES] = {/*1,2,3,4,6,7,12,*/15,31,63,127};
+static int part_sizes[NUM_PART_SIZES] = {1,2,3,4,6,7,12,15,31,63,127};
 
 //Return the partition size that will fit
 static int target_part_size(int data_bytes)
@@ -277,14 +281,10 @@ static void initialize_block(int part_size, struct block *block)
 
 struct block *db3_initialize_block(int block_num, struct block *block)
 {
-	if ((block_num - MIN_DATA_BLOCK) < NUM_PART_SIZES) {
-		int part_size = part_sizes[block_num - MIN_DATA_BLOCK];
-		initialize_block(part_size, block);
-		block->header.crc = block_crc(block);
-		return block;
-	} else {
-		return NULL;
-	}
+	int part_size = part_sizes[(block_num - MIN_DATA_BLOCK)%NUM_PART_SIZES];
+	initialize_block(part_size, block);
+	block->header.crc = block_crc(block);
+	return block;
 }
 
 static void allocate_uid_blk(int uid, const u8 *data, int sz, int rev, const u8 *iv, struct block *block_temp, struct block_info *blk_info_temp)

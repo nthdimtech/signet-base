@@ -287,7 +287,7 @@ void delete_cmd_complete();
 void get_data_cmd_complete();
 void set_data_cmd_complete();
 void initialize_cmd_complete();
-void enter_progressing_state(enum device_state state, int _n_progress_components, int *_progress_maximum)
+void enter_progressing_state (enum device_state state, int _n_progress_components, int *_progress_maximum)
 {
 	device_state = state;
 	progress_check = 0;
@@ -300,7 +300,7 @@ void enter_progressing_state(enum device_state state, int _n_progress_components
 	get_progress_check();
 }
 
-void enter_state(enum device_state state)
+void enter_state (enum device_state state)
 {
 	enter_progressing_state(state, 0, NULL);
 }
@@ -349,7 +349,7 @@ int get_total_progress_maximum()
 	return total;
 }
 
-void get_progress_check()
+void get_progress_check ()
 {
 	if (active_cmd == GET_PROGRESS) {
 		int total_progress = get_total_progress();
@@ -376,7 +376,7 @@ void get_progress_check()
 	}
 }
 
-void finish_command_multi(enum command_responses resp, int messages_remaining, const u8 *payload, int payload_len)
+void finish_command_multi (enum command_responses resp, int messages_remaining, const u8 *payload, int payload_len)
 {
 	static u8 cmd_resp[CMD_PACKET_BUF_SIZE];
 	int full_length = payload_len + CMD_PACKET_HEADER_SIZE;
@@ -395,12 +395,12 @@ void finish_command_multi(enum command_responses resp, int messages_remaining, c
 	cmd_packet_send(cmd_resp, full_length);
 }
 
-void finish_command(enum command_responses resp, const u8 *payload, int payload_len)
+void finish_command (enum command_responses resp, const u8 *payload, int payload_len)
 {
 	finish_command_multi(resp, 0, payload, payload_len);
 }
 
-void finish_command_resp(enum command_responses resp)
+void finish_command_resp (enum command_responses resp)
 {
 	finish_command(resp, NULL, 0);
 }
@@ -483,13 +483,6 @@ extern int block_read_cache_updating;
 
 static void read_block_complete()
 {
-	switch (device_state) {
-	case DS_INITIALIZING:
-		//NEN_TODO
-		break;
-	default:
-		break;
-	}
 	if (db3_read_block_complete())
 		return;
 }

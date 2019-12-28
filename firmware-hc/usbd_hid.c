@@ -208,10 +208,9 @@ void USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 		USBD_HID_HandleTypeDef *hhid = ((USBD_HID_HandleTypeDef *)s_pdev->pClassData[interfaceNum]);
 		hhid->state = HID_IDLE;
 		if (hhid->tx_report) {
-			USBD_LL_Transmit(s_pdev, interfaceToEndpointIn(interfaceNum), hhid->tx_report, 64);
+			USBD_HID_SendReport(s_pdev, interfaceNum, hhid->tx_report, 64);
 			hhid->tx_report = NULL;
-		}
-		if (interfaceNum == INTERFACE_CMD) {
+		} else if (interfaceNum == INTERFACE_CMD) {
 			usb_raw_hid_tx();
 		} else {
 			//NEN_TODO: Fido transmit
