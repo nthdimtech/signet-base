@@ -119,8 +119,8 @@ void emmc_user_db_start()
 		} while (cardState != HAL_MMC_CARD_TRANSFER);
 		HAL_MMC_ReadBlocks_DMA(&hmmc1,
 		                       dest,
-		                       idx - MIN_DATA_BLOCK + EMMC_DB_FIRST_BLOCK,
-		                       1);
+		                       (idx - MIN_DATA_BLOCK + EMMC_DB_FIRST_BLOCK)*BLK_SIZE/MSC_MEDIA_PACKET,
+		                       BLK_SIZE/MSC_MEDIA_PACKET);
 	}
 	break;
 	case DB_ACTION_WRITE: {
@@ -133,8 +133,8 @@ void emmc_user_db_start()
 		HAL_MMC_WriteBlocks_DMA_Initial(&hmmc1,
 		                                dest,
 		                                BLK_SIZE,
-		                                idx - MIN_DATA_BLOCK +  EMMC_DB_FIRST_BLOCK,
-		                                1);
+					       (idx - MIN_DATA_BLOCK + EMMC_DB_FIRST_BLOCK)*BLK_SIZE/MSC_MEDIA_PACKET,
+					       BLK_SIZE/MSC_MEDIA_PACKET);
 	}
 	break;
 	default:
