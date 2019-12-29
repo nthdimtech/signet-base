@@ -168,24 +168,6 @@ struct cleartext_pass {
 	u8 scancodes[CLEARTEXT_PASS_SCANCODE_ENTRIES * 2];
 };
 
-struct root_page {
-	u8 signature[AES_BLK_SIZE];
-	union {
-		struct {
-			u32 crc;
-			u8 db_version;
-			u8 auth_rand[AES_256_KEY_SIZE];
-			u8 auth_rand_ct[AES_256_KEY_SIZE];
-			u8 encrypt_key_ct[AES_256_KEY_SIZE];
-			u8 cbc_iv[AES_BLK_SIZE];
-			u8 salt[SALT_SZ_V2];
-			u8 hashfn[HASH_FN_SZ];
-
-			struct cleartext_pass cleartext_passwords[NUM_CLEARTEXT_PASS];
-		} v2;
-	} header;
-} __attribute__((__packed__));
-
 struct db_uid_ent {
 	u16 info; //[0:11] = uid, [12:13] = rev, [14] = first, [15] = padding/reserved
 	u16 sz;
