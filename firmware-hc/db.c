@@ -44,14 +44,14 @@ int db3_read_block_complete()
 			return 1;
 		}
 	}
-	switch (device_state) {
+	switch (g_device_state) {
 	case DS_INITIALIZING:
 		db3_startup_scan_resume();
 		return 1;
 	default:
 		break;
 	}
-	switch(active_cmd) {
+	switch (active_cmd) {
 	case STARTUP:
 		db3_startup_scan_resume();
 		return 1;
@@ -172,7 +172,7 @@ static void db3_startup_scan_resume ()
 	struct block_info *blk_info_temp = db3_startup_scan_blk_info_temp;
 #endif
 
-	struct block_info *blk_info = g_block_info_tbl + i - MIN_DATA_BLOCK;
+	struct block_info *blk_info = g_block_info_tbl + i;
 	blk_info->part_size = block_read->header.part_size;
 	blk_info->valid = block_crc_check(block_read) || blk_info->part_size == INVALID_PART_SIZE;
 	blk_info->occupied = (blk_info->part_size != INVALID_PART_SIZE);
@@ -187,6 +187,8 @@ static void db3_startup_scan_resume ()
 			const struct uid_ent *ent = block_read->uid_tbl + j;
 			int uid = ent->uid;
 			if (uid >= MIN_UID && ent->uid <= MAX_UID && ent->first) {
+#if 0
+//NEN_TODO: This code needs review and testing. Looks probably incorrect
 				if (uid_map[uid] != INVALID_BLOCK) {
 					int block_num_temp;
 					int index_temp;
@@ -196,8 +198,6 @@ static void db3_startup_scan_resume ()
 					if (rc != UPDATE_UID_SUCCESS) {
 						return;
 					}
-#if 0
-//NEN_TODO: This code needs review and testing. Looks probably incorrect
 					if (((ent->rev + 1) & 0x3) == prev_ent->rev) {
 						//NEN_TODO: sould be setting block num here
 						uid_map[uid] = i;
@@ -209,10 +209,12 @@ static void db3_startup_scan_resume ()
 					}
 					write_data_block(block_num, (u8 *)block, BLK_SIZE);
 					return 0;
-#endif
 				} else {
 					uid_map[uid] = i;
 				}
+#else
+				uid_map[uid] = i;
+#endif
 			}
 		}
 	}
@@ -221,10 +223,12 @@ static void db3_startup_scan_resume ()
 		read_data_block(db3_startup_scan_blk_num, (u8 *)block_read);
 	} else {
 		db3_startup_scan_running = 0;
+		//NEN_TODO: this functionality should be in callbacks
 		if (active_cmd == STARTUP) {
 			enter_state(DS_LOGGED_OUT);
+			cmd_data.startup.resp[3] = g_device_state;
 			finish_command(OKAY, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
-		} else if (device_state == DS_INITIALIZING) {
+		} else if (g_device_state == DS_INITIALIZING) {
 			enter_state(DS_LOGGED_OUT);
 		}
 	}
@@ -244,21 +248,7 @@ void db3_startup_scan (u8 *block_read, struct block_info *blk_info_temp)
 	read_data_block(db3_startup_scan_blk_num, (u8 *)db3_startup_scan_block_read);
 }
 
-#define NUM_PART_SIZES 11
-
-static int part_sizes[NUM_PART_SIZES] = {1,2,3,4,6,7,12,15,31,63,127};
-
-//Return the partition size that will fit
-static int target_part_size(int data_bytes)
-{
-	int min_part_size = SIZE_TO_SUB_BLK_COUNT(data_bytes);
-	for (int i = 0; i < NUM_PART_SIZES; i++) {
-		if (part_sizes[i] >= min_part_size) {
-			return part_sizes[i];
-		}
-	}
-	return 0;
-}
+#define MAX_PART_SIZE (BLK_SIZE - sizeof(struct block) - sizeof(struct uid_ent))/SUB_BLK_SIZE;
 
 //Return a block that has not been allocated or INVALID_BLOCK if there are no free blocks
 static int find_free_block()
@@ -281,7 +271,7 @@ static void initialize_block(int part_size, struct block *block)
 
 struct block *db3_initialize_block(int block_num, struct block *block)
 {
-	int part_size = part_sizes[(block_num - MIN_DATA_BLOCK)%NUM_PART_SIZES];
+	int part_size = MAX_PART_SIZE;
 	initialize_block(part_size, block);
 	block->header.crc = block_crc(block);
 	return block;
@@ -305,9 +295,9 @@ static void allocate_uid_blk(int uid, const u8 *data, int sz, int rev, const u8 
 	signet_aes_256_encrypt_cbc(encrypt_key, blk_count, iv, data, get_part(block_temp, blk_info_temp, index));
 }
 
-static enum update_uid_status allocate_uid(int uid, const u8 *data, int sz, int rev, const u8 *iv, int *block_num, struct block *block_temp, struct block_info *blk_info_temp)
+static enum update_uid_status allocate_uid (int uid, const u8 *data, int sz, int rev, const u8 *iv, int *block_num, struct block *block_temp, struct block_info *blk_info_temp)
 {
-	int part_size = target_part_size(sz);
+	int part_size = MAX_PART_SIZE;
 	*block_num = INVALID_BLOCK;
 
 	if (!part_size) {
@@ -462,7 +452,7 @@ static enum update_uid_status update_uid (int uid, u8 *data, int sz,
 			}
 		} break;
 		case UPDATE_UID_SUCCESS: {
-			int part_size = target_part_size(sz);
+			int part_size = MAX_PART_SIZE;
 			if (!part_size) {
 				return UPDATE_UID_NO_SPACE;
 			}

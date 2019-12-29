@@ -14,7 +14,7 @@ void begin_button_press_wait();
 void begin_long_button_press_wait();
 extern u8 cmd_resp[];
 
-extern enum device_state device_state;
+extern enum device_state g_device_state;
 extern int active_cmd;
 
 union state_data_u {
@@ -48,7 +48,7 @@ union cmd_data_u {
 	struct {
 		u8 read_block[BLK_SIZE];
 		u8 block[BLK_SIZE];
-		u8 resp[6+(HASH_FN_SZ + SALT_SZ_V2)];
+		u8 resp[6 + (HASH_FN_SZ + SALT_SZ_V2)];
 		struct block_info blk_info;
 	} startup;
 	struct {

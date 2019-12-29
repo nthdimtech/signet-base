@@ -25,4 +25,8 @@ struct block *db3_initialize_block(int block_num, struct block *block_temp);
 
 int db3_read_block_complete();
 int db3_write_block_complete();
+
+#define CURRENT_ROOT_BLOCK_FORMAT (2)
+#define CURRENT_DB_FORMAT (2)
+
 #endif

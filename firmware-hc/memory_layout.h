@@ -81,6 +81,7 @@ enum hc_firmware_upgrade_state {
 struct hc_device_data {
 	u32 data_crc;
 	u16 format;
+	u16 db_format;
 	u16 data_iteration; //larger is newer
 	u8 device_id[DEVICE_ID_LEN];
 	u8 device_name[DEVICE_NAME_LEN];

@@ -33,7 +33,7 @@ int active_cmd = -1;
 static int cmd_iter_count = 0;
 static int cmd_messages_remaining = 0;
 
-enum device_state device_state = DS_DISCONNECTED;
+enum device_state g_device_state = DS_DISCONNECTED;
 
 // Incoming buffer for next command request
 u8 cmd_packet_buf[CMD_PACKET_BUF_SIZE];
@@ -47,8 +47,8 @@ u8 encrypt_key[AES_256_KEY_SIZE];
 u8 token_auth_rand_cyphertext[AES_256_KEY_SIZE];
 u8 token_encrypt_key_cyphertext[AES_256_KEY_SIZE];
 
-u8 header_version;
-u8 db_version;
+u8 g_root_block_version;
+u8 g_db_version;
 
 static union state_data_u state_data;
 
@@ -96,6 +96,7 @@ static int g_db_write_idx;
 static const u8 *g_db_write_src;
 
 #include "usbd_msc_scsi.h"
+#include "usbd_msc.h"
 
 void emmc_user_storage_start();
 
@@ -181,7 +182,7 @@ void emmc_user_queue(enum emmc_user user)
 	g_emmc_user_ready[user] = 1;
 }
 
-void read_data_block(int idx, u8 *dest)
+void read_data_block (int idx, u8 *dest)
 {
 	emmc_user_queue(EMMC_USER_DB);
 	g_db_action = DB_ACTION_READ;
@@ -289,7 +290,7 @@ void set_data_cmd_complete();
 void initialize_cmd_complete();
 void enter_progressing_state (enum device_state state, int _n_progress_components, int *_progress_maximum)
 {
-	device_state = state;
+	g_device_state = state;
 	progress_check = 0;
 	n_progress_components = _n_progress_components;
 	int i;
@@ -354,7 +355,7 @@ void get_progress_check ()
 	if (active_cmd == GET_PROGRESS) {
 		int total_progress = get_total_progress();
 		int total_progress_maximum = get_total_progress_maximum();
-		if (progress_target_state == device_state && total_progress > progress_check) {
+		if (progress_target_state == g_device_state && total_progress > progress_check) {
 			u8 resp[4*(8+1)] = {
 				total_progress & 0xff,
 				total_progress >> 8,
@@ -370,7 +371,7 @@ void get_progress_check ()
 				resp[j * 4 + 3] = progress_maximum[i] >> 8;
 			}
 			finish_command(OKAY, resp, (n_progress_components + 1) * 4);
-		} else if (progress_target_state != device_state) {
+		} else if (progress_target_state != g_device_state) {
 			finish_command_resp(INVALID_STATE);
 		}
 	}
@@ -385,7 +386,7 @@ void finish_command_multi (enum command_responses resp, int messages_remaining, 
 	cmd_resp[2] = resp;
 	cmd_resp[3] = messages_remaining & 0xff;
 	cmd_resp[4] = (messages_remaining >> 8) & 0xff;
-	cmd_resp[5] = device_state;
+	cmd_resp[5] = g_device_state;
 	if (payload) {
 		memcpy(cmd_resp + CMD_PACKET_HEADER_SIZE, payload, payload_len);
 	}
@@ -415,7 +416,6 @@ void derive_iv(u32 id, u8 *iv)
 	iv[AES_BLK_SIZE-1] += (u8)(id);
 }
 
-
 static void finalize_root_page_check()
 {
 	if (rand_avail() >= (INIT_RAND_DATA_SZ/4) && !cmd_data.init_data.root_block_finalized && (cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS)) {
@@ -424,7 +424,8 @@ static void finalize_root_page_check()
 		for (int i = 0; i < (INIT_RAND_DATA_SZ/4); i++) {
 			((u32 *)cmd_data.init_data.rand)[i] ^= rand_get();
 		}
-		root_page.format = 1;
+		root_page.format = CURRENT_ROOT_BLOCK_FORMAT;
+		root_page.db_format = CURRENT_DB_FORMAT;
 		u8 *random = cmd_data.init_data.rand;
 
 		u8 *device_id = random;
@@ -437,13 +438,13 @@ static void finalize_root_page_check()
 
 		memcpy(root_page.device_id, device_id, DEVICE_ID_LEN);
 		memcpy(root_page.auth_random_cleartext, auth_rand_data, AUTH_RANDOM_DATA_LEN);
-		signet_aes_256_encrypt_cbc(cmd_data.init_data.passwd, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
+		signet_aes_256_encrypt_cbc(cmd_data.init_data.passwd, AUTH_RANDOM_DATA_LEN/AES_BLK_SIZE, NULL,
 		                           auth_rand_data, root_page.profile_auth_data[0].auth_random_cyphertext);
-		signet_aes_256_encrypt_cbc(cmd_data.init_data.passwd, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
+		signet_aes_256_encrypt_cbc(cmd_data.init_data.passwd, KEYSTORE_KEY_SIZE/AES_BLK_SIZE, NULL,
 		                           keystore_key, root_page.profile_auth_data[0].keystore_key_cyphertext);
 		memcpy(root_page.profile_auth_data[0].salt, cmd_data.init_data.salt, HC_HASH_FN_SALT_SZ);
 		memcpy(root_page.profile_auth_data[0].hash_function_params, cmd_data.init_data.hashfn, HASH_FUNCTION_PARAMS_LENGTH);
-		write_root_block((const u8 *)&root_page, sizeof(struct root_page));
+		write_root_block((const u8 *)&root_page, sizeof(root_page));
 	}
 }
 
@@ -457,7 +458,7 @@ void login_cmd_iter();
 void cmd_rand_update()
 {
 	int avail = rand_avail();
-	switch (device_state) {
+	switch (g_device_state) {
 	case DS_INITIALIZING:
 		if (avail <= (INIT_RAND_DATA_SZ/4)) {
 			cmd_data.init_data.random_data_gathered = avail - cmd_data.init_data.rand_avail_init;
@@ -503,8 +504,8 @@ static void initializing_iter()
 	} else {
 		dprint_s("DONE INITIALIZING\r\n");
 		//TODO: fix magic numbers
-		header_version = 1;
-		db_version = 1;
+		g_root_block_version = CURRENT_ROOT_BLOCK_FORMAT;
+		g_db_version = CURRENT_DB_FORMAT;
 		db3_startup_scan(cmd_data.init_data.block, &cmd_data.init_data.blk_info);
 	}
 }
@@ -513,7 +514,7 @@ static void write_block_complete()
 {
 	if (db3_write_block_complete())
 		return;
-	switch (device_state) {
+	switch (g_device_state) {
 	case DS_INITIALIZING:
 		initializing_iter();
 		break;
@@ -605,7 +606,7 @@ void long_button_press()
 		break;
 		case BACKUP_DEVICE:
 			finish_command_resp(OKAY);
-			state_data.backup.prev_state = device_state;
+			state_data.backup.prev_state = g_device_state;
 			enter_state(DS_BACKING_UP_DEVICE);
 			break;
 		case RESTORE_DEVICE:
@@ -632,7 +633,7 @@ void long_button_press()
 			write_root_block((const u8 *)&root_page, sizeof(root_page));
 			break;
 		}
-	} else if (device_state == DS_DISCONNECTED) {
+	} else if (g_device_state == DS_DISCONNECTED) {
 		long_button_press_disconnected();
 	}
 }
@@ -641,7 +642,7 @@ void button_release()
 {
 	if (waiting_for_long_button_press) {
 		resume_blinking();
-	} else if (device_state == DS_DISCONNECTED) {
+	} else if (g_device_state == DS_DISCONNECTED) {
 		button_release_disconnected();
 	}
 }
@@ -649,16 +650,16 @@ void button_release()
 int attempt_login_256(const u8 *auth_key, const u8 *auth_rand, const u8 *auth_rand_cyphertext, const u8 *encrypt_key_cyphertext, u8 *encrypt_key)
 {
 	u8 auth_rand_cyphertext_test[AES_256_KEY_SIZE];
-	signet_aes_256_encrypt_cbc(auth_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL, auth_rand, auth_rand_cyphertext_test);
-	if (memcmp(auth_rand_cyphertext_test, auth_rand_cyphertext, AES_256_KEY_SIZE)) {
+	signet_aes_256_encrypt_cbc(auth_key, AUTH_RANDOM_DATA_LEN/AES_BLK_SIZE, NULL, auth_rand, auth_rand_cyphertext_test);
+	if (memcmp(auth_rand_cyphertext_test, auth_rand_cyphertext, AUTH_RANDOM_DATA_LEN)) {
 		return 0;
 	} else {
-		signet_aes_256_decrypt_cbc(auth_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL, encrypt_key_cyphertext, encrypt_key);
+		signet_aes_256_decrypt_cbc(auth_key, KEYSTORE_KEY_SIZE/AES_BLK_SIZE, NULL, encrypt_key_cyphertext, encrypt_key);
 		return 1;
 	}
 }
 
-void login_cmd_iter()
+void login_cmd_iter ()
 {
 	if (cmd_data.login.authenticated) {
 		if (rand_avail() >= (AES_256_KEY_SIZE/4)) {
@@ -771,7 +772,7 @@ void button_press()
 #endif
 		case LOGIN:
 			switch (root_page.format) {
-			case 1: {
+			case CURRENT_ROOT_BLOCK_FORMAT: {
 				int rc = attempt_login_256(cmd_data.login.password,
 				                           root_page.auth_random_cleartext,
 				                           root_page.profile_auth_data[0].auth_random_cyphertext,
@@ -825,7 +826,7 @@ void button_press()
 			break;
 		}
 	} else if (!waiting_for_button_press && !waiting_for_long_button_press) {
-		switch (device_state) {
+		switch (g_device_state) {
 		case DS_DISCONNECTED:
 			button_press_disconnected();
 			break;
@@ -843,7 +844,7 @@ void usb_keyboard_typing_done()
 	if (active_cmd == TYPE) {
 		finish_command_resp(OKAY);
 	}
-	if (device_state == DS_DISCONNECTED) {
+	if (g_device_state == DS_DISCONNECTED) {
 		cleartext_pass_typing = 0;
 	}
 }
@@ -865,14 +866,10 @@ void initialize_cmd(u8 *data, int data_len)
 
 	u8 *d = data;
 
-	memcpy(cmd_data.init_data.passwd, d, AES_256_KEY_SIZE);
-	d += AES_256_KEY_SIZE;
-	memcpy(cmd_data.init_data.hashfn, d, AES_BLK_SIZE);
-	d += AES_BLK_SIZE;
-	memcpy(cmd_data.init_data.salt, d, SALT_SZ_V2);
-	d += SALT_SZ_V2;
-	memcpy(cmd_data.init_data.rand, d, INIT_RAND_DATA_SZ);
-	d += INIT_RAND_DATA_SZ;
+	memcpy(cmd_data.init_data.passwd, d, AES_256_KEY_SIZE); d += AES_256_KEY_SIZE;
+	memcpy(cmd_data.init_data.hashfn, d, AES_BLK_SIZE); d += AES_BLK_SIZE;
+	memcpy(cmd_data.init_data.salt, d, SALT_SZ_V2); d += SALT_SZ_V2;
+	memcpy(cmd_data.init_data.rand, d, INIT_RAND_DATA_SZ); d += INIT_RAND_DATA_SZ;
 	cmd_data.init_data.started = 0;
 	begin_long_button_press_wait();
 }
@@ -906,7 +903,7 @@ void get_progress_cmd(u8 *data, int data_len)
 	data += 2;
 	progress_target_state = data[0] | (data[1] << 8);
 	data += 2;
-	if (progress_target_state != device_state) {
+	if (progress_target_state != g_device_state) {
 		finish_command_resp(INVALID_STATE);
 	} else {
 		get_progress_check();
@@ -1052,7 +1049,7 @@ void get_rand_bits_cmd(u8 *data, int data_len)
 	get_rand_bits_cmd_check();
 }
 
-void login_cmd(u8 *data, int data_len)
+void login_cmd (u8 *data, int data_len)
 {
 	cmd_data.login.gen_token = 0;
 	cmd_data.login.authenticated = 0;
@@ -1420,37 +1417,34 @@ void startup_cmd_iter()
 {
 	u8 *resp = cmd_data.startup.resp;
 	memset(cmd_data.startup.resp, 0, sizeof(cmd_data.startup.resp));
+	g_root_block_version = root_page.format;
 	resp[0] = SIGNET_MAJOR_VERSION;
 	resp[1] = SIGNET_MINOR_VERSION;
 	resp[2] = SIGNET_STEP_VERSION;
-	resp[3] = device_state;
-	resp[4] = header_version;
+	resp[3] = g_device_state;
+	resp[4] = g_root_block_version;
 	resp[5] = 0;
-	if (device_state == DS_UNINITIALIZED) {
-		finish_command(OKAY, resp, sizeof(cmd_data.startup.resp));
-	} else {
-		switch (header_version) {
-		case 1:
-			memcpy(resp + 6, root_page.profile_auth_data[0].hash_function_params, HASH_FUNCTION_PARAMS_LENGTH);
-			memcpy(resp + 6 + HASH_FUNCTION_PARAMS_LENGTH, root_page.profile_auth_data[0].salt, HC_HASH_FN_SALT_SZ);
-			db_version = root_page.format;
-			break;
-		default:
-			enter_state(DS_UNINITIALIZED);
-			finish_command(UNKNOWN_DB_FORMAT, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
-			return;
-		}
-		resp[5] = db_version;
+	switch (g_root_block_version) {
+	case CURRENT_ROOT_BLOCK_FORMAT:
+		memcpy(resp + 6, root_page.profile_auth_data[0].hash_function_params, HASH_FUNCTION_PARAMS_LENGTH);
+		memcpy(resp + 6 + HASH_FUNCTION_PARAMS_LENGTH, root_page.profile_auth_data[0].salt, HC_HASH_FN_SALT_SZ);
+		g_db_version = root_page.db_format;
+		resp[5] = g_db_version;
+		break;
+	default:
+		enter_state(DS_UNINITIALIZED);
+		finish_command(UNKNOWN_DB_FORMAT, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
+		return;
+	}
 
-		switch (db_version) {
-		case 1:
-			db3_startup_scan(cmd_data.startup.block, &cmd_data.startup.blk_info);
-			break;
-		default:
-			enter_state(DS_UNINITIALIZED);
-			finish_command(UNKNOWN_DB_FORMAT, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
-			return;
-		}
+	switch (g_db_version) {
+	case CURRENT_DB_FORMAT:
+		db3_startup_scan(cmd_data.startup.block, &cmd_data.startup.blk_info);
+		break;
+	default:
+		enter_state(DS_UNINITIALIZED);
+		finish_command(UNKNOWN_DB_FORMAT, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
+		return;
 	}
 }
 
@@ -1459,17 +1453,15 @@ void cmd_init()
 	memcpy(&root_page, (u8 *)(&_root_page), sizeof(root_page));
 }
 
-void startup_cmd(u8 *data, int data_len)
+void startup_cmd (u8 *data, int data_len)
 {
-	if (device_state != DS_DISCONNECTED) {
+	if (g_device_state != DS_DISCONNECTED) {
 		stop_blinking();
 		end_button_press_wait();
 		end_long_button_press_wait();
 		active_cmd = -1;
 	}
 	cmd_init();
-	enter_state(DS_UNINITIALIZED);
-	header_version = root_page.format;
 	startup_cmd_iter();
 }
 
@@ -1514,7 +1506,7 @@ int cmd_packet_recv()
 	//Always allow the GET_DEVICE_STATE command. It's easiest to handle it here
 	if (active_cmd == GET_DEVICE_STATE) {
 		dprint_s("GET_DEVICE_STATE\r\n");
-		u8 resp[] = {device_state};
+		u8 resp[] = {g_device_state};
 		finish_command(OKAY, resp, sizeof(resp));
 		return waiting_for_a_button_press;
 	}
@@ -1535,7 +1527,7 @@ int cmd_packet_recv()
 		return waiting_for_a_button_press;
 	}
 
-	switch (device_state) {
+	switch (g_device_state) {
 	case DS_DISCONNECTED:
 		break;
 	case DS_UNINITIALIZED:
