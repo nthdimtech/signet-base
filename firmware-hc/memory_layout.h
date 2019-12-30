@@ -25,7 +25,11 @@
 #define MAX_PROFILE_TAGS (16)
 #define HC_HASH_FN_SALT_SZ (32)
 
-#define EMMC_DB_FIRST_BLOCK (16 + 1)
+#define EMMC_SUB_BLOCK_SZ (512)
+#define HC_BLOCK_SZ (16384)
+#define EMMC_DB_FIRST_BLOCK (4)
+#define EMMC_DB_NUM_BLOCK (1024)
+#define EMMC_STORAGE_FIRST_BLOCK (EMMC_DB_NUM_BLOCK + EMMC_DB_FIRST_BLOCK)
 
 struct hcdb_tag {
 	u16 id;

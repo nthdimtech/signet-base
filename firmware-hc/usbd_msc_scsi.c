@@ -1,29 +1,3 @@
-/**
-  ******************************************************************************
-  * @file    usbd_msc_scsi.c
-  * @author  MCD Application Team
-  * @brief   This file provides all the USBD SCSI layer functions.
-  ******************************************************************************
-  * @attention
-  *
-  * <h2><center>&copy; Copyright (c) 2015 STMicroelectronics.
-  * All rights reserved.</center></h2>
-  *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                      http://www.st.com/SLA0044
-  *
-  ******************************************************************************
-  */
-
-/* BSPDependencies
-- "stm32xxxxx_{eval}{discovery}{nucleo_144}.c"
-- "stm32xxxxx_{eval}{discovery}_io.c"
-- "stm32xxxxx_{eval}{discovery}{adafruit}_sd.c"
-EndBSPDependencies */
-
-/* Includes ------------------------------------------------------------------*/
 #include "usbd_msc_bot.h"
 #include "usbd_msc_scsi.h"
 #include "usbd_msc.h"
@@ -32,6 +6,7 @@ EndBSPDependencies */
 #include "commands.h"
 #include "buffer_manager.h"
 #include "usbd_multi.h"
+#include "memory_layout.h"
 extern struct bufferFIFO usbBulkBufferFIFO;
 
 static int8_t SCSI_TestUnitReady(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params);
@@ -50,24 +25,7 @@ static int8_t SCSI_CheckAddressRange (USBD_HandleTypeDef *pdev, uint8_t lun,
 
 static int8_t SCSI_ProcessRead (USBD_HandleTypeDef *pdev, uint8_t lun);
 static int8_t SCSI_ProcessWrite (USBD_HandleTypeDef *pdev, uint8_t lun);
-/**
-  * @}
-  */
 
-
-/** @defgroup MSC_SCSI_Private_Functions
-  * @{
-  */
-
-
-/**
-* @brief  SCSI_ProcessCmd
-*         Process SCSI commands
-* @param  pdev: device instance
-* @param  lun: Logical unit number
-* @param  params: Command parameters
-* @retval status
-*/
 int8_t SCSI_ProcessCmd(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *cmd)
 {
 	switch (cmd[0]) {
@@ -125,14 +83,6 @@ int8_t SCSI_ProcessCmd(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *cmd)
 	return 0;
 }
 
-
-/**
-* @brief  SCSI_TestUnitReady
-*         Process SCSI Test Unit Ready Command
-* @param  lun: Logical unit number
-* @param  params: Command parameters
-* @retval status
-*/
 static int8_t SCSI_TestUnitReady(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params)
 {
 	USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*) pdev->pClassData[INTERFACE_MSC];
@@ -155,13 +105,6 @@ static int8_t SCSI_TestUnitReady(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t
 	return 0;
 }
 
-/**
-* @brief  SCSI_Inquiry
-*         Process Inquiry command
-* @param  lun: Logical unit number
-* @param  params: Command parameters
-* @retval status
-*/
 static int8_t  SCSI_Inquiry(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params)
 {
 	uint8_t* pPage;
@@ -194,13 +137,6 @@ static int8_t  SCSI_Inquiry(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *par
 	return 0;
 }
 
-/**
-* @brief  SCSI_ReadCapacity10
-*         Process Read Capacity 10 command
-* @param  lun: Logical unit number
-* @param  params: Command parameters
-* @retval status
-*/
 static int8_t SCSI_ReadCapacity10(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params)
 {
 	USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*) pdev->pClassData[INTERFACE_MSC];
@@ -224,13 +160,7 @@ static int8_t SCSI_ReadCapacity10(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_
 		return 0;
 	}
 }
-/**
-* @brief  SCSI_ReadFormatCapacity
-*         Process Read Format Capacity command
-* @param  lun: Logical unit number
-* @param  params: Command parameters
-* @retval status
-*/
+
 static int8_t SCSI_ReadFormatCapacity(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params)
 {
 	USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*) pdev->pClassData[INTERFACE_MSC];
@@ -264,13 +194,7 @@ static int8_t SCSI_ReadFormatCapacity(USBD_HandleTypeDef  *pdev, uint8_t lun, ui
 		return 0;
 	}
 }
-/**
-* @brief  SCSI_ModeSense6
-*         Process Mode Sense6 command
-* @param  lun: Logical unit number
-* @param  params: Command parameters
-* @retval status
-*/
+
 static int8_t SCSI_ModeSense6 (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params)
 {
 	USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*) pdev->pClassData[INTERFACE_MSC];
@@ -284,13 +208,6 @@ static int8_t SCSI_ModeSense6 (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *
 	return 0;
 }
 
-/**
-* @brief  SCSI_ModeSense10
-*         Process Mode Sense10 command
-* @param  lun: Logical unit number
-* @param  params: Command parameters
-* @retval status
-*/
 static int8_t SCSI_ModeSense10 (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params)
 {
 	uint16_t len = 8U;
@@ -305,14 +222,6 @@ static int8_t SCSI_ModeSense10 (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t 
 
 	return 0;
 }
-
-/**
-* @brief  SCSI_RequestSense
-*         Process Request Sense command
-* @param  lun: Logical unit number
-* @param  params: Command parameters
-* @retval status
-*/
 
 static int8_t SCSI_RequestSense (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params)
 {
@@ -347,15 +256,6 @@ static int8_t SCSI_RequestSense (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t
 	return 0;
 }
 
-/**
-* @brief  SCSI_SenseCode
-*         Load the last error code in the error list
-* @param  lun: Logical unit number
-* @param  sKey: Sense Key
-* @param  ASC: Additional Sense Key
-* @retval none
-
-*/
 void SCSI_SenseCode(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t sKey, uint8_t ASC)
 {
 	USBD_MSC_BOT_HandleTypeDef  *hmsc = (USBD_MSC_BOT_HandleTypeDef*)pdev->pClassData[INTERFACE_MSC];
@@ -367,13 +267,7 @@ void SCSI_SenseCode(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t sKey, uint8_
 		hmsc->scsi_sense_tail = 0U;
 	}
 }
-/**
-* @brief  SCSI_StartStopUnit
-*         Process Start Stop Unit command
-* @param  lun: Logical unit number
-* @param  params: Command parameters
-* @retval status
-*/
+
 static int8_t SCSI_StartStopUnit(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params)
 {
 	USBD_MSC_BOT_HandleTypeDef  *hmsc = (USBD_MSC_BOT_HandleTypeDef*) pdev->pClassData[INTERFACE_MSC];
@@ -437,7 +331,9 @@ static void processMMCReadBuffer(struct bufferFIFO *bf, int readLen, const uint8
 	do {
 		cardState = HAL_MMC_GetCardState(&hmmc1);
 	} while (cardState != HAL_MMC_CARD_TRANSFER);
-	HAL_MMC_ReadBlocks_DMA(&hmmc1, bufferWrite, mmcBlockAddr, mmcReadLen/512);
+	HAL_MMC_ReadBlocks_DMA(&hmmc1, bufferWrite,
+			mmcBlockAddr + EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ),
+			mmcReadLen/512);
 }
 
 void emmc_user_read_storage_rx_complete()
@@ -454,13 +350,6 @@ void emmc_user_read_storage_rx_complete()
 	bufferFIFO_processingComplete(&usbBulkBufferFIFO, mmcStageIdx, mmcReadLen);
 }
 
-/**
-* @brief  SCSI_Read10
-*         Process Read10 command
-* @param  lun: Logical unit number
-* @param  params: Command parameters
-* @retval status
-*/
 static int8_t SCSI_Read10(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *params)
 {
 	USBD_MSC_BOT_HandleTypeDef  *hmsc = (USBD_MSC_BOT_HandleTypeDef*) pdev->pClassData[INTERFACE_MSC];
@@ -484,6 +373,7 @@ static int8_t SCSI_Read10(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *params
 
 		uint64_t blk_len = ((uint64_t)params[7] <<  8) | (uint64_t)params[8];
 
+	       	//blk_addr += EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ);
 
 		if(SCSI_CheckAddressRange(pdev, lun, blk_addr,
 		                          blk_len) < 0) {
@@ -520,14 +410,6 @@ void emmc_user_storage_start()
 	uint32_t len = MIN(hmsc->scsi_blk_len, usbBulkBufferFIFO.maxBufferSize);
 	bufferFIFO_start(&usbBulkBufferFIFO, len);
 }
-
-/**
-* @brief  SCSI_Write10
-*         Process Write10 command
-* @param  lun: Logical unit number
-* @param  params: Command parameters
-* @retval status
-*/
 
 void writeProcessingComplete(struct bufferFIFO *bf)
 {
@@ -578,7 +460,9 @@ void processMMCWriteBuffer(struct bufferFIFO *bf, int readLen, const uint8_t *bu
 		cardState = HAL_MMC_GetCardState(&hmmc1);
 	} while (cardState != HAL_MMC_CARD_TRANSFER);
 
-	HAL_MMC_WriteBlocks_DMA_Initial(&hmmc1, bufferRead, mmcReadLen, mmcBlockAddr, mmcReadLen/512);
+	HAL_MMC_WriteBlocks_DMA_Initial(&hmmc1, bufferRead, mmcReadLen,
+			mmcBlockAddr + EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ),
+			mmcReadLen/512);
 }
 
 int mmcShortWriteCount = 0;
@@ -703,22 +587,6 @@ static int8_t SCSI_CheckAddressRange (USBD_HandleTypeDef *pdev, uint8_t lun,
 	}
 	return 0;
 }
-
-/**
-* @brief  SCSI_ProcessRead
-*         Handle Read Process
-* @param  lun: Logical unit number
-* @retval status
-*/
-
-extern PCD_HandleTypeDef hpcd;
-
-/**
-* @brief  SCSI_ProcessWrite
-*         Handle Write Process
-* @param  lun: Logical unit number
-* @retval status
-*/
 
 extern PCD_HandleTypeDef hpcd;
 

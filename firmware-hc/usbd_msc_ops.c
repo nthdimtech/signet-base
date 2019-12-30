@@ -1,39 +1,5 @@
-/**
-  ******************************************************************************
-  * @file    usbd_msc_storage_template.c
-  * @author  MCD Application Team
-  * @brief   Memory management layer
-  ******************************************************************************
-  * @attention
-  *
-  * <h2><center>&copy; Copyright (c) 2015 STMicroelectronics.
-  * All rights reserved.</center></h2>
-  *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                      http://www.st.com/SLA0044
-  *
-  ******************************************************************************
-  */
-
-/* BSPDependencies
-- "stm32xxxxx_{eval}{discovery}{nucleo_144}.c"
-- "stm32xxxxx_{eval}{discovery}_io.c"
-- "stm32xxxxx_{eval}{discovery}{adafruit}_sd.c"
-EndBSPDependencies */
-
-/* Includes ------------------------------------------------------------------*/
 #include "usbd_msc_ops.h"
-
-
-/* Private typedef -----------------------------------------------------------*/
-/* Private define ------------------------------------------------------------*/
-/* Private macro -------------------------------------------------------------*/
-/* Private variables ---------------------------------------------------------*/
-/* Private function prototypes -----------------------------------------------*/
-/* Extern function prototypes ------------------------------------------------*/
-/* Private functions ---------------------------------------------------------*/
+#include "memory_layout.h"
 
 #define STORAGE_LUN_NBR                  1
 
@@ -88,13 +54,7 @@ USBD_StorageTypeDef USBD_MSC_Template_fops = {
 	STORAGE_Inquirydata,
 
 };
-/*******************************************************************************
-* Function Name  : Read_Memory
-* Description    : Handle the Read operation from the microSD card.
-* Input          : None.
-* Output         : None.
-* Return         : None.
-*******************************************************************************/
+
 int8_t STORAGE_Init (uint8_t lun)
 {
 	return (0);
@@ -102,51 +62,23 @@ int8_t STORAGE_Init (uint8_t lun)
 
 extern MMC_HandleTypeDef hmmc1;
 
-/*******************************************************************************
-* Function Name  : Read_Memory
-* Description    : Handle the Read operation from the STORAGE card.
-* Input          : None.
-* Output         : None.
-* Return         : None.
-*******************************************************************************/
 int8_t STORAGE_GetCapacity (uint8_t lun, uint32_t *block_num, uint16_t *block_size)
 {
-	*block_num  = hmmc1.MmcCard.BlockNbr;
+	*block_num  = hmmc1.MmcCard.BlockNbr - (EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ));
 	*block_size = hmmc1.MmcCard.BlockSize;
 	return (0);
 }
 
-/*******************************************************************************
-* Function Name  : Read_Memory
-* Description    : Handle the Read operation from the STORAGE card.
-* Input          : None.
-* Output         : None.
-* Return         : None.
-*******************************************************************************/
 int8_t  STORAGE_IsReady (uint8_t lun)
 {
 	return (0);
 }
 
-/*******************************************************************************
-* Function Name  : Read_Memory
-* Description    : Handle the Read operation from the STORAGE card.
-* Input          : None.
-* Output         : None.
-* Return         : None.
-*******************************************************************************/
 int8_t  STORAGE_IsWriteProtected (uint8_t lun)
 {
 	return  0;
 }
 
-/*******************************************************************************
-* Function Name  : Read_Memory
-* Description    : Handle the Read operation from the STORAGE card.
-* Input          : None.
-* Output         : None.
-* Return         : None.
-*******************************************************************************/
 int8_t STORAGE_Read (uint8_t lun,
                      uint8_t *buf,
                      uint32_t blk_addr,
@@ -154,13 +86,7 @@ int8_t STORAGE_Read (uint8_t lun,
 {
 	return 0;
 }
-/*******************************************************************************
-* Function Name  : Write_Memory
-* Description    : Handle the Write operation to the STORAGE card.
-* Input          : None.
-* Output         : None.
-* Return         : None.
-*******************************************************************************/
+
 int8_t STORAGE_Write (uint8_t lun,
                       uint8_t *buf,
                       uint32_t blk_addr,
@@ -168,17 +94,9 @@ int8_t STORAGE_Write (uint8_t lun,
 {
 	return (0);
 }
-/*******************************************************************************
-* Function Name  : Write_Memory
-* Description    : Handle the Write operation to the STORAGE card.
-* Input          : None.
-* Output         : None.
-* Return         : None.
-*******************************************************************************/
+
 int8_t STORAGE_GetMaxLun (void)
 {
 	return (STORAGE_LUN_NBR - 1);
 }
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
 
