@@ -136,11 +136,11 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
 	/* Initialize LL Driver */
 	HAL_PCD_Init(&hpcd);
 
-	HAL_PCDEx_SetRxFiFo(&hpcd, 0x100);
-	HAL_PCDEx_SetTxFiFo(&hpcd, 0, 0x80);
-	HAL_PCDEx_SetTxFiFo(&hpcd, 1, 0x80);
-	HAL_PCDEx_SetTxFiFo(&hpcd, 2, 0x40);
-	HAL_PCDEx_SetTxFiFo(&hpcd, 3, 0x40);
+	HAL_PCDEx_SetRxFiFo(&hpcd, 0x100);    //1024
+	HAL_PCDEx_SetTxFiFo(&hpcd, 0, 0x20);  //128
+	HAL_PCDEx_SetTxFiFo(&hpcd, 1, 0x80);  //512
+	HAL_PCDEx_SetTxFiFo(&hpcd, 2, 0x100); //1024
+	HAL_PCDEx_SetTxFiFo(&hpcd, 3, 0x20);  //128
 	return USBD_OK;
 }
 
