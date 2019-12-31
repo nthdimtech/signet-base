@@ -196,7 +196,7 @@ void USBD_HID_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
 		ctaphid_handle_packet(rx_buffer);
 	}
 #endif
-	USBD_LL_PrepareReceive (pdev, epnum, rx_buffer, 64);
+	USBD_LL_PrepareReceive (pdev, epnum, rx_buffer, hhid->packetSize);
 }
 
 void USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)

@@ -256,16 +256,18 @@ static uint8_t  USBD_Multi_Init (USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 	pdev->ep_in[HID_CMD_EPIN_ADDR & 0xFU].is_used = 1U;
 	USBD_LL_OpenEP(pdev, HID_CMD_EPOUT_ADDR, USBD_EP_TYPE_INTR, HID_CMD_EPOUT_SIZE);
 	pdev->ep_in[HID_CMD_EPOUT_ADDR & 0xFU].is_used = 1U;
-	USBD_LL_PrepareReceive (pdev, HID_CMD_EPOUT_ADDR, s_cmdHIDClassData.rx_buffer, HID_CMD_EPOUT_SIZE);
 	s_cmdHIDClassData.state = HID_IDLE;
+	s_cmdHIDClassData.packetSize = HID_CMD_EPOUT_SIZE;
+	USBD_LL_PrepareReceive (pdev, HID_CMD_EPOUT_ADDR, s_cmdHIDClassData.rx_buffer, s_cmdHIDClassData.packetSize);
 
 	pdev->pClassData[INTERFACE_FIDO] = &s_fidoHIDClassData;
 	USBD_LL_OpenEP(pdev, HID_FIDO_EPIN_ADDR, USBD_EP_TYPE_INTR, HID_FIDO_EPIN_SIZE);
 	pdev->ep_in[HID_FIDO_EPIN_ADDR & 0xFU].is_used = 1U;
 	USBD_LL_OpenEP(pdev, HID_FIDO_EPOUT_ADDR, USBD_EP_TYPE_INTR, HID_FIDO_EPOUT_SIZE);
 	pdev->ep_in[HID_FIDO_EPOUT_ADDR & 0xFU].is_used = 1U;
-	USBD_LL_PrepareReceive (pdev, HID_FIDO_EPOUT_ADDR, s_fidoHIDClassData.rx_buffer, HID_FIDO_EPOUT_SIZE);
+	s_fidoHIDClassData.packetSize = HID_FIDO_EPOUT_SIZE;
 	s_fidoHIDClassData.state = HID_IDLE;
+	USBD_LL_PrepareReceive (pdev, HID_FIDO_EPOUT_ADDR, s_fidoHIDClassData.rx_buffer, s_fidoHIDClassData.packetSize);
 	return USBD_OK;
 }
 

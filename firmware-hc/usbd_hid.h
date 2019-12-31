@@ -34,7 +34,8 @@ typedef enum {
 HID_StateTypeDef;
 
 typedef struct {
-	uint8_t rx_buffer[64];
+	uint8_t              rx_buffer[1024];
+	int                  packetSize;
 	uint32_t             Protocol;
 	uint32_t             IdleState;
 	uint32_t             AltSetting;
