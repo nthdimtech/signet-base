@@ -23,11 +23,11 @@ static const u8 cmd_hid_report_descriptor[] __attribute__((aligned (4))) = {
 	0x75, 0x08,                             // report size = 8 bits
 	0x15, 0x00,                             // logical minimum = 0
 	0x26, 0xFF, 0x00,                       // logical maximum = 255
-	0x95, HID_CMD_EPIN_SIZE,                  // report count
+	0x96, LSB(HID_CMD_EPIN_SIZE), MSB(HID_CMD_EPIN_SIZE), // report count
 
 	0x09, 0x01,                             // usage
 	0x81, 0x02,                             // Input (array)
-	0x95, HID_CMD_EPOUT_SIZE,                  // report count
+	0x96, LSB(HID_CMD_EPOUT_SIZE), MSB(HID_CMD_EPOUT_SIZE), // report count
 	0x09, 0x02,                             // usage
 	0x91, 0x02,                             // Output (array)
 	0xC0                                    // end collection
@@ -208,7 +208,7 @@ void USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 		USBD_HID_HandleTypeDef *hhid = ((USBD_HID_HandleTypeDef *)s_pdev->pClassData[interfaceNum]);
 		hhid->state = HID_IDLE;
 		if (hhid->tx_report) {
-			USBD_HID_SendReport(s_pdev, interfaceNum, hhid->tx_report, 64);
+			USBD_HID_SendReport(s_pdev, interfaceNum, hhid->tx_report, HID_CMD_EPIN_SIZE);
 			hhid->tx_report = NULL;
 		}
 		if (interfaceNum == INTERFACE_CMD) {

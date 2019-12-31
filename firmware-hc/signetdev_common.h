@@ -137,7 +137,7 @@ enum command_responses {
 #define USB_REV_ID (0x0483)
 #define USB_RAW_HID_USAGE_PAGE	0xFFAB	// recommended: 0xFF00 to 0xFFFF
 #define USB_RAW_HID_USAGE	0x0200	// recommended: 0x0100 to 0xFFFF
-#define RAW_HID_PACKET_SIZE 64
+#define RAW_HID_PACKET_SIZE 1024
 #define RAW_HID_HEADER_SIZE 1
 #define RAW_HID_PAYLOAD_SIZE (RAW_HID_PACKET_SIZE - RAW_HID_HEADER_SIZE)
 

@@ -72,11 +72,11 @@ static const u8 cmd_hid_report_descriptor[] __attribute__((aligned (4))) = {
 	0x75, 0x08,                             // report size = 8 bits
 	0x15, 0x00,                             // logical minimum = 0
 	0x26, 0xFF, 0x00,                       // logical maximum = 255
-	0x95, HID_CMD_EPIN_SIZE,                  // report count
+	0x96, LSB(HID_CMD_EPIN_SIZE), MSB(HID_CMD_EPIN_SIZE), // report count
 
 	0x09, 0x01,                             // usage
 	0x81, 0x02,                             // Input (array)
-	0x95, HID_CMD_EPOUT_SIZE,                  // report count
+	0x96, LSB(HID_CMD_EPOUT_SIZE), MSB(HID_CMD_EPOUT_SIZE), // report count
 	0x09, 0x02,                             // usage
 	0x91, 0x02,                             // Output (array)
 	0xC0                                    // end collection
@@ -172,16 +172,16 @@ static uint8_t USBD_Multi_CfgHSDesc[USB_HID_CONFIG_DESC_SIZ] __attribute__((alig
 	USB_DESC_TYPE_ENDPOINT, /*bDescriptorType:*/
 	HID_CMD_EPIN_ADDR,     /*bEndpointAddress: Endpoint Address (IN)*/
 	0x03,          /*bmAttributes: Interrupt endpoint*/
-	HID_CMD_EPIN_SIZE,
-	0x00,
+	LOBYTE(HID_CMD_EPIN_SIZE),
+	HIBYTE(HID_CMD_EPIN_SIZE),
 	HID_HS_BINTERVAL,          /*bInterval: Polling Interval */
 	/******************** Descriptor of Command HID OUT endpoint ********************/
 	0x07,          /*bLength: Endpoint Descriptor size*/
 	USB_DESC_TYPE_ENDPOINT, /*bDescriptorType:*/
 	HID_CMD_EPOUT_ADDR,     /*bEndpointAddress: Endpoint Address (IN)*/
 	0x03,          /*bmAttributes: Interrupt endpoint*/
-	HID_CMD_EPOUT_SIZE,
-	0x00,
+	LOBYTE(HID_CMD_EPOUT_SIZE),
+	HIBYTE(HID_CMD_EPOUT_SIZE),
 	HID_HS_BINTERVAL,          /*bInterval: Polling Interval */
 
 	/************** Descriptor of FIDO HID interface  ****************/
