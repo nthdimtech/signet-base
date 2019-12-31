@@ -191,8 +191,9 @@ void read_data_block (int idx, u8 *dest)
 	emmc_user_schedule();
 }
 
-void write_data_block(int idx, const u8 *src)
+void write_data_block (int idx, const u8 *src)
 {
+	invalidate_data_block_cache(idx);
 	if (idx == ROOT_DATA_BLOCK) {
 		write_root_block(src, BLK_SIZE);
 	} else {
@@ -377,9 +378,10 @@ void get_progress_check ()
 	}
 }
 
+u8 cmd_resp[CMD_PACKET_BUF_SIZE] __attribute__((aligned(16)));
+
 void finish_command_multi (enum command_responses resp, int messages_remaining, const u8 *payload, int payload_len)
 {
-	static u8 cmd_resp[CMD_PACKET_BUF_SIZE];
 	int full_length = payload_len + CMD_PACKET_HEADER_SIZE;
 	cmd_resp[0] = full_length & 0xff;
 	cmd_resp[1] = (full_length >> 8) & 0xff;

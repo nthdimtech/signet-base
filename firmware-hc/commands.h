@@ -12,7 +12,7 @@ void finish_command_multi(enum command_responses resp, int messages_remaining, c
 void derive_iv(u32 id, u8 *iv);
 void begin_button_press_wait();
 void begin_long_button_press_wait();
-extern u8 cmd_resp[];
+void invalidate_data_block_cache(int idx);
 
 extern enum device_state g_device_state;
 extern int active_cmd;

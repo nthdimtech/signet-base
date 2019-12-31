@@ -74,6 +74,13 @@ int db3_write_block_complete()
 	return 0;
 }
 
+void invalidate_data_block_cache(int idx)
+{
+	if (idx == block_read_cache_idx) {
+		block_read_cache_idx = -1;
+	}
+}
+
 //NEN_TODO: Keep cache up to date when writes occur
 // Should we invalidate the cache or update it?
 static const u8 *get_cached_data_block(int idx)
