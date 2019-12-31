@@ -616,6 +616,11 @@ static void read_uid_cmd_iter()
 		finish_command_resp(ID_INVALID);
 		return;
 	case UPDATE_UID_SUCCESS:
+		if (!cmd_data.read_uid.masked) {
+			cmd_data.read_uid.waiting_for_button_press = 1;
+		} else {
+			cmd_data.read_uid.waiting_for_button_press = 0;
+		}
 		break;
 	default:
 		return;
