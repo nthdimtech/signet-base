@@ -16,6 +16,8 @@ enum update_uid_status {
 	UPDATE_UID_DATA_LOADING
 };
 
+#define MAX_PART_SIZE ((BLK_SIZE - sizeof(struct block) - sizeof(struct uid_ent))/SUB_BLK_SIZE)
+
 extern struct root_page _crypt_data1;
 extern struct root_page _crypt_data2;
 
@@ -255,8 +257,6 @@ void db3_startup_scan (u8 *block_read, struct block_info *blk_info_temp)
 	read_data_block(db3_startup_scan_blk_num, (u8 *)db3_startup_scan_block_read);
 }
 
-#define MAX_PART_SIZE (BLK_SIZE - sizeof(struct block) - sizeof(struct uid_ent))/SUB_BLK_SIZE;
-
 //Return a block that has not been allocated or INVALID_BLOCK if there are no free blocks
 static int find_free_block()
 {
@@ -278,8 +278,7 @@ static void initialize_block(int part_size, struct block *block)
 
 struct block *db3_initialize_block(int block_num, struct block *block)
 {
-	int part_size = MAX_PART_SIZE;
-	initialize_block(part_size, block);
+	initialize_block(MAX_PART_SIZE, block);
 	block->header.crc = block_crc(block);
 	return block;
 }
@@ -441,6 +440,7 @@ static enum update_uid_status update_uid (int uid, u8 *data, int sz,
 		struct block_info *blk_info_temp)
 {
 	enum update_uid_status rc;
+
 	if (!sz) {
 		*prev_block_num = INVALID_BLOCK;
 		return deallocate_uid(uid, next_block_num, block_temp, blk_info_temp, 1 /* dellocate block */);
@@ -460,9 +460,6 @@ static enum update_uid_status update_uid (int uid, u8 *data, int sz,
 		} break;
 		case UPDATE_UID_SUCCESS: {
 			int part_size = MAX_PART_SIZE;
-			if (!part_size) {
-				return UPDATE_UID_NO_SPACE;
-			}
 			struct block_info *blk_info = g_block_info_tbl + *next_block_num;
 			memcpy(blk_info_temp, blk_info, sizeof(*blk_info_temp));
 			if (blk_info_temp->part_size == part_size) {
