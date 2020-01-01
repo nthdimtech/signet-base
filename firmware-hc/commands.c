@@ -932,7 +932,7 @@ void backup_device_cmd(u8 *data, int data_len)
 	begin_button_press_wait();
 }
 
-void restore_device_cmd()
+void restore_device_cmd ()
 {
 	dprint_s("RESTORE DEVICE\r\n");
 	begin_long_button_press_wait();
@@ -957,17 +957,19 @@ void read_block_cmd (u8 *data, int data_len)
 void write_block_cmd(u8 *data, int data_len)
 {
 	dprint_s("WRITE BLOCK\r\n");
+	//TODO: consider making the header 2 or 4 bytes to we can have alignment for DMA transfer
 	if (data_len != (1 + BLK_SIZE)) {
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	int idx = *data;
+	cmd_data.write_block.block_idx = *data;
 	data++;
-	if (idx >= NUM_STORAGE_BLOCKS) {
+	memcpy(cmd_data.write_block.block, data, BLK_SIZE);
+	if (cmd_data.write_block.block_idx >= NUM_STORAGE_BLOCKS) {
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	write_data_block(idx, data);
+	write_data_block(cmd_data.write_block.block_idx, cmd_data.write_block.block);
 }
 
 void erase_block_cmd(u8 *data, int data_len)

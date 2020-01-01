@@ -62,6 +62,10 @@ union cmd_data_u {
 	struct {
 		u8 block[BLK_SIZE];
 		int block_idx;
+	} write_block;
+	struct {
+		u8 block[BLK_SIZE];
+		int block_idx;
 	} erase_block;
 	struct {
 		u8 new_key[AES_256_KEY_SIZE];
