@@ -103,7 +103,6 @@ void emmc_user_storage_start();
 static void read_block_complete();
 static void write_block_complete();
 
-void flash_write_storage_complete();
 void startup_cmd_iter();
 static void write_block_complete();
 void write_root_block(const u8 *data, int sz);
@@ -126,13 +125,13 @@ void emmc_user_db_start()
 	break;
 	case DB_ACTION_WRITE: {
 		int idx = g_db_write_idx;
-		const u8 *dest = g_db_write_src;
+		const u8 *src = g_db_write_src;
 		do {
 			cardState = HAL_MMC_GetCardState(&hmmc1);
 		} while (cardState != HAL_MMC_CARD_TRANSFER);
 
 		HAL_MMC_WriteBlocks_DMA_Initial(&hmmc1,
-		                                dest,
+		                                src,
 		                                BLK_SIZE,
 						(idx - MIN_DATA_BLOCK + EMMC_DB_FIRST_BLOCK)*(HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ),
 						BLK_SIZE/MSC_MEDIA_PACKET);
@@ -521,13 +520,14 @@ static void write_block_complete()
 		initializing_iter();
 		break;
 	case DS_WIPING:
-		cmd_data.wipe_data.block++;
-		progress_level[0] = cmd_data.wipe_data.block;
+		cmd_data.wipe_data.block_idx++;
+		progress_level[0] = cmd_data.wipe_data.block_idx;
 		get_progress_check();
-		if (cmd_data.wipe_data.block == NUM_STORAGE_BLOCKS) {
+		if (cmd_data.wipe_data.block_idx == NUM_STORAGE_BLOCKS) {
 			enter_state(DS_UNINITIALIZED);
 		} else {
-			write_data_block(cmd_data.wipe_data.block, NULL);
+			write_data_block(cmd_data.wipe_data.block_idx,
+					cmd_data.wipe_data.block);
 		}
 		break;
 	default:
@@ -600,8 +600,10 @@ void long_button_press()
 #endif
 		case WIPE: {
 			finish_command_resp(OKAY);
-			cmd_data.wipe_data.block = 0;
-			write_root_block(NULL, 0);
+			cmd_data.wipe_data.block_idx = ROOT_DATA_BLOCK;
+			memset(cmd_data.wipe_data.block, 0, BLK_SIZE);
+			write_data_block(cmd_data.wipe_data.block_idx,
+					cmd_data.wipe_data.block);
 			int temp[] = {NUM_STORAGE_BLOCKS};
 			enter_progressing_state(DS_WIPING, 1, temp);
 		}
@@ -968,7 +970,8 @@ void erase_block_cmd(u8 *data, int data_len)
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	write_data_block(idx, NULL);
+	memset(cmd_data.erase_block.block, 0, BLK_SIZE);
+	write_data_block(idx, cmd_data.erase_block.block);
 }
 
 void get_device_capacity_cmd(u8 *data, int data_len)

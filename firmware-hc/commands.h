@@ -52,8 +52,13 @@ union cmd_data_u {
 		struct block_info blk_info;
 	} startup;
 	struct {
-		int block;
+		u8 block[BLK_SIZE];
+		int block_idx;
 	} wipe_data;
+	struct {
+		u8 block[BLK_SIZE];
+		int block_idx;
+	} erase_block;
 	struct {
 		u8 new_key[AES_256_KEY_SIZE];
 		u8 cyphertext[AES_256_KEY_SIZE];
