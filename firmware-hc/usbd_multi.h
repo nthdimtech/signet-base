@@ -37,7 +37,7 @@ enum usb_interfaces {
 #define HID_REPORT_DESC               0x22U
 
 #ifndef HID_HS_BINTERVAL
-#define HID_HS_BINTERVAL            0x07U
+#define HID_HS_BINTERVAL            0x01U
 #endif /* HID_HS_BINTERVAL */
 
 #ifndef HID_FS_BINTERVAL
