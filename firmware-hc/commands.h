@@ -69,6 +69,7 @@ union cmd_data_u {
 	} erase_block;
 	struct {
 		u8 new_key[AES_256_KEY_SIZE];
+		u8 keystore_key[AES_256_KEY_SIZE];
 		u8 cyphertext[AES_256_KEY_SIZE];
 		u8 hashfn[AES_BLK_SIZE];
 		u8 salt[AES_256_KEY_SIZE];

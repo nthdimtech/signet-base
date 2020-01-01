@@ -42,7 +42,7 @@ u8 cmd_packet_buf[CMD_PACKET_BUF_SIZE];
 //executed
 union cmd_data_u cmd_data;
 
-u8 encrypt_key[AES_256_KEY_SIZE];
+u8 g_encrypt_key[AES_256_KEY_SIZE];
 
 u8 token_auth_rand_cyphertext[AES_256_KEY_SIZE];
 u8 token_encrypt_key_cyphertext[AES_256_KEY_SIZE];
@@ -414,9 +414,14 @@ void finish_command_resp (enum command_responses resp)
 
 void derive_iv(u32 id, u8 *iv)
 {
-	switch(root_page.format) {
-	case 1:
-		memcpy(iv, root_page.device_id, AES_BLK_SIZE);
+	memset(iv, 0, AES_BLK_SIZE);
+	switch (root_page.format) {
+	case CURRENT_ROOT_BLOCK_FORMAT:
+		//TODO: Handle DEVICE_ID_LEN > AES_BLK_SIZE
+		memcpy(iv, root_page.device_id, DEVICE_ID_LEN);
+		break;
+	default:
+		//TODO: What to do here?
 		break;
 	}
 	iv[AES_BLK_SIZE-1] += (u8)(id);
@@ -634,13 +639,15 @@ void long_button_press()
 			break;
 		case CHANGE_MASTER_PASSWORD:
 			switch (root_page.format) {
-			case 1:
-				memcpy(root_page.profile_auth_data[0].hash_function_params, cmd_data.change_master_password.hashfn, HASH_FUNCTION_PARAMS_LENGTH);
-				signet_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-				                           encrypt_key, root_page.profile_auth_data[0].keystore_key_cyphertext);
-				signet_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-				                           root_page.auth_random_cleartext, root_page.profile_auth_data[0].auth_random_cyphertext);
+			case CURRENT_ROOT_BLOCK_FORMAT:
+				signet_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, AUTH_RANDOM_DATA_LEN/AES_BLK_SIZE, NULL,
+				                           root_page.auth_random_cleartext,
+							   root_page.profile_auth_data[0].auth_random_cyphertext);
+				signet_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, KEYSTORE_KEY_SIZE/AES_BLK_SIZE, NULL,
+				                           cmd_data.change_master_password.keystore_key,
+							   root_page.profile_auth_data[0].keystore_key_cyphertext);
 				memcpy(root_page.profile_auth_data[0].salt, cmd_data.change_master_password.salt, HC_HASH_FN_SALT_SZ);
+				memcpy(root_page.profile_auth_data[0].hash_function_params, cmd_data.change_master_password.hashfn, HASH_FUNCTION_PARAMS_LENGTH);
 				break;
 			default:
 				finish_command_resp(UNKNOWN_DB_FORMAT);
@@ -663,9 +670,9 @@ void button_release()
 	}
 }
 
-int attempt_login_256(const u8 *auth_key, const u8 *auth_rand, const u8 *auth_rand_cyphertext, const u8 *encrypt_key_cyphertext, u8 *encrypt_key)
+int attempt_login_256 (const u8 *auth_key, const u8 *auth_rand, const u8 *auth_rand_cyphertext, const u8 *encrypt_key_cyphertext, u8 *encrypt_key)
 {
-	u8 auth_rand_cyphertext_test[AES_256_KEY_SIZE];
+	u8 auth_rand_cyphertext_test[AUTH_RANDOM_DATA_LEN];
 	signet_aes_256_encrypt_cbc(auth_key, AUTH_RANDOM_DATA_LEN/AES_BLK_SIZE, NULL, auth_rand, auth_rand_cyphertext_test);
 	if (memcmp(auth_rand_cyphertext_test, auth_rand_cyphertext, AUTH_RANDOM_DATA_LEN)) {
 		return 0;
@@ -685,7 +692,7 @@ void login_cmd_iter ()
 			signet_aes_256_encrypt_cbc((u8 *)cmd_data.login.token, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
 			                           root_page.auth_random_cleartext, token_auth_rand_cyphertext);
 			signet_aes_256_encrypt_cbc((u8 *)cmd_data.login.token, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-			                           encrypt_key, token_encrypt_key_cyphertext);
+			                           g_encrypt_key, token_encrypt_key_cyphertext);
 			finish_command(OKAY, (u8 *)cmd_data.login.gen_token, AES_256_KEY_SIZE);
 			enter_state(DS_LOGGED_IN);
 		}
@@ -793,7 +800,7 @@ void button_press()
 				                           root_page.auth_random_cleartext,
 				                           root_page.profile_auth_data[0].auth_random_cyphertext,
 				                           root_page.profile_auth_data[0].keystore_key_cyphertext,
-				                           encrypt_key);
+				                           g_encrypt_key);
 				if (rc) {
 					if (cmd_data.login.gen_token) {
 						cmd_data.login.authenticated = 1;
@@ -815,12 +822,12 @@ void button_press()
 		case LOGIN_TOKEN: {
 			int rc;
 			switch (root_page.format) {
-			case 1:
+			case CURRENT_ROOT_BLOCK_FORMAT:
 				rc = attempt_login_256((u8 *)cmd_data.login_token.token,
 				                       root_page.auth_random_cleartext,
 				                       token_auth_rand_cyphertext,
 				                       token_encrypt_key_cyphertext,
-				                       encrypt_key);
+				                       g_encrypt_key);
 				if (rc) {
 					finish_command_resp(OKAY);
 					enter_state(DS_LOGGED_IN);
@@ -1015,18 +1022,19 @@ void change_master_password_cmd(u8 *data, int data_len)
 	u8 *salt = data + (AES_256_KEY_SIZE * 2) + HASH_FN_SZ;
 	memcpy(cmd_data.change_master_password.hashfn, hashfn, HASH_FN_SZ);
 	memcpy(cmd_data.change_master_password.salt, salt, SALT_SZ_V2);
+	memcpy(cmd_data.change_master_password.new_key, new_key, KEYSTORE_KEY_SIZE);
 	switch (root_page.format) {
-	case 1:
-		signet_aes_256_encrypt_cbc(old_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-		                           root_page.auth_random_cleartext, cmd_data.change_master_password.cyphertext);
-		if (memcmp(cmd_data.change_master_password.cyphertext, root_page.profile_auth_data[0].auth_random_cyphertext, AES_256_KEY_SIZE)) {
+	case CURRENT_ROOT_BLOCK_FORMAT: {
+		int rc = attempt_login_256(old_key,
+					   root_page.auth_random_cleartext,
+					   root_page.profile_auth_data[0].auth_random_cyphertext,
+					   root_page.profile_auth_data[0].keystore_key_cyphertext,
+					   cmd_data.change_master_password.keystore_key);
+		if (!rc) {
 			finish_command_resp(BAD_PASSWORD);
 			return;
 		}
-		signet_aes_256_decrypt_cbc(old_key, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-		                           root_page.profile_auth_data[0].keystore_key_cyphertext, encrypt_key);
-		memcpy(cmd_data.change_master_password.new_key, new_key, AES_256_KEY_SIZE);
-		break;
+	} break;
 	default:
 		finish_command_resp(UNKNOWN_DB_FORMAT);
 		return;

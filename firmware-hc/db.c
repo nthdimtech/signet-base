@@ -100,7 +100,7 @@ static const u8 *get_cached_data_block(int idx)
 //NEN_TODO: need to select data source based on validation algorithm
 #define _root_page _crypt_data1
 
-extern u8 encrypt_key[AES_256_KEY_SIZE];
+extern u8 g_encrypt_key[AES_256_KEY_SIZE];
 
 struct block_info g_block_info_tbl[MAX_DATA_BLOCK + 1];
 
@@ -298,7 +298,7 @@ static void allocate_uid_blk(int uid, const u8 *data, int sz, int rev, const u8 
 
 	int blk_count = SIZE_TO_SUB_BLK_COUNT(sz);
 
-	signet_aes_256_encrypt_cbc(encrypt_key, blk_count, iv, data, get_part(block_temp, blk_info_temp, index));
+	signet_aes_256_encrypt_cbc(g_encrypt_key, blk_count, iv, data, get_part(block_temp, blk_info_temp, index));
 }
 
 static enum update_uid_status allocate_uid (int uid, const u8 *data, int sz, int rev, const u8 *iv, int *block_num, struct block *block_temp, struct block_info *blk_info_temp)
@@ -595,7 +595,7 @@ static int decode_uid(int sz, int block_num, const struct block *blk, int index,
 {
 	struct block_info *blk_info = g_block_info_tbl + block_num;
 	int blk_count = SIZE_TO_SUB_BLK_COUNT(sz);
-	signet_aes_256_decrypt_cbc(encrypt_key, blk_count, iv, get_part(blk, blk_info, index), dest);
+	signet_aes_256_decrypt_cbc(g_encrypt_key, blk_count, iv, get_part(blk, blk_info, index), dest);
 	if (masked) {
 		mask_uid_data(dest, blk_count);
 	}
