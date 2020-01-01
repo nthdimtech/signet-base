@@ -183,11 +183,16 @@ void emmc_user_queue(enum emmc_user user)
 
 void read_data_block (int idx, u8 *dest)
 {
-	emmc_user_queue(EMMC_USER_DB);
-	g_db_action = DB_ACTION_READ;
-	g_db_read_idx = idx;
-	g_db_read_dest = dest;
-	emmc_user_schedule();
+	if (idx == ROOT_DATA_BLOCK) {
+		memcpy(dest, &_root_page, BLK_SIZE);
+		read_block_complete();
+	} else {
+		emmc_user_queue(EMMC_USER_DB);
+		g_db_action = DB_ACTION_READ;
+		g_db_read_idx = idx;
+		g_db_read_dest = dest;
+		emmc_user_schedule();
+	}
 }
 
 void write_data_block (int idx, const u8 *src)
@@ -487,6 +492,13 @@ static void read_block_complete()
 {
 	if (db3_read_block_complete())
 		return;
+	switch (active_cmd) {
+	case READ_BLOCK:
+		finish_command(OKAY, cmd_data.read_block.block, BLK_SIZE);
+		return;
+	default:
+		break;
+	}
 }
 
 static void initializing_iter()
@@ -926,7 +938,7 @@ void restore_device_cmd()
 	begin_long_button_press_wait();
 }
 
-void read_block_cmd(u8 *data, int data_len)
+void read_block_cmd (u8 *data, int data_len)
 {
 	dprint_s("READ BLOCK\r\n");
 	if (data_len != 1) {
@@ -938,7 +950,8 @@ void read_block_cmd(u8 *data, int data_len)
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	read_data_block(idx, data);
+	cmd_data.read_block.block_idx = idx;
+	read_data_block(cmd_data.read_block.block_idx, cmd_data.read_block.block);
 }
 
 void write_block_cmd(u8 *data, int data_len)
@@ -1383,7 +1396,7 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 	return 0;
 }
 
-int backing_up_device_state(int cmd, u8 *data, int data_len)
+int backing_up_device_state (int cmd, u8 *data, int data_len)
 {
 	switch (cmd) {
 	case READ_BLOCK:
