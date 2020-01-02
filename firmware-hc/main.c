@@ -48,7 +48,11 @@ USBD_HandleTypeDef USBD_Device;
 #define LED2_PIN GPIO_PIN_13
 
 #define BUTTON_PORT GPIOD
+#define BUTTON_PORT_NUM (3)
 #define BUTTON_PIN GPIO_PIN_0
+#define BUTTON_PIN_NUM (0)
+#define BUTTON_IRQ (EXTI0_IRQn)
+#define BUTTON_HANDLER (EXTI0_IRQHandler)
 
 static void setLED1(int x)
 {
@@ -246,6 +250,18 @@ void *mp_realloc(void *p, size_t before, size_t after)
 }
 #endif
 
+int press_pending = 0;
+
+void BUTTON_HANDLER()
+{
+	int ms_count = HAL_GetTick();
+	ms_last_pressed = ms_count;
+	press_pending = 1;
+	EXTI->PR = (1 << BUTTON_PIN_NUM);
+}
+
+EXTI_HandleTypeDef button_handler_line;
+
 int main(void)
 {
 	SCB_EnableICache();
@@ -273,6 +289,12 @@ int main(void)
 	mp_set_memory_functions(mp_alloc, mp_realloc, mp_dealloc);
 	crypto_ecc256_init();
 #endif
+
+	SYSCFG->EXTICR[BUTTON_PIN_NUM / 4] = (BUTTON_PORT_NUM << (4 * (BUTTON_PIN_NUM % 4)));
+	EXTI->FTSR |= (1 << BUTTON_PIN_NUM);
+	EXTI->IMR |= (1 << BUTTON_PIN_NUM);
+	HAL_NVIC_SetPriority(EXTI0_IRQn, 64, 64);
+	HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 
 	usbBulkBufferFIFO.numStages = 2;
 	usbBulkBufferFIFO.maxBufferSize = USB_BULK_BUFFER_SIZE;
@@ -313,10 +335,11 @@ int main(void)
 			led_off();
 		}
 #endif
-		int press_pending = 0;
+#if 0
 		if (current_button_state == 1 && button_state == 0) {
 			press_pending = 1;
 		}
+#endif
 		if (press_pending) {
 			press_pending = 0;
 			if (!button_state) {
