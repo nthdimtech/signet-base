@@ -80,15 +80,20 @@ static void MX_DMA_Init(void);
 #define USB_BULK_BUFFER_SIZE (4096)
 #define USB_BULK_BUFFER_COUNT (4)
 
-static uint8_t usbBulkBuffer[USB_BULK_BUFFER_SIZE * USB_BULK_BUFFER_COUNT] __attribute__((aligned(16)));
+static uint8_t g_usbBulkBuffer[USB_BULK_BUFFER_SIZE * USB_BULK_BUFFER_COUNT] __attribute__((aligned(16)));
 struct bufferFIFO usbBulkBufferFIFO;
 
-static int ms_last_pressed = 0;
-static int blink_state = 0;
-static int blink_start = 0;
-static int blink_period = 0;
-static int blink_duration = 0;
-static int button_state = 0;
+static int g_ms_last_pressed = 0;
+static int g_blink_state = 0;
+static int g_blink_start = 0;
+static int g_blink_period = 0;
+static int g_blink_duration = 0;
+static int g_button_state = 0;
+static int g_pause_start;
+
+static int g_timer_target;
+
+static int g_press_pending = 0;
 
 __weak void blink_timeout()
 {
@@ -105,17 +110,15 @@ __weak void button_release()
 {
 }
 
-static int timer_target;
-
 void timer_start(int ms)
 {
 	int ms_count = HAL_GetTick();
-	timer_target = ms_count + ms;
+	g_timer_target = ms_count + ms;
 }
 
 void timer_stop()
 {
-	timer_target = 0;
+	g_timer_target = 0;
 }
 
 __weak void timer_timeout()
@@ -134,34 +137,34 @@ void led_on()
 	setLED2(1);
 }
 
-static int blink_paused = 0;
+static int g_blink_paused = 0;
 
-static uint8_t timeout_event_secs;
+static uint8_t g_timeout_event_secs;
 
 void blink_idle()
 {
 	int ms_count = HAL_GetTick();
-	if (blink_period > 0 && !blink_paused) {
-		int next_blink_state = ((ms_count - blink_start)/(blink_period/2)) % 2;
-		if (next_blink_state != blink_state) {
+	if (g_blink_period > 0 && !g_blink_paused) {
+		int next_blink_state = ((ms_count - g_blink_start)/(g_blink_period/2)) % 2;
+		if (next_blink_state != g_blink_state) {
 			if (next_blink_state) {
 				led_off();
 			} else {
 				led_on();
 			}
 		}
-		blink_state = next_blink_state;
-		int timeout_event_msecs = blink_duration - (ms_count - blink_start);
+		g_blink_state = next_blink_state;
+		int timeout_event_msecs = g_blink_duration - (ms_count - g_blink_start);
 		int next_timeout_event_secs = (timeout_event_msecs+999)/1000;
-		if ((timeout_event_msecs <= 0) && (blink_duration > 0)) {
-			blink_period = 0;
+		if ((timeout_event_msecs <= 0) && (g_blink_duration > 0)) {
+			g_blink_period = 0;
 			led_off();
 			blink_timeout();
 		}
-		if (next_timeout_event_secs != timeout_event_secs) {
-			timeout_event_secs = next_timeout_event_secs;
+		if (next_timeout_event_secs != g_timeout_event_secs) {
+			g_timeout_event_secs = next_timeout_event_secs;
 			if (g_device_state != DS_DISCONNECTED && g_device_state != DS_RESET) {
-				cmd_event_send(2, &timeout_event_secs, sizeof(timeout_event_secs));
+				cmd_event_send(2, &g_timeout_event_secs, sizeof(g_timeout_event_secs));
 			}
 		}
 	}
@@ -170,43 +173,41 @@ void blink_idle()
 void start_blinking(int period, int duration)
 {
 	int ms_count = HAL_GetTick();
-	blink_start = ms_count;
-	blink_period = period;
-	blink_duration = duration;
-	timeout_event_secs = (blink_duration + 999)/1000;
+	g_blink_start = ms_count;
+	g_blink_period = period;
+	g_blink_duration = duration;
+	g_timeout_event_secs = (g_blink_duration + 999)/1000;
 	led_on();
 }
-
-static int pause_start;
 
 void pause_blinking()
 {
 	int ms_count = HAL_GetTick();
 	led_off();
-	blink_paused = 1;
-	pause_start = ms_count;
+	g_blink_paused = 1;
+	g_pause_start = ms_count;
 }
 
 void resume_blinking()
 {
 	int ms_count = HAL_GetTick();
-	if (blink_paused) {
-		blink_start += (ms_count - pause_start);
-		blink_paused = 0;
+	if (g_blink_paused) {
+		g_blink_start += (ms_count - g_pause_start);
+		g_blink_paused = 0;
 		blink_idle();
 	}
 }
 
 void stop_blinking()
 {
-	blink_period = 0;
-	blink_paused = 0;
+	g_blink_period = 0;
+	g_blink_paused = 0;
 	led_off();
 }
 
 int is_blinking()
 {
-	return blink_period > 0;
+	return g_blink_period > 0;
 }
 
 
@@ -250,17 +251,13 @@ void *mp_realloc(void *p, size_t before, size_t after)
 }
 #endif
 
-int press_pending = 0;
-
 void BUTTON_HANDLER()
 {
 	int ms_count = HAL_GetTick();
-	ms_last_pressed = ms_count;
-	press_pending = 1;
+	g_ms_last_pressed = ms_count;
+	g_press_pending = 1;
 	EXTI->PR = (1 << BUTTON_PIN_NUM);
 }
-
-EXTI_HandleTypeDef button_handler_line;
 
 int main(void)
 {
@@ -298,7 +295,7 @@ int main(void)
 
 	usbBulkBufferFIFO.numStages = 2;
 	usbBulkBufferFIFO.maxBufferSize = USB_BULK_BUFFER_SIZE;
-	usbBulkBufferFIFO.bufferStorage = usbBulkBuffer;
+	usbBulkBufferFIFO.bufferStorage = g_usbBulkBuffer;
 	usbBulkBufferFIFO.bufferCount = USB_BULK_BUFFER_COUNT;
 
 	HAL_Delay(5);
@@ -308,7 +305,19 @@ int main(void)
 	ctaphid_init();
 #endif
 
-	HAL_FLASH_Unlock();
+#if BOOT_MODE_TOGGLE_TEST
+	enum hc_boot_mode mode = flash_get_boot_mode();
+	switch (mode) {
+	case HC_BOOT_BOOTLOADER_MODE:
+		flash_set_boot_mode(HC_BOOT_APPLICATION_MODE);
+		break;
+	case HC_BOOT_APPLICATION_MODE:
+		flash_set_boot_mode(HC_BOOT_BOOTLOADER_MODE);
+		break;
+	default:
+		break;
+	}
+#endif
 
 	USBD_Init(&USBD_Device, &Multi_Desc, 0);
 	USBD_RegisterClass(&USBD_Device, USBD_MULTI_CLASS);
@@ -318,9 +327,9 @@ int main(void)
 	while (1) {
 		__asm__("cpsid i");
 		int ms_count = HAL_GetTick();
-		if (ms_count > timer_target && timer_target != 0) {
+		if (ms_count > g_timer_target && g_timer_target != 0) {
 			timer_timeout();
-			timer_target = 0;
+			g_timer_target = 0;
 		}
 		//NEN_TODO: need to implment the function below
 		//usb_keyboard_idle();
@@ -328,31 +337,19 @@ int main(void)
 		flash_idle();
 		int current_button_state = buttonState() ? 0 : 1;
 
-#if 0
-		if (current_button_state) {
-			led_on();
-		} else {
-			led_off();
-		}
-#endif
-#if 0
-		if (current_button_state == 1 && button_state == 0) {
-			press_pending = 1;
-		}
-#endif
-		if (press_pending) {
-			press_pending = 0;
-			if (!button_state) {
+		if (g_press_pending) {
+			g_press_pending = 0;
+			if (!g_button_state) {
 				button_press();
-				button_state = 1;
+				g_button_state = 1;
 			}
 		}
-		if (!current_button_state && button_state && (ms_count - ms_last_pressed) > 100) {
+		if (!current_button_state && g_button_state && (ms_count - g_ms_last_pressed) > 100) {
 			button_release();
-			button_state = 0;
+			g_button_state = 0;
 		}
-		if (button_state && ((ms_count - ms_last_pressed) > 2000)) {
-			button_state = 0;
+		if (g_button_state && ((ms_count - g_ms_last_pressed) > 2000)) {
+			g_button_state = 0;
 			long_button_press();
 		}
 		__asm__("cpsie i");

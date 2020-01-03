@@ -2,6 +2,8 @@
 #include "signetdev_common.h"
 #include "stm32f7xx_hal.h"
 
+#include "memory_layout.h"
+
 enum flash_state {
 	FLASH_IDLE,
 	FLASH_ERASING,
@@ -60,6 +62,47 @@ int flash_writing()
 	default:
 		return 1;
 	}
+}
+
+//TODO: compute these from memory layout defines'
+#define BOOTLOADER_MODE_ADD0_VAL (0x82)
+#define APPLICATION_MODE_ADD0_VAL (0x88)
+
+void flash_set_boot_mode(enum hc_boot_mode mode)
+{
+	HAL_FLASH_Unlock();
+	HAL_FLASH_OB_Unlock();
+	FLASH_OBProgramInitTypeDef obInit;
+	obInit.OptionType = OPTIONBYTE_BOOTADDR_0;
+	switch (mode) {
+	case HC_BOOT_BOOTLOADER_MODE:
+		obInit.BootAddr0 = BOOTLOADER_MODE_ADD0_VAL;
+		break;
+	case HC_BOOT_APPLICATION_MODE:
+		obInit.BootAddr0 = APPLICATION_MODE_ADD0_VAL;
+		break;
+	default:
+		//What to do here?
+		return;
+	}
+	HAL_FLASHEx_OBProgram(&obInit);
+	HAL_FLASH_OB_Launch();
+	HAL_FLASH_OB_Lock();
+	HAL_FLASH_Lock();
+}
+
+enum hc_boot_mode flash_get_boot_mode()
+{
+	FLASH_OBProgramInitTypeDef obInit;
+	obInit.OptionType = OPTIONBYTE_BOOTADDR_0;
+	HAL_FLASHEx_OBGetConfig(&obInit);
+	switch (obInit.BootAddr0) {
+	case BOOTLOADER_MODE_ADD0_VAL:
+		return HC_BOOT_BOOTLOADER_MODE;
+	case APPLICATION_MODE_ADD0_VAL:
+		return HC_BOOT_APPLICATION_MODE;
+	}
+	return HC_BOOT_UNKNOWN_MODE;
 }
 
 void flash_idle()

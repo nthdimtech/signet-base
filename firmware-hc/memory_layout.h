@@ -3,7 +3,8 @@
 
 #include "types.h"
 
-#define BOOT_AREA_A (0x8000000)
+#define FLASH_BASE_ADDR (0x8000000)
+#define BOOT_AREA_A (0x8008000)
 #define BOOT_AREA_A_LEN (1024 * 96)
 #define BOOT_AREA_B (0x8020000)
 #define BOOT_AREA_B_LEN (1024 * 384)
