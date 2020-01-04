@@ -151,7 +151,17 @@ void flash_idle()
 	}
 }
 
-void flash_write_page(u8 *dest, const u8 *src, int count)
+void flash_write (u8 *dest, const u8 *src, int count)
+{
+	if (flash_state == FLASH_IDLE) {
+		flash_write_dest = (u32)dest;
+		flash_write_src = (u32 *)src;
+		flash_write_length = count;
+		flash_state = FLASH_WRITING;
+	}
+}
+
+void flash_write_page (u8 *dest, const u8 *src, int count)
 {
 	if (flash_state == FLASH_IDLE) {
 		flash_write_dest = (u32)dest;

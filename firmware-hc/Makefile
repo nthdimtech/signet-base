@@ -14,7 +14,7 @@ all: $(TARGET_BIN)
 HTUPLE:=arm-none-eabi
 
 LIBS=-lnettle -lhogweed -lmini-gmp
-CFLAGS=-Wno-unused -Werror -ffunction-sections -fdata-sections -O2 -DSIGNET_HC
+CFLAGS=-Wno-unused -Werror -ffunction-sections -fdata-sections -O0 -Os -DSIGNET_HC
 ASFLAGS=
 LDFLAGS=-Wl,"--gc-sections"
 LDFLAGS+=-Wl,"-Map=$(TARGET_MAP)"
@@ -98,6 +98,7 @@ SOURCES = commands.c \
 	usbd_msc_scsi.c \
 	usbd_msc_ops.c \
 	buffer_manager.c \
+	firmware_update_state.c \
 	$(MCU_SOURCES)
 
 ifeq ($(BT_MODE), B)

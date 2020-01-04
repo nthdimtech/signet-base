@@ -13,6 +13,7 @@ void derive_iv(u32 id, u8 *iv);
 void begin_button_press_wait();
 void begin_long_button_press_wait();
 void invalidate_data_block_cache(int idx);
+void get_progress_check();
 
 extern enum device_state g_device_state;
 extern int active_cmd;
@@ -26,8 +27,8 @@ union state_data_u {
 union cmd_data_u {
 	struct {
 		u16 index;
-		u16 num_pages;
-		u8 pages[CMD_PACKET_PAYLOAD_SIZE];
+		u16 min_page;
+		u16 max_page;
 	} erase_flash_pages;
 	struct {
 		u8 chars[CMD_PACKET_PAYLOAD_SIZE];
@@ -158,5 +159,8 @@ enum emmc_user {
 void emmc_user_queue(enum emmc_user user);
 void emmc_user_schedule();
 void emmc_user_done();
+
+//TODO: Use functions to update progress
+extern int g_progress_level[];
 
 #endif

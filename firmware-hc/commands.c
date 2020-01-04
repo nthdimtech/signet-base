@@ -3,6 +3,7 @@
 
 #include "commands.h"
 #include "signetdev_common.h"
+#include "firmware_update_state.h"
 #include "types.h"
 #include "stm32f7xx_hal.h"
 
@@ -17,7 +18,7 @@ void usb_keyboard_type(const u8 *keys, int num)
 #include "signet_aes.h"
 
 //NEN_TODO
-//#include "firmware_update_state.h"
+#include "firmware_update_state.h"
 
 #include "rtc_rand.h"
 #include "main.h"
@@ -65,7 +66,7 @@ extern struct hc_device_data _crypt_data2;
 #define _root_page _crypt_data1
 
 static int n_progress_components = 0;
-static int progress_level[8];
+int g_progress_level[8];
 static int progress_maximum[8];
 static int progress_check = 0;
 static int progress_target_state = DS_DISCONNECTED;
@@ -300,7 +301,7 @@ void enter_progressing_state (enum device_state state, int _n_progress_component
 	n_progress_components = _n_progress_components;
 	int i;
 	for (i = 0; i < n_progress_components; i++) {
-		progress_level[i] = 0;
+		g_progress_level[i] = 0;
 		progress_maximum[i] = _progress_maximum[i];
 	}
 	get_progress_check();
@@ -340,7 +341,7 @@ int get_total_progress()
 	int total = 0;
 	int i;
 	for (i = 0; i < n_progress_components; i++) {
-		total += progress_level[i];
+		total += g_progress_level[i];
 	}
 	return total;;
 }
@@ -370,8 +371,8 @@ void get_progress_check ()
 			int i;
 			for (i = 0; i < n_progress_components; i++) {
 				int j = i + 1;
-				resp[j * 4] = progress_level[i] & 0xff;
-				resp[j * 4 + 1] = progress_level[i] >> 8;
+				resp[j * 4] = g_progress_level[i] & 0xff;
+				resp[j * 4 + 1] = g_progress_level[i] >> 8;
 				resp[j * 4 + 2] = progress_maximum[i] & 0xff;
 				resp[j * 4 + 3] = progress_maximum[i] >> 8;
 			}
@@ -451,10 +452,10 @@ static void finalize_root_page_check()
 		memcpy(root_page.auth_random_cleartext, auth_rand_data, AUTH_RANDOM_DATA_LEN);
 		signet_aes_256_encrypt_cbc(cmd_data.init_data.passwd, AUTH_RANDOM_DATA_LEN/AES_BLK_SIZE, NULL,
 		                           auth_rand_data, root_page.profile_auth_data[0].auth_random_cyphertext);
-		signet_aes_256_encrypt_cbc(cmd_data.init_data.passwd, KEYSTORE_KEY_SIZE/AES_BLK_SIZE, NULL,
+		signet_aes_256_encrypt_cbc(cmd_data.init_data.passwd, HC_KEYSTORE_KEY_SIZE/AES_BLK_SIZE, NULL,
 		                           keystore_key, root_page.profile_auth_data[0].keystore_key_cyphertext);
 		memcpy(root_page.profile_auth_data[0].salt, cmd_data.init_data.salt, HC_HASH_FN_SALT_SZ);
-		memcpy(root_page.profile_auth_data[0].hash_function_params, cmd_data.init_data.hashfn, HASH_FUNCTION_PARAMS_LENGTH);
+		memcpy(root_page.profile_auth_data[0].hash_function_params, cmd_data.init_data.hashfn, HC_HASH_FUNCTION_PARAMS_LENGTH);
 		write_root_block((const u8 *)&root_page, sizeof(root_page));
 	}
 }
@@ -473,7 +474,7 @@ void cmd_rand_update()
 	case DS_INITIALIZING:
 		if (avail <= (INIT_RAND_DATA_SZ/4)) {
 			cmd_data.init_data.random_data_gathered = avail - cmd_data.init_data.rand_avail_init;
-			progress_level[1] = cmd_data.init_data.random_data_gathered;
+			g_progress_level[1] = cmd_data.init_data.random_data_gathered;
 			get_progress_check();
 		}
 		finalize_root_page_check();
@@ -509,9 +510,9 @@ static void read_block_complete()
 static void initializing_iter()
 {
 	cmd_data.init_data.blocks_written++;
-	progress_level[0] = cmd_data.init_data.blocks_written;
-	if (progress_level[0] > progress_maximum[0]) progress_level[0] = progress_maximum[0];
-	progress_level[1] = cmd_data.init_data.random_data_gathered;
+	g_progress_level[0] = cmd_data.init_data.blocks_written;
+	if (g_progress_level[0] > progress_maximum[0]) g_progress_level[0] = progress_maximum[0];
+	g_progress_level[1] = cmd_data.init_data.random_data_gathered;
 	get_progress_check();
 
 	if (cmd_data.init_data.blocks_written < NUM_DATA_BLOCKS) {
@@ -532,13 +533,14 @@ static void write_block_complete()
 {
 	if (db3_write_block_complete())
 		return;
+	firmware_update_write_block_complete();
 	switch (g_device_state) {
 	case DS_INITIALIZING:
 		initializing_iter();
 		break;
 	case DS_WIPING:
 		cmd_data.wipe_data.block_idx++;
-		progress_level[0] = cmd_data.wipe_data.block_idx;
+		g_progress_level[0] = cmd_data.wipe_data.block_idx;
 		get_progress_check();
 		if (cmd_data.wipe_data.block_idx == NUM_STORAGE_BLOCKS) {
 			enter_state(DS_UNINITIALIZED);
@@ -608,13 +610,9 @@ void long_button_press()
 		case UPDATE_UIDS:
 			update_uid_cmd_complete();
 			break;
-//NEN_TODO: implement
-#ifndef SIGNET_HC
 		case UPDATE_FIRMWARE:
-			finish_command_resp(OKAY);
-			enter_state(DS_FIRMWARE_UPDATE);
+			update_firmware_cmd_complete();
 			break;
-#endif
 		case WIPE: {
 			finish_command_resp(OKAY);
 			cmd_data.wipe_data.block_idx = ROOT_DATA_BLOCK;
@@ -643,11 +641,11 @@ void long_button_press()
 				signet_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, AUTH_RANDOM_DATA_LEN/AES_BLK_SIZE, NULL,
 				                           root_page.auth_random_cleartext,
 							   root_page.profile_auth_data[0].auth_random_cyphertext);
-				signet_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, KEYSTORE_KEY_SIZE/AES_BLK_SIZE, NULL,
+				signet_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, HC_KEYSTORE_KEY_SIZE/AES_BLK_SIZE, NULL,
 				                           cmd_data.change_master_password.keystore_key,
 							   root_page.profile_auth_data[0].keystore_key_cyphertext);
 				memcpy(root_page.profile_auth_data[0].salt, cmd_data.change_master_password.salt, HC_HASH_FN_SALT_SZ);
-				memcpy(root_page.profile_auth_data[0].hash_function_params, cmd_data.change_master_password.hashfn, HASH_FUNCTION_PARAMS_LENGTH);
+				memcpy(root_page.profile_auth_data[0].hash_function_params, cmd_data.change_master_password.hashfn, HC_HASH_FUNCTION_PARAMS_LENGTH);
 				break;
 			default:
 				finish_command_resp(UNKNOWN_DB_FORMAT);
@@ -677,7 +675,7 @@ int attempt_login_256 (const u8 *auth_key, const u8 *auth_rand, const u8 *auth_r
 	if (memcmp(auth_rand_cyphertext_test, auth_rand_cyphertext, AUTH_RANDOM_DATA_LEN)) {
 		return 0;
 	} else {
-		signet_aes_256_decrypt_cbc(auth_key, KEYSTORE_KEY_SIZE/AES_BLK_SIZE, NULL, encrypt_key_cyphertext, encrypt_key);
+		signet_aes_256_decrypt_cbc(auth_key, HC_KEYSTORE_KEY_SIZE/AES_BLK_SIZE, NULL, encrypt_key_cyphertext, encrypt_key);
 		return 1;
 	}
 }
@@ -1020,9 +1018,9 @@ void change_master_password_cmd(u8 *data, int data_len)
 	u8 *new_key = data + AES_256_KEY_SIZE;
 	u8 *hashfn = data + (AES_256_KEY_SIZE * 2);
 	u8 *salt = data + (AES_256_KEY_SIZE * 2) + HASH_FN_SZ;
-	memcpy(cmd_data.change_master_password.hashfn, hashfn, HASH_FN_SZ);
-	memcpy(cmd_data.change_master_password.salt, salt, SALT_SZ_V2);
-	memcpy(cmd_data.change_master_password.new_key, new_key, KEYSTORE_KEY_SIZE);
+	memcpy(cmd_data.change_master_password.hashfn, hashfn,HC_HASH_FUNCTION_PARAMS_LENGTH);
+	memcpy(cmd_data.change_master_password.salt, salt, HC_HASH_FN_SALT_SZ);
+	memcpy(cmd_data.change_master_password.new_key, new_key, HC_KEYSTORE_KEY_SIZE);
 	switch (root_page.format) {
 	case CURRENT_ROOT_BLOCK_FORMAT: {
 		int rc = attempt_login_256(old_key,
@@ -1177,19 +1175,17 @@ int uninitialized_state(int cmd, u8 *data, int data_len)
 #endif
 #ifdef FACTORY_MODE
 	case UPDATE_FIRMWARE:
-		finish_command_resp(OKAY);
-		enter_state(DS_FIRMWARE_UPDATE);
+		firmware_update_cmd(data, data_len);
 		break;
 #else
-#if NEN_TODO
 	case UPDATE_FIRMWARE:
 		if (is_device_wiped()) {
+			update_firmware_cmd(data, data_len);
 			begin_long_button_press_wait();
 		} else {
 			finish_command_resp(DEVICE_NOT_WIPED);
 		}
 		break;
-#endif
 #endif
 	default:
 		return -1;
@@ -1387,6 +1383,7 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		finish_command_resp(OKAY);
 		break;
 	case UPDATE_FIRMWARE:
+		update_firmware_cmd(data, data_len);
 		begin_long_button_press_wait();
 		break;
 #ifndef SIGNET_HC
@@ -1454,8 +1451,8 @@ void startup_cmd_iter()
 	resp[5] = 0;
 	switch (g_root_block_version) {
 	case CURRENT_ROOT_BLOCK_FORMAT:
-		memcpy(resp + 6, root_page.profile_auth_data[0].hash_function_params, HASH_FUNCTION_PARAMS_LENGTH);
-		memcpy(resp + 6 + HASH_FUNCTION_PARAMS_LENGTH, root_page.profile_auth_data[0].salt, HC_HASH_FN_SALT_SZ);
+		memcpy(resp + 6, root_page.profile_auth_data[0].hash_function_params, HC_HASH_FUNCTION_PARAMS_LENGTH);
+		memcpy(resp + 6 + HC_HASH_FUNCTION_PARAMS_LENGTH, root_page.profile_auth_data[0].salt, HC_HASH_FN_SALT_SZ);
 		g_db_version = root_page.db_format;
 		resp[5] = g_db_version;
 		break;
@@ -1573,11 +1570,9 @@ int cmd_packet_recv()
 	case DS_RESTORING_DEVICE:
 		ret = restoring_device_state(active_cmd, data, data_len);
 		break;
-#if NEN_TODO
 	case DS_FIRMWARE_UPDATE:
 		ret = firmware_update_state(active_cmd, data, data_len);
 		break;
-#endif
 	case DS_LOGGED_OUT:
 		ret = logged_out_state(active_cmd, data, data_len);
 		break;

@@ -2,33 +2,31 @@
 #define MEMORY_LAYOUT_H
 
 #include "types.h"
+#include "signetdev_hc_common.h"
 
 #define FLASH_BASE_ADDR (0x8000000)
 #define BOOT_AREA_A (0x8008000)
-#define BOOT_AREA_A_LEN (1024 * 96)
 #define BOOT_AREA_B (0x8020000)
-#define BOOT_AREA_B_LEN (1024 * 384)
-#define DATA_AREA_1 (0x8008000)
-#define DATA_AREA_2 (0x8020000)
+#define DATA_AREA_1 (0x8000000)
+#define DATA_AREA_2 (0x8004000)
 
 #define DEVICE_ID_LEN (16)
 #define DEVICE_NAME_LEN (32)
-#define FIRMWARE_HASH_KEY_LEN (32)
-#define FIRMWARE_HASH_LEN (32)
-#define FIRMWARE_SIGNATURE_LEN (32)
-#define FIRMWARE_SIGNATURE_PUBKEY_LEN (32)
 #define AUTH_RANDOM_DATA_LEN (16)
 #define MAX_PROFILES (16)
 #define MAX_TAG_NAME_LENGTH (16)
-#define HASH_FUNCTION_PARAMS_LENGTH (16)
-#define KEYSTORE_KEY_SIZE (32)
 #define MAX_PROFILE_NAME_LENGTH (32)
 #define MAX_PROFILE_TAGS (16)
-#define HC_HASH_FN_SALT_SZ (32)
 
 #define EMMC_SUB_BLOCK_SZ (512)
-#define HC_BLOCK_SZ (16384)
-#define EMMC_DB_FIRST_BLOCK (4)
+#define HC_BLOCK_SZ (1<<14)
+#define HC_FIRMWARE_HEADER_SZ (HC_BLOCK_SZ)
+#define HC_FIRMWARE_SZ (1<<19)
+#define EMMC_DB_FIRMWARE_UPDATE_BLOCK (0)
+#define EMMC_DB_FIRMWARE_UPDATE_BLOCKS ((HC_FIRMWARE_HEADER_SZ + HC_FIRMWARE_SZ)/HC_BLOCK_SZ)
+#define EMMC_DB_KEYSTORE_BLOCK (EMMC_DB_FIRMWARE_UPDATE_BLOCK + EMMC_DB_FIRMWARE_UPDATE_BLOCKS)
+#define EMMC_DB_KEYSTORE_BLOCKS (4)
+#define EMMC_DB_FIRST_BLOCK (EMMC_DB_KEYSTORE_BLOCK + EMMC_DB_KEYSTORE_BLOCKS)
 #define EMMC_DB_NUM_BLOCK (1024)
 #define EMMC_STORAGE_FIRST_BLOCK (EMMC_DB_NUM_BLOCK + EMMC_DB_FIRST_BLOCK)
 
@@ -65,15 +63,9 @@ struct hcdb_profile_definition_block {
 
 struct hcdb_profile_auth_data {
 	u8 salt[HC_HASH_FN_SALT_SZ];
-	u8 hash_function_params[HASH_FUNCTION_PARAMS_LENGTH];
+	u8 hash_function_params[HC_HASH_FUNCTION_PARAMS_LENGTH];
 	u8 auth_random_cyphertext[AUTH_RANDOM_DATA_LEN];
-	u8 keystore_key_cyphertext[KEYSTORE_KEY_SIZE];
-} __attribute__((packed));
-
-struct hc_firmware_version {
-	u16 major;
-	u16 minor;
-	u16 step;
+	u8 keystore_key_cyphertext[HC_KEYSTORE_KEY_SIZE];
 } __attribute__((packed));
 
 enum hc_firmware_upgrade_state {
@@ -91,13 +83,13 @@ struct hc_device_data {
 	u8 device_id[DEVICE_ID_LEN];
 	u8 device_name[DEVICE_NAME_LEN];
 	struct hc_firmware_version fw_version[2];
-	u8 firmware_hash_key[2][FIRMWARE_HASH_KEY_LEN];
-	u8 firmware_hash[2][FIRMWARE_HASH_LEN];
+	u8 firmware_hash_key[2][HC_FIRMWARE_HASH_KEY_LEN];
+	u8 firmware_hash[2][HC_FIRMWARE_HASH_LEN];
 	u32 firmware_A_crc[2];
 	u32 firmware_B_crc[2];
-	u32 firmware_A_signature[2][FIRMWARE_SIGNATURE_LEN];
-	u32 firmware_B_signature[2][FIRMWARE_SIGNATURE_LEN];
-	u32 firmware_signature_pubkey[FIRMWARE_SIGNATURE_PUBKEY_LEN];
+	u32 firmware_A_signature[2][HC_FIRMWARE_SIGNATURE_LEN];
+	u32 firmware_B_signature[2][HC_FIRMWARE_SIGNATURE_LEN];
+	u32 firmware_signature_pubkey[HC_FIRMWARE_SIGNATURE_PUBKEY_LEN];
 	u8 auth_random_cleartext[AUTH_RANDOM_DATA_LEN];
 	struct hcdb_profile_auth_data profile_auth_data[MAX_PROFILES];
 	u16 user_data_size;
