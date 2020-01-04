@@ -1450,10 +1450,11 @@ void startup_cmd_iter()
 	resp[3] = g_device_state;
 	resp[4] = g_root_block_version;
 	resp[5] = 0;
+	resp[6] = (u8)flash_get_boot_mode();
 	switch (g_root_block_version) {
 	case CURRENT_ROOT_BLOCK_FORMAT:
-		memcpy(resp + 6, root_page.profile_auth_data[0].hash_function_params, HC_HASH_FUNCTION_PARAMS_LENGTH);
-		memcpy(resp + 6 + HC_HASH_FUNCTION_PARAMS_LENGTH, root_page.profile_auth_data[0].salt, HC_HASH_FN_SALT_SZ);
+		memcpy(resp + STARTUP_RESP_INFO_SIZE, root_page.profile_auth_data[0].hash_function_params, HC_HASH_FUNCTION_PARAMS_LENGTH);
+		memcpy(resp + STARTUP_RESP_INFO_SIZE + HC_HASH_FUNCTION_PARAMS_LENGTH, root_page.profile_auth_data[0].salt, HC_HASH_FN_SALT_SZ);
 		g_db_version = root_page.db_format;
 		resp[5] = g_db_version;
 		break;

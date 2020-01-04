@@ -27,6 +27,7 @@ struct hc_firmware_info {
 } __attribute__((packed));
 
 struct hc_firmware_file {
+	u32 file_prefix;
 	u32 file_version;
 	u8 firmware_hash_key[HC_FIRMWARE_HASH_KEY_LEN];
 	u8 firmware_hash[HC_FIRMWARE_HASH_LEN];
@@ -41,5 +42,9 @@ struct hc_firmware_file {
 	u8 firmware_A[HC_BOOT_AREA_A_LEN];
 	u8 firmware_B[HC_BOOT_AREA_B_LEN];
 } __attribute__((packed));
+
+#define SIGNET_HC_MAJOR_VERSION 0
+#define SIGNET_HC_MINOR_VERSION 8
+#define SIGNET_HC_STEP_VERSION 0
 
 #endif
