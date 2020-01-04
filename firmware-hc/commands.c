@@ -1176,6 +1176,7 @@ int uninitialized_state(int cmd, u8 *data, int data_len)
 #ifdef FACTORY_MODE
 	case UPDATE_FIRMWARE:
 		firmware_update_cmd(data, data_len);
+		firmware_update_cmd_complete();
 		break;
 #else
 	case UPDATE_FIRMWARE:
