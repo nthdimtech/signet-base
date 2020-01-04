@@ -11,6 +11,8 @@
 #define HC_BOOT_AREA_A_LEN (1024 * 96)
 #define HC_BOOT_AREA_B_LEN (1024 * 384)
 
+#include "types.h"
+
 struct hc_firmware_version {
 	u16 major;
 	u16 minor;
@@ -26,19 +28,26 @@ struct hc_firmware_info {
 	u8 firmware_signature_pubkey[HC_FIRMWARE_SIGNATURE_PUBKEY_LEN];
 } __attribute__((packed));
 
-struct hc_firmware_file {
+#define HC_FIRMWARE_FILE_PREFIX (0x99887766)
+#define HC_FIRMWARE_FILE_VERSION (1)
+
+struct hc_firmware_file_header {
 	u32 file_prefix;
 	u32 file_version;
-	u8 firmware_hash_key[HC_FIRMWARE_HASH_KEY_LEN];
-	u8 firmware_hash[HC_FIRMWARE_HASH_LEN];
+	u32 header_size;
+	u8 hash_key[HC_FIRMWARE_HASH_KEY_LEN];
+	u8 hash[HC_FIRMWARE_HASH_LEN];
 	struct hc_firmware_version fw_version;
-	u32 firmware_A_crc;
-	u32 firmware_B_crc;
-	u32 firmware_A_len;
-	u32 firmware_B_len;
-	u8 firmware_signature_pubkey[HC_FIRMWARE_SIGNATURE_PUBKEY_LEN];
-	u8 firmware_A_signature[HC_FIRMWARE_SIGNATURE_LEN];
-	u8 firmware_B_signature[HC_FIRMWARE_SIGNATURE_LEN];
+	u32 A_crc;
+	u32 B_crc;
+	u32 A_len;
+	u32 B_len;
+	u8 signature_pubkey[HC_FIRMWARE_SIGNATURE_PUBKEY_LEN];
+	u8 A_signature[HC_FIRMWARE_SIGNATURE_LEN];
+	u8 B_signature[HC_FIRMWARE_SIGNATURE_LEN];
+} __attribute__((packed));
+
+struct hc_firmware_file_body {
 	u8 firmware_A[HC_BOOT_AREA_A_LEN];
 	u8 firmware_B[HC_BOOT_AREA_B_LEN];
 } __attribute__((packed));
