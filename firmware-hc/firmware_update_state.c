@@ -106,21 +106,22 @@ static void reset_device_cmd(u8 *data, int data_len)
 	HAL_NVIC_SystemReset();
 }
 
-static void set_boot_mode_cmd(u8 *data, int data_len)
+static void switch_boot_mode_cmd(u8 *data, int data_len)
 {
-	if (data_len != 1) {
-		finish_command_resp(INVALID_INPUT);
+	enum hc_boot_mode mode = flash_get_boot_mode();
+	switch (mode) {
+	case HC_BOOT_BOOTLOADER_MODE:
+		//TODO: Check CRC and possibly signature of firmware bytes written
+		flash_set_boot_mode(HC_BOOT_APPLICATION_MODE);
+		break;
+	case HC_BOOT_APPLICATION_MODE:
+		//TODO: Check CRC and possibly signature of firmware bytes written
+		flash_set_boot_mode(HC_BOOT_BOOTLOADER_MODE);
+		break;
+	default:
 		return;
 	}
-	enum hc_boot_mode mode = (enum hc_boot_mode)data[0];
-	flash_set_boot_mode(mode);
 	HAL_NVIC_SystemReset();
-}
-
-static void get_boot_mode_cmd(u8 *data, int data_len)
-{
-	u8 mode = (u8)flash_get_boot_mode();
-	finish_command(OKAY, &mode, 1);
 }
 
 int firmware_update_state(int cmd, u8 *data, int data_len)
@@ -132,8 +133,8 @@ int firmware_update_state(int cmd, u8 *data, int data_len)
 	case WRITE_FLASH:
 		write_flash_cmd(data, data_len);
 		break;
-	case SET_BOOT_MODE:
-		set_boot_mode_cmd(data, data_len);
+	case SWITCH_BOOT_MODE:
+		switch_boot_mode_cmd(data, data_len);
 		break;
 	case RESET_DEVICE:
 		reset_device_cmd(data, data_len);

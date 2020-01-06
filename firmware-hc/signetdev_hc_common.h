@@ -13,6 +13,12 @@
 
 #include "types.h"
 
+enum hc_boot_mode {
+	HC_BOOT_BOOTLOADER_MODE,
+	HC_BOOT_APPLICATION_MODE,
+	HC_BOOT_UNKNOWN_MODE
+};
+
 struct hc_firmware_version {
 	u16 major;
 	u16 minor;
