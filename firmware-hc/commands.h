@@ -49,7 +49,7 @@ union cmd_data_u {
 	struct {
 		u8 read_block[BLK_SIZE];
 		u8 block[BLK_SIZE];
-		u8 resp[6 + (HASH_FN_SZ + SALT_SZ_V2)];
+		u8 resp[STARTUP_RESP_SIZE];
 		struct block_info blk_info;
 	} startup;
 	struct {
