@@ -76,12 +76,13 @@ enum hc_firmware_upgrade_state {
 };
 
 struct hc_device_data {
-	u32 data_crc;
+	u32 crc; //This must be the first entry
 	u16 format;
 	u16 db_format;
 	u16 data_iteration; //larger is newer
 	u8 device_id[DEVICE_ID_LEN];
 	u8 device_name[DEVICE_NAME_LEN];
+	u32 upgrade_state;
 	struct hc_firmware_version fw_version[2];
 	u8 firmware_hash_key[2][HC_FIRMWARE_HASH_KEY_LEN];
 	u8 firmware_hash[2][HC_FIRMWARE_HASH_LEN];

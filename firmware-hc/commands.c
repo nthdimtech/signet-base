@@ -6,6 +6,7 @@
 #include "firmware_update_state.h"
 #include "types.h"
 #include "stm32f7xx_hal.h"
+#include "crc.h"
 
 //#include "usb_keyboard.h"
 void usb_keyboard_type(const u8 *keys, int num)
@@ -57,13 +58,13 @@ static void long_button_press_disconnected();
 static void button_press_disconnected();
 static void button_release_disconnected();
 
+int g_root_page_valid = 0;
 struct hc_device_data root_page;
 
 extern struct hc_device_data _crypt_data1;
 extern struct hc_device_data _crypt_data2;
 
-//NEN_TODO: need to select data source based on validation algorithm
-#define _root_page _crypt_data1
+struct hc_device_data *_root_page = NULL;
 
 static int n_progress_components = 0;
 int g_progress_level[8];
@@ -107,6 +108,8 @@ static void write_block_complete();
 void startup_cmd_iter();
 static void write_block_complete();
 void write_root_block(const u8 *data, int sz);
+
+u32 compute_device_data_crc(struct hc_device_data *d);
 
 void emmc_user_db_start()
 {
@@ -185,7 +188,7 @@ void emmc_user_queue(enum emmc_user user)
 void read_data_block (int idx, u8 *dest)
 {
 	if (idx == ROOT_DATA_BLOCK) {
-		memcpy(dest, &_root_page, BLK_SIZE);
+		memcpy(dest, (u8 *)_root_page, BLK_SIZE);
 		read_block_complete();
 	} else {
 		emmc_user_queue(EMMC_USER_DB);
@@ -285,8 +288,20 @@ u32 rand_get()
 
 void write_root_block(const u8 *data, int sz)
 {
-	u8 *temp = (u8 *)&_root_page;
-	flash_write_page(temp, data, sz);
+	struct hc_device_data *d = (struct hc_device_data *)data;
+
+	if (g_root_page_valid) {
+		d->data_iteration = _root_page->data_iteration + 1;
+	}
+	d->crc = compute_device_data_crc(d);
+	if (_root_page == &_crypt_data1) {
+		_root_page = &_crypt_data2;
+	} else if (_root_page == &_crypt_data2) {
+		_root_page = &_crypt_data1;
+	} else {
+		_root_page = &_crypt_data1;
+	}
+	flash_write_page((u8 *)_root_page, data, sz);
 }
 
 void get_progress_check();
@@ -447,7 +462,6 @@ static void finalize_root_page_check()
 		u8 *keystore_key = random;
 		random += AES_256_KEY_SIZE;
 
-
 		memcpy(root_page.device_id, device_id, DEVICE_ID_LEN);
 		memcpy(root_page.auth_random_cleartext, auth_rand_data, AUTH_RANDOM_DATA_LEN);
 		signet_aes_256_encrypt_cbc(cmd_data.init_data.passwd, AUTH_RANDOM_DATA_LEN/AES_BLK_SIZE, NULL,
@@ -517,14 +531,14 @@ static void initializing_iter()
 
 	if (cmd_data.init_data.blocks_written < NUM_DATA_BLOCKS) {
 		struct block *blk = db3_initialize_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (struct block *)cmd_data.init_data.block);
-		write_data_block(cmd_data.init_data.blocks_written, (u8 *)blk);
+		write_data_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (u8 *)blk);
 	} else if (cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS) {
 		finalize_root_page_check();
 	} else {
 		dprint_s("DONE INITIALIZING\r\n");
-		//TODO: fix magic numbers
 		g_root_block_version = CURRENT_ROOT_BLOCK_FORMAT;
 		g_db_version = CURRENT_DB_FORMAT;
+		g_root_page_valid = 1;
 		db3_startup_scan(cmd_data.init_data.block, &cmd_data.init_data.blk_info);
 	}
 }
@@ -903,7 +917,7 @@ void initialize_cmd_complete()
 	cmd_data.init_data.root_block_finalized = 0;
 
 	struct block *blk = db3_initialize_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (struct block *)cmd_data.init_data.block);
-	write_data_block(cmd_data.init_data.blocks_written, (u8 *)blk);
+	write_data_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (u8 *)blk);
 	finish_command_resp(OKAY);
 	cmd_data.init_data.rand_avail_init = rand_avail();
 	int p = (INIT_RAND_DATA_SZ/4) - cmd_data.init_data.rand_avail_init;
@@ -1144,7 +1158,7 @@ void enter_mobile_mode_cmd()
 int is_device_wiped()
 {
 	//NEN_TODO: Is checking if the root blocked is wiped sufficient?
-	u32 *data_area = (u32 *)(&_root_page);
+	u32 *data_area = (u32 *)(_root_page);
 	for (int i = 0; i < (BLK_SIZE)/4; i++) {
 		if (data_area[i] != 0xffffffff) {
 			return 0;
@@ -1443,20 +1457,28 @@ void startup_cmd_iter()
 {
 	u8 *resp = cmd_data.startup.resp;
 	memset(cmd_data.startup.resp, 0, sizeof(cmd_data.startup.resp));
-	g_root_block_version = root_page.format;
 	resp[0] = SIGNET_MAJOR_VERSION;
 	resp[1] = SIGNET_MINOR_VERSION;
 	resp[2] = SIGNET_STEP_VERSION;
 	resp[3] = g_device_state;
-	resp[4] = g_root_block_version;
+	resp[4] = 0;
 	resp[5] = 0;
 	resp[6] = (u8)flash_get_boot_mode();
-	switch (g_root_block_version) {
+	resp[7] = 0;
+	if (!g_root_page_valid) {
+		enter_state(DS_UNINITIALIZED);
+		finish_command(OKAY, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
+		return;
+	}
+	g_root_block_version = root_page.format;
+	switch (root_page.format) {
 	case CURRENT_ROOT_BLOCK_FORMAT:
 		memcpy(resp + STARTUP_RESP_INFO_SIZE, root_page.profile_auth_data[0].hash_function_params, HC_HASH_FUNCTION_PARAMS_LENGTH);
 		memcpy(resp + STARTUP_RESP_INFO_SIZE + HC_HASH_FUNCTION_PARAMS_LENGTH, root_page.profile_auth_data[0].salt, HC_HASH_FN_SALT_SZ);
 		g_db_version = root_page.db_format;
+		resp[4] = g_root_block_version;
 		resp[5] = g_db_version;
+		resp[7] = root_page.upgrade_state;
 		break;
 	default:
 		enter_state(DS_UNINITIALIZED);
@@ -1475,9 +1497,39 @@ void startup_cmd_iter()
 	}
 }
 
+u32 compute_device_data_crc(struct hc_device_data *d)
+{
+	return crc_32(((u32 *)d) + 1, (sizeof(struct hc_device_data)/4) - 1);
+}
+
 void cmd_init()
 {
-	memcpy(&root_page, (u8 *)(&_root_page), sizeof(root_page));
+	u32 crc1 = compute_device_data_crc(&_crypt_data1);
+	u32 crc2 = compute_device_data_crc(&_crypt_data2);
+	_root_page = NULL;
+	if (crc1 == _crypt_data1.crc) {
+		if (crc2 == _crypt_data2.crc) {
+			if (_crypt_data1.data_iteration > _crypt_data2.data_iteration) {
+				_root_page = &_crypt_data1;
+			} else {
+				_root_page = &_crypt_data2;
+			}
+		} else {
+			_root_page = &_crypt_data1;
+		}
+	} else {
+		if (crc2 == _crypt_data2.crc) {
+			_root_page = &_crypt_data2;
+		} else {
+			_root_page = NULL;
+		}
+	}
+	if (_root_page) {
+		memcpy(&root_page, (u8 *)_root_page, sizeof(root_page));
+		g_root_page_valid = 1;
+	} else {
+		g_root_page_valid = 0;
+	}
 }
 
 void startup_cmd (u8 *data, int data_len)

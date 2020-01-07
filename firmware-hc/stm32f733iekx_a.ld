@@ -147,7 +147,7 @@ SECTIONS
     _crypt_data1 = .;
   } > FLASH_D1
 
-  .cryptdata1 :
+  .cryptdata2 :
   {
     _crypt_data2 = .;
   } > FLASH_D2

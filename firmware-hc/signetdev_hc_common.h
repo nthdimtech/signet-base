@@ -19,6 +19,11 @@ enum hc_boot_mode {
 	HC_BOOT_UNKNOWN_MODE
 };
 
+#define HC_UPGRADING_BOOTLOADER_MASK (1<<0)
+#define HC_UPGRADED_BOOTLOADER_MASK (1<<1)
+#define HC_UPGRADING_APPLICATION_MASK (1<<2)
+#define HC_UPGRADED_APPLICATION_MASK (1<<3)
+
 struct hc_firmware_version {
 	u16 major;
 	u16 minor;

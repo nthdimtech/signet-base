@@ -97,9 +97,6 @@ static const u8 *get_cached_data_block(int idx)
 	}
 }
 
-//NEN_TODO: need to select data source based on validation algorithm
-#define _root_page _crypt_data1
-
 extern u8 g_encrypt_key[AES_256_KEY_SIZE];
 
 struct block_info g_block_info_tbl[MAX_DATA_BLOCK + 1];

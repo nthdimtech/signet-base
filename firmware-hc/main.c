@@ -272,10 +272,17 @@ int main(void)
 	MX_RNG_Init();
 	MX_SDMMC1_MMC_Init();
 
+	__HAL_RCC_CRC_CLK_ENABLE();
+
 #ifdef USE_UART
 	MX_USART1_UART_Init();
 #endif
+
+#ifdef ENABLE_FIDO2
 	int blink_duration = 200;
+#else
+	int blink_duration = 20;
+#endif
 
 	HAL_Delay(blink_duration);
 	led_on();
