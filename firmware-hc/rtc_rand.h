@@ -7,4 +7,6 @@ void rtc_rand_init(u16 rate);
 int rtc_rand_avail();
 u32 rtc_rand_get();
 
+#define RTC_EXTI_LINE (22)
+
 #endif

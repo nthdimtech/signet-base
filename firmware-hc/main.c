@@ -5,6 +5,8 @@
 #include "usbd_desc.h"
 #include "usbd_multi.h"
 #include "flash.h"
+#include "rng.h"
+#include "rtc_rand.h"
 #include "commands.h"
 
 #include "memory_layout.h"
@@ -259,7 +261,7 @@ void BUTTON_HANDLER()
 	EXTI->PR = (1 << BUTTON_PIN_NUM);
 }
 
-int main(void)
+int main (void)
 {
 	SCB_EnableICache();
 	//We don't enable DCACHE tp ensure coherency for DMA transfers
@@ -269,10 +271,27 @@ int main(void)
 	MX_DMA_Init();
 	MX_GPIO_Init();
 	MX_AES_Init();
-	MX_RNG_Init();
+	//MX_RNG_Init();
 	MX_SDMMC1_MMC_Init();
 
+	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+	DWT->CYCCNT = 0;
+	DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+
 	__HAL_RCC_CRC_CLK_ENABLE();
+
+	HAL_NVIC_SetPriority(RNG_IRQn, 128, 128);
+	HAL_NVIC_EnableIRQ(RNG_IRQn);
+	__HAL_RCC_RNG_CLK_ENABLE();
+	rng_init();
+
+	HAL_NVIC_SetPriority(RTC_WKUP_IRQn, 128, 128);
+	HAL_NVIC_EnableIRQ(RTC_WKUP_IRQn);
+	EXTI->IMR |= (1<<RTC_EXTI_LINE);
+	EXTI->RTSR |= (1<<RTC_EXTI_LINE);
+	__HAL_RCC_RTC_CLK_ENABLE();
+	__HAL_RCC_RTC_ENABLE();
+	rtc_rand_init(0x7f);
 
 #ifdef USE_UART
 	MX_USART1_UART_Init();
@@ -396,8 +415,16 @@ static void SystemClock_Config(void)
 		Error_Handler();
 	}
 
-	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-	                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+	RCC_OscInitStruct.OscillatorType =  RCC_OSCILLATORTYPE_LSI | RCC_OSCILLATORTYPE_LSE;
+	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+	RCC_OscInitStruct.LSIState = RCC_LSI_ON;
+	RCC_OscInitStruct.LSEState = RCC_LSE_OFF;
+	if(HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+	{
+		Error_Handler();
+	}
+
+	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
 	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
 	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
 	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
@@ -406,11 +433,11 @@ static void SystemClock_Config(void)
 	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_7) != HAL_OK) {
 		Error_Handler();
 	}
-	PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_SDMMC1
-	                |RCC_PERIPHCLK_CLK48;
+	PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_SDMMC1 |RCC_PERIPHCLK_CLK48 | RCC_PERIPHCLK_RTC;
 	PeriphClkInitStruct.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
 	PeriphClkInitStruct.Clk48ClockSelection = RCC_CLK48SOURCE_PLL;
 	PeriphClkInitStruct.Sdmmc1ClockSelection = RCC_SDMMC1CLKSOURCE_CLK48;
+	PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
 	if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK) {
 		Error_Handler();
 	}
