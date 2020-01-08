@@ -85,6 +85,7 @@ SOURCES = commands.c \
 	rng.c \
 	signet_aes.c \
 	usb_raw_hid.c \
+	usb_keyboard.c \
         usbd_conf.c \
 	usbd_desc.c \
 	usbd_core.c \

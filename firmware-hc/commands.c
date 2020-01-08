@@ -8,11 +8,7 @@
 #include "stm32f7xx_hal.h"
 #include "crc.h"
 
-//#include "usb_keyboard.h"
-void usb_keyboard_type(const u8 *keys, int num)
-{
-	//NEN_TODO
-}
+#include "usb_keyboard.h"
 
 #include "print.h"
 #include "flash.h"

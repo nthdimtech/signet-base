@@ -5,6 +5,7 @@
 #include "fido2/ctaphid.h"
 #endif
 #include "usb_raw_hid.h"
+#include "usb_keyboard.h"
 
 #define LSB(X) ((X) & 0xff)
 #define MSB(X) ((X) >> 8)
@@ -14,7 +15,7 @@ extern USBD_HandleTypeDef *s_pdev;
 
 //
 // Warning: If you change this structure you must also change it in usbd_multi.c
-// 
+//
 static const u8 cmd_hid_report_descriptor[] __attribute__((aligned (4))) = {
 	0x06, LSB(USB_RAW_HID_USAGE_PAGE), MSB(USB_RAW_HID_USAGE_PAGE),
 	0x0A, LSB(USB_RAW_HID_USAGE), MSB(USB_RAW_HID_USAGE),
@@ -35,7 +36,7 @@ static const u8 cmd_hid_report_descriptor[] __attribute__((aligned (4))) = {
 
 //
 // Warning: If you change this structure you must also change it in usbd_multi.c
-// 
+//
 static const u8 fido_hid_report_descriptor[] __attribute__((aligned (4))) = {
 
 	0x06, 0xd0, 0xf1,             // USAGE_PAGE (FIDO Alliance)
@@ -57,6 +58,32 @@ static const u8 fido_hid_report_descriptor[] __attribute__((aligned (4))) = {
 	0x91, 0x02,                   //   OUTPUT (Data,Var,Abs)
 
 	0xc0,// END_COLLECTION                                  // end collection
+};
+
+static const u8 keyboard_hid_report_descriptor[] = {
+	0x05, 1, //Usage page (Generic desktop)
+	0x09, 6, //Usage (Keyboard)
+	0xA1, 1, //Collection (application)
+
+	0x05, 7,    //Usage page (Key codes)
+	0x19, 224,  //Usage min
+	0x29, 231,  //Usage max
+	0x15, 0,    //Logical min
+	0x25, 1,    //Logical max
+	0x75, 1,    //Report size
+	0x95, 8,    //Report count
+	0x81, 2,    //Input (Data, Variable, Absolute)
+
+	0x95, 1,    //Report count
+	0x75, 8,    //Report size
+	0x15, 0,    //Logical minimum
+	0x25, 0x65, //Logical maximum
+	0x05, 0x7,  //Usage page
+	0x19, 0,     //Usage min
+	0x29, 0x65,  //Usage max
+	0x81, 0,    //Input
+
+	0xc0        //End collection
 };
 
 /* USB HID device Configuration Descriptor */
@@ -82,6 +109,18 @@ static const uint8_t USBD_HID_FIDO_Desc[USB_HID_DESC_SIZ] __attribute__((aligned
 	0x22,         /*bDescriptorType*/
 	sizeof(fido_hid_report_descriptor),/*wItemLength: Total length of Report descriptor*/
 	0x00,
+};
+
+static const uint8_t USBD_HID_Keyboard_Desc[USB_HID_DESC_SIZ] __attribute__((aligned (4))) = {
+	0x09,         /*bLength: HID Descriptor size*/
+	HID_DESCRIPTOR_TYPE, /*bDescriptorType: HID*/
+	0x11,         /*bcdHID: HID Class Spec release number*/
+	0x01,
+	0x00,         /*bCountryCode: Hardware target country*/
+	0x01,         /*bNumDescriptors: Number of HID class descriptors to follow*/
+	0x22,         /*bDescriptorType*/
+	sizeof(keyboard_hid_report_descriptor),/*wItemLength: Total length of Report descriptor*/
+	0x0
 };
 
 uint8_t  USBD_HID_Setup (USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req)
@@ -129,6 +168,10 @@ uint8_t  USBD_HID_Setup (USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req)
 					len = MIN(sizeof(fido_hid_report_descriptor), req->wLength);
 					pbuf = fido_hid_report_descriptor;
 					break;
+				case INTERFACE_KEYBOARD:
+					len = MIN(sizeof(keyboard_hid_report_descriptor), req->wLength);
+					pbuf = keyboard_hid_report_descriptor;
+					break;
 				}
 			} else if(req->wValue >> 8 == HID_DESCRIPTOR_TYPE) {
 				switch(iface) {
@@ -138,6 +181,10 @@ uint8_t  USBD_HID_Setup (USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req)
 					break;
 				case INTERFACE_FIDO:
 					pbuf = USBD_HID_FIDO_Desc;
+					len = MIN(USB_HID_DESC_SIZ, req->wLength);
+					break;
+				case INTERFACE_KEYBOARD:
+					pbuf = USBD_HID_Keyboard_Desc;
 					len = MIN(USB_HID_DESC_SIZ, req->wLength);
 					break;
 				}
@@ -196,7 +243,9 @@ void USBD_HID_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
 		ctaphid_handle_packet(rx_buffer);
 	}
 #endif
-	USBD_LL_PrepareReceive (pdev, epnum, rx_buffer, hhid->packetSize);
+	if (hhid->packetSize > 0) {
+		USBD_LL_PrepareReceive (pdev, epnum, rx_buffer, hhid->packetSize);
+	}
 }
 
 void USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
@@ -211,12 +260,17 @@ void USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 			USBD_HID_SendReport(s_pdev, interfaceNum, hhid->tx_report, HID_CMD_EPIN_SIZE);
 			hhid->tx_report = NULL;
 		}
-		if (interfaceNum == INTERFACE_CMD) {
+		switch (interfaceNum) {
+		case INTERFACE_CMD:
 			usb_raw_hid_tx();
-		} else {
+			break;
+		case INTERFACE_KEYBOARD:
+			usb_tx_keyboard();
+			break;
+		default:
 			//NEN_TODO: Fido transmit
+			break;
 		}
-	
 	} break;
 	default:
 		break;
@@ -272,6 +326,7 @@ int usb_tx_pending(int ep)
 	int interfaceNum = endpointToInterface(ep);
 	switch (interfaceNum) {
 	case INTERFACE_CMD:
+	case INTERFACE_KEYBOARD:
 	case INTERFACE_FIDO: {
 		USBD_HID_HandleTypeDef *hhid = ((USBD_HID_HandleTypeDef *)s_pdev->pClassData[interfaceNum]);
 		return hhid->state != HID_IDLE;
@@ -288,6 +343,7 @@ void usb_send_bytes(int ep, const u8 *data, int length)
 	int interfaceNum = endpointToInterface(ep);
 	switch (interfaceNum) {
 	case INTERFACE_CMD:
+	case INTERFACE_KEYBOARD:
 	case INTERFACE_FIDO: {
 		USBD_HID_HandleTypeDef *hhid = ((USBD_HID_HandleTypeDef *)s_pdev->pClassData[interfaceNum]);
 		if (usb_tx_pending(ep)) {

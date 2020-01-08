@@ -63,7 +63,7 @@ USBD_ClassTypeDef  USBD_Multi = {
 
 //
 // Warning: If you change this structure you must also change it in usbd_hid.c
-// 
+//
 static const u8 cmd_hid_report_descriptor[] __attribute__((aligned (4))) = {
 	0x06, LSB(USB_RAW_HID_USAGE_PAGE), MSB(USB_RAW_HID_USAGE_PAGE),
 	0x0A, LSB(USB_RAW_HID_USAGE), MSB(USB_RAW_HID_USAGE),
@@ -84,7 +84,7 @@ static const u8 cmd_hid_report_descriptor[] __attribute__((aligned (4))) = {
 
 //
 // Warning: If you change this structure you must also change it in usbd_hid.c
-// 
+//
 static const u8 fido_hid_report_descriptor[] __attribute__((aligned (4))) = {
 
 	0x06, 0xd0, 0xf1,             // USAGE_PAGE (FIDO Alliance)
@@ -108,118 +108,197 @@ static const u8 fido_hid_report_descriptor[] __attribute__((aligned (4))) = {
 	0xc0,// END_COLLECTION                                  // end collection
 };
 
+//
+// Warning: If you change this structure you must also change it in usbd_hid.c
+//
+static const u8 keyboard_hid_report_descriptor[] = {
+	0x05, 1, //Usage page (Generic desktop)
+	0x09, 6, //Usage (Keyboard)
+	0xA1, 1, //Collection (application)
+
+	0x05, 7,    //Usage page (Key codes)
+	0x19, 224,  //Usage min
+	0x29, 231,  //Usage max
+	0x15, 0,    //Logical min
+	0x25, 1,    //Logical max
+	0x75, 1,    //Report size
+	0x95, 8,    //Report count
+	0x81, 2,    //Input (Data, Variable, Absolute)
+
+	0x95, 1,    //Report count
+	0x75, 8,    //Report size
+	0x15, 0,    //Logical minimum
+	0x25, 0x65, //Logical maximum
+	0x05, 0x7,  //Usage page
+	0x19, 0,     //Usage min
+	0x29, 0x65,  //Usage max
+	0x81, 0,    //Input
+
+	0xc0        //End collection
+};
+
 /* USB HID device HS Configuration Descriptor */
-static uint8_t USBD_Multi_CfgHSDesc[USB_HID_CONFIG_DESC_SIZ] __attribute__((aligned (4))) = {
+static uint8_t USBD_Multi_CfgHSDesc[] __attribute__((aligned (4))) = {
 	0x09, /* bLength: Configuration Descriptor size */
 	USB_DESC_TYPE_CONFIGURATION, /* bDescriptorType: Configuration */
 	USB_HID_CONFIG_DESC_SIZ, /* wTotalLength: Bytes returned */
 	0x00,
-	0x03,         /*bNumInterfaces: 3 interface*/
+	INTERFACE_MAX,         /*bNumInterfaces */
 	0x01,         /*bConfigurationValue: Configuration value*/
 	0x00,         /*iConfiguration: Index of string descriptor describing the configuration*/
-	0xE0,         /*bmAttributes: bus powered and Support Remote Wake-up */
-	0x32,         /*MaxPower 100 mA: this current is used for detecting Vbus*/
+	0x80,         /*bmAttributes: bus powered and Support Remote Wake-up */
+	50,         /*MaxPower 100 mA: this current is used for detecting Vbus*/
 
-	/********************  Mass Storage interface ********************/
-	0x09,   /* bLength: Interface Descriptor size */
-	0x04,   /* bDescriptorType: */
-	INTERFACE_MSC,   /* bInterfaceNumber: Number of Interface */
-	0x00,   /* bAlternateSetting: Alternate setting */
-	0x02,   /* bNumEndpoints*/
-	0x08,   /* bInterfaceClass: MSC Class */
-	0x06,   /* bInterfaceSubClass : SCSI transparent*/
-	0x50,   /* nInterfaceProtocol */
-	0x05,          /* iInterface: */
-	/********************  Mass Storage Endpoints ********************/
-	0x07,   /*Endpoint descriptor length = 7*/
-	0x05,   /*Endpoint descriptor type */
-	MSC_EPIN_ADDR,   /*Endpoint address (IN, address 1) */
-	0x02,   /*Bulk endpoint type */
-	LOBYTE(MSC_MAX_HS_PACKET),
-	HIBYTE(MSC_MAX_HS_PACKET),
-	0x00,   /*Polling interval in milliseconds */
+	//
+	// Keyboard descriptors
+	//
+	// Interface descriptor, Class descriptor, IN endpoint
+	//
 
-	0x07,   /*Endpoint descriptor length = 7 */
-	0x05,   /*Endpoint descriptor type */
-	MSC_EPOUT_ADDR,   /*Endpoint address (OUT, address 1) */
-	0x02,   /*Bulk endpoint type */
-	LOBYTE(MSC_MAX_HS_PACKET),
-	HIBYTE(MSC_MAX_HS_PACKET),
-	0x00,    /*Polling interval in milliseconds*/
+		/************** Keyboard descriptors  ****************/
+		0x09,         /*bLength: Interface Descriptor size*/
+		USB_DESC_TYPE_INTERFACE,/*bDescriptorType: Interface descriptor type*/
+		INTERFACE_KEYBOARD,         /*bInterfaceNumber: Number of Interface*/
+		0x00,         /*bAlternateSetting: Alternate setting*/
+		0x01,         /*bNumEndpoints*/
+		0x03,         /*bInterfaceClass: HID*/
+		0x01,         /*bInterfaceSubClass : 1=BOOT, 0=no boot*/
+		0x01,         /*nInterfaceProtocol : 0=none, 1=keyboard, 2=mouse*/
+		0,            /*iInterface: Index of string descriptor*/
 
-	/************** Descriptor of Command RAW HID interface  ****************/
-	0x09,         /*bLength: Interface Descriptor size*/
-	USB_DESC_TYPE_INTERFACE,/*bDescriptorType: Interface descriptor type*/
-	INTERFACE_CMD,         /*bInterfaceNumber: Number of Interface*/
-	0x00,         /*bAlternateSetting: Alternate setting*/
-	0x02,         /*bNumEndpoints*/
-	0x03,         /*bInterfaceClass: HID*/
-	0x01,         /*bInterfaceSubClass : 1=BOOT, 0=no boot*/
-	0x00,         /*nInterfaceProtocol : 0=none, 1=keyboard, 2=mouse*/
-	0,            /*iInterface: Index of string descriptor*/
-	/******************** Descriptor of Command RAW HID ********************/
-	0x09,         /*bLength: HID Descriptor size*/
-	HID_DESCRIPTOR_TYPE, /*bDescriptorType: HID*/
-	0x11,         /*bcdHID: HID Class Spec release number*/
-	0x01,
-	0x00,         /*bCountryCode: Hardware target country*/
-	0x01,         /*bNumDescriptors: Number of HID class descriptors to follow*/
-	0x22,         /*bDescriptorType*/
-	sizeof(cmd_hid_report_descriptor),/*wItemLength: Total length of Report descriptor*/
-	0x00,
-	/******************** Descriptor of Command HID IN endpoint ********************/
-	0x07,          /*bLength: Endpoint Descriptor size*/
-	USB_DESC_TYPE_ENDPOINT, /*bDescriptorType:*/
-	HID_CMD_EPIN_ADDR,     /*bEndpointAddress: Endpoint Address (IN)*/
-	0x03,          /*bmAttributes: Interrupt endpoint*/
-	LOBYTE(HID_CMD_EPIN_SIZE),
-	HIBYTE(HID_CMD_EPIN_SIZE),
-	HID_HS_BINTERVAL,          /*bInterval: Polling Interval */
-	/******************** Descriptor of Command HID OUT endpoint ********************/
-	0x07,          /*bLength: Endpoint Descriptor size*/
-	USB_DESC_TYPE_ENDPOINT, /*bDescriptorType:*/
-	HID_CMD_EPOUT_ADDR,     /*bEndpointAddress: Endpoint Address (IN)*/
-	0x03,          /*bmAttributes: Interrupt endpoint*/
-	LOBYTE(HID_CMD_EPOUT_SIZE),
-	HIBYTE(HID_CMD_EPOUT_SIZE),
-	HID_HS_BINTERVAL,          /*bInterval: Polling Interval */
+		0x09,         /*bLength: HID Descriptor size*/
+		HID_DESCRIPTOR_TYPE, /*bDescriptorType: HID*/
+		0x11,         /*bcdHID: HID Class Spec release number*/
+		0x01,
+		0x00,         /*bCountryCode: Hardware target country*/
+		0x01,         /*bNumDescriptors: Number of HID class descriptors to follow*/
+		0x22,         /*bDescriptorType*/
+		sizeof(keyboard_hid_report_descriptor),/*wItemLength: Total length of Report descriptor*/
+		0x0,
 
-	/************** Descriptor of FIDO HID interface  ****************/
-	0x09,         /*bLength: Interface Descriptor size*/
-	USB_DESC_TYPE_INTERFACE,/*bDescriptorType: Interface descriptor type*/
-	INTERFACE_FIDO,         /*bInterfaceNumber: Number of Interface*/
-	0x00,         /*bAlternateSetting: Alternate setting*/
-	0x02,         /*bNumEndpoints*/
-	0x03,         /*bInterfaceClass: HID*/
-	0x01,         /*bInterfaceSubClass : 1=BOOT, 0=no boot*/
-	0x00,         /*nInterfaceProtocol : 0=none, 1=keyboard, 2=mouse*/
-	0,            /*iInterface: Index of string descriptor*/
-	/******************** Descriptor of FIDO HID ********************/
-	0x09,         /*bLength: HID Descriptor size*/
-	HID_DESCRIPTOR_TYPE, /*bDescriptorType: HID*/
-	0x11,         /*bcdHID: HID Class Spec release number*/
-	0x01,         //TODO
-	0x00,         /*bCountryCode: Hardware target country*/
-	0x01,         /*bNumDescriptors: Number of HID class descriptors to follow*/
-	0x22,         /*bDescriptorType*/
-	sizeof(fido_hid_report_descriptor),/*wItemLength: Total length of Report descriptor*/
-	0x00,
-	/******************** Descriptor of FIDO HID IN endpoint ********************/
-	0x07,          /*bLength: Endpoint Descriptor size*/
-	USB_DESC_TYPE_ENDPOINT, /*bDescriptorType:*/
-	HID_FIDO_EPIN_ADDR,     /*bEndpointAddress: Endpoint Address (IN)*/
-	0x03,          /*bmAttributes: Interrupt endpoint*/
-	HID_FIDO_EPIN_SIZE,
-	0x00,
-	HID_HS_BINTERVAL,          /*bInterval: Polling Interval */
-	/******************** Descriptor of FIDO HID OUT endpoint ********************/
-	0x07,          /*bLength: Endpoint Descriptor size*/
-	USB_DESC_TYPE_ENDPOINT, /*bDescriptorType:*/
-	HID_FIDO_EPOUT_ADDR,     /*bEndpointAddress: Endpoint Address (IN)*/
-	0x03,          /*bmAttributes: Interrupt endpoint*/
-	HID_FIDO_EPOUT_SIZE,
-	0x00,
-	HID_HS_BINTERVAL,          /*bInterval: Polling Interval */
+		7,
+		USB_DESC_TYPE_ENDPOINT,
+		HID_KEYBOARD_EPIN_ADDR,
+		3,
+		HID_KEYBOARD_EPIN_SIZE, 0,
+		HID_HS_BINTERVAL, //polling period
+
+	//
+	// Mass storage descriptors
+	//
+	// Interface descriptor, IN endpoint, OUT endpoint
+	//
+		/********************  Mass Storage interface ********************/
+		0x09,   /* bLength: Interface Descriptor size */
+		USB_DESC_TYPE_INTERFACE,   /* bDescriptorType: */
+		INTERFACE_MSC,   /* bInterfaceNumber: Number of Interface */
+		0x00,   /* bAlternateSetting: Alternate setting */
+		0x02,   /* bNumEndpoints*/
+		0x08,   /* bInterfaceClass: MSC Class */
+		0x06,   /* bInterfaceSubClass : SCSI transparent*/
+		0x50,   /* nInterfaceProtocol */
+		0x05,          /* iInterface: */
+
+		/********************  Mass Storage Endpoints ********************/
+		0x07,   /*Endpoint descriptor length = 7*/
+		USB_DESC_TYPE_ENDPOINT,   /*Endpoint descriptor type */
+		MSC_EPIN_ADDR,   /*Endpoint address (IN, address 1) */
+		0x02,   /*Bulk endpoint type */
+		LOBYTE(MSC_MAX_HS_PACKET), HIBYTE(MSC_MAX_HS_PACKET),
+		0x00,   /*Polling interval in milliseconds */
+
+		0x07,   /*Endpoint descriptor length = 7 */
+		USB_DESC_TYPE_ENDPOINT,   /*Endpoint descriptor type */
+		MSC_EPOUT_ADDR,   /*Endpoint address (OUT, address 1) */
+		0x02,   /*Bulk endpoint type */
+		LOBYTE(MSC_MAX_HS_PACKET), HIBYTE(MSC_MAX_HS_PACKET),
+		0x00,    /*Polling interval in milliseconds*/
+
+	//
+	// Command HID descriptors
+	//
+	// Interface descriptor, Class descriptor, IN endpoint, OUT endpoint
+	//
+
+		/************** Descriptor of Command HID interface  ****************/
+		0x09,         /*bLength: Interface Descriptor size*/
+		USB_DESC_TYPE_INTERFACE,/*bDescriptorType: Interface descriptor type*/
+		INTERFACE_CMD,         /*bInterfaceNumber: Number of Interface*/
+		0x00,         /*bAlternateSetting: Alternate setting*/
+		0x02,         /*bNumEndpoints*/
+		0x03,         /*bInterfaceClass: HID*/
+		0x01,         /*bInterfaceSubClass : 1=BOOT, 0=no boot*/
+		0x00,         /*nInterfaceProtocol : 0=none, 1=keyboard, 2=mouse*/
+		0,            /*iInterface: Index of string descriptor*/
+
+		/******************** Descriptor of Command HID OUT ********************/
+		0x09,         /*bLength: HID Descriptor size*/
+		HID_DESCRIPTOR_TYPE, /*bDescriptorType: HID*/
+		0x11,         /*bcdHID: HID Class Spec release number*/
+		0x01,
+		0x00,         /*bCountryCode: Hardware target country*/
+		0x01,         /*bNumDescriptors: Number of HID class descriptors to follow*/
+		0x22,         /*bDescriptorType*/
+		sizeof(cmd_hid_report_descriptor),/*wItemLength: Total length of Report descriptor*/
+		0x00,
+
+		/******************** Descriptor of Command HID IN endpoint ********************/
+		0x07,          /*bLength: Endpoint Descriptor size*/
+		USB_DESC_TYPE_ENDPOINT, /*bDescriptorType:*/
+		HID_CMD_EPIN_ADDR,     /*bEndpointAddress: Endpoint Address (IN)*/
+		0x03,          /*bmAttributes: Interrupt endpoint*/
+		LOBYTE(HID_CMD_EPIN_SIZE), HIBYTE(HID_CMD_EPIN_SIZE),
+		HID_HS_BINTERVAL,          /*bInterval: Polling Interval */
+		/******************** Descriptor of Command HID OUT endpoint ********************/
+		0x07,          /*bLength: Endpoint Descriptor size*/
+		USB_DESC_TYPE_ENDPOINT, /*bDescriptorType:*/
+		HID_CMD_EPOUT_ADDR,     /*bEndpointAddress: Endpoint Address (IN)*/
+		0x03,          /*bmAttributes: Interrupt endpoint*/
+		LOBYTE(HID_CMD_EPOUT_SIZE), HIBYTE(HID_CMD_EPOUT_SIZE),
+		HID_HS_BINTERVAL,          /*bInterval: Polling Interval */
+
+	//
+	// FIDO descriptors
+	//
+	// Interface descriptor, Class descriptor, IN endpoint, OUT endpoint
+	//
+
+		/************** Descriptor of FIDO HID interface  ****************/
+		0x09,         /*bLength: Interface Descriptor size*/
+		USB_DESC_TYPE_INTERFACE,/*bDescriptorType: Interface descriptor type*/
+		INTERFACE_FIDO,         /*bInterfaceNumber: Number of Interface*/
+		0x00,         /*bAlternateSetting: Alternate setting*/
+		0x02,         /*bNumEndpoints*/
+		0x03,         /*bInterfaceClass: HID*/
+		0x01,         /*bInterfaceSubClass : 1=BOOT, 0=no boot*/
+		0x00,         /*nInterfaceProtocol : 0=none, 1=keyboard, 2=mouse*/
+		0,            /*iInterface: Index of string descriptor*/
+
+		/******************** Class descriptor of FIDO HID ********************/
+		0x09,         /*bLength: HID Descriptor size*/
+		HID_DESCRIPTOR_TYPE, /*bDescriptorType: HID*/
+		0x11, 0x01,          /*bcdHID: HID Class Spec release number*/
+		0x00,         /*bCountryCode: Hardware target country*/
+		0x01,         /*bNumDescriptors: Number of HID class descriptors to follow*/
+		0x22,         /*bDescriptorType*/
+		sizeof(fido_hid_report_descriptor),/*wItemLength: Total length of Report descriptor*/
+		0x00,
+
+		/******************** Descriptor of FIDO HID IN endpoint ********************/
+		0x07,          /*bLength: Endpoint Descriptor size*/
+		USB_DESC_TYPE_ENDPOINT, /*bDescriptorType:*/
+		HID_FIDO_EPIN_ADDR,     /*bEndpointAddress: Endpoint Address (IN)*/
+		0x03,          /*bmAttributes: Interrupt endpoint*/
+		HID_FIDO_EPIN_SIZE, 0x00,
+		HID_HS_BINTERVAL,          /*bInterval: Polling Interval */
+
+		/******************** Descriptor of FIDO HID OUT endpoint ********************/
+		0x07,          /*bLength: Endpoint Descriptor size*/
+		USB_DESC_TYPE_ENDPOINT, /*bDescriptorType:*/
+		HID_FIDO_EPOUT_ADDR,     /*bEndpointAddress: Endpoint Address (IN)*/
+		0x03,          /*bmAttributes: Interrupt endpoint*/
+		HID_FIDO_EPOUT_SIZE, 0x00,
+		HID_HS_BINTERVAL,          /*bInterval: Polling Interval */
 };
 
 
@@ -239,6 +318,7 @@ static uint8_t USBD_Multi_DeviceQualifierDesc[USB_LEN_DEV_QUALIFIER_DESC] __attr
 
 static USBD_HID_HandleTypeDef s_cmdHIDClassData __attribute__((aligned(16)));
 static USBD_HID_HandleTypeDef s_fidoHIDClassData __attribute__((aligned(16)));
+static USBD_HID_HandleTypeDef s_keyboardHIDClassData __attribute__((aligned(16)));
 static USBD_MSC_BOT_HandleTypeDef s_SCSIMSCClassData __attribute__((aligned(16)));
 
 static uint8_t  USBD_Multi_Init (USBD_HandleTypeDef *pdev, uint8_t cfgidx)
@@ -268,6 +348,15 @@ static uint8_t  USBD_Multi_Init (USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 	s_fidoHIDClassData.packetSize = HID_FIDO_EPOUT_SIZE;
 	s_fidoHIDClassData.state = HID_IDLE;
 	USBD_LL_PrepareReceive (pdev, HID_FIDO_EPOUT_ADDR, s_fidoHIDClassData.rx_buffer, s_fidoHIDClassData.packetSize);
+
+	pdev->pClassData[INTERFACE_KEYBOARD] = &s_keyboardHIDClassData;
+	USBD_LL_OpenEP(pdev, HID_KEYBOARD_EPIN_ADDR, USBD_EP_TYPE_INTR, HID_KEYBOARD_EPIN_SIZE);
+	pdev->ep_in[HID_KEYBOARD_EPIN_ADDR & 0xFU].is_used = 1U;
+	USBD_LL_OpenEP(pdev, HID_KEYBOARD_EPOUT_ADDR, USBD_EP_TYPE_INTR, HID_KEYBOARD_EPOUT_SIZE);
+	pdev->ep_in[HID_KEYBOARD_EPOUT_ADDR & 0xFU].is_used = 1U;
+	s_keyboardHIDClassData.packetSize = HID_KEYBOARD_EPOUT_SIZE;
+	s_keyboardHIDClassData.state = HID_IDLE;
+	USBD_LL_PrepareReceive (pdev, HID_KEYBOARD_EPOUT_ADDR, s_keyboardHIDClassData.rx_buffer, s_keyboardHIDClassData.packetSize);
 	return USBD_OK;
 }
 
@@ -293,6 +382,10 @@ static uint8_t  USBD_Multi_DeInit (USBD_HandleTypeDef *pdev,
 	USBD_LL_CloseEP(pdev, HID_FIDO_EPOUT_ADDR);
 	pdev->ep_out[HID_FIDO_EPOUT_ADDR & 0xFU].is_used = 0U;
 
+	/* Close Keyboard HID EPs */
+	USBD_LL_CloseEP(pdev, HID_FIDO_EPIN_ADDR);
+	pdev->ep_in[HID_FIDO_EPIN_ADDR & 0xFU].is_used = 0U;
+
 	for (int i = 0; i < 5; i++) {
 		if(pdev->pClassData[i] != NULL) {
 			pdev->pClassData[i] = NULL;
@@ -317,6 +410,7 @@ static uint8_t  USBD_Multi_Setup (USBD_HandleTypeDef *pdev,
 			break;
 		case INTERFACE_CMD:
 		case INTERFACE_FIDO:
+		case INTERFACE_KEYBOARD:
 			return USBD_HID_Setup(pdev, req);
 			break;
 		default:
@@ -392,6 +486,7 @@ static uint8_t  USBD_Multi_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 	}
 	break;
 	case INTERFACE_CMD:
+	case INTERFACE_KEYBOARD:
 	case INTERFACE_FIDO: {
 		USBD_HID_DataIn(pdev, epnum);
 	} break;
