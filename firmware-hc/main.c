@@ -8,6 +8,7 @@
 #include "rng.h"
 #include "rtc_rand.h"
 #include "commands.h"
+#include "usb_keyboard.h"
 
 #include "memory_layout.h"
 
@@ -357,8 +358,7 @@ int main (void)
 			timer_timeout();
 			g_timer_target = 0;
 		}
-		//NEN_TODO: need to implment the function below
-		//usb_keyboard_idle();
+		usb_keyboard_idle();
 		blink_idle();
 		flash_idle();
 		int current_button_state = buttonState() ? 0 : 1;

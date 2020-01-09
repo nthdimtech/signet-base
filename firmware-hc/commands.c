@@ -1382,7 +1382,16 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 	case TYPE: {
 		dprint_s("TYPE\r\n");
 		int n_chars = data_len >> 1;
-		memcpy(cmd_data.type_data.chars, data, n_chars * 2);
+		if (n_chars * 4 > sizeof(cmd_data.type_data.chars)) {
+			finish_command_resp(INVALID_INPUT);
+			break;
+		}
+		for (int i = 0; i < n_chars; i++) {
+			(cmd_data.type_data.chars + i * 4)[0] = data[i*2 + 0];
+			(cmd_data.type_data.chars + i * 4)[1] = data[i*2 + 1];
+			(cmd_data.type_data.chars + i * 4)[2] = 0;
+			(cmd_data.type_data.chars + i * 4)[3] = 0;
+		}
 		usb_keyboard_type(cmd_data.type_data.chars, n_chars);
 	}
 	break;

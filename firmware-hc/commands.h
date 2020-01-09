@@ -131,7 +131,7 @@ union cmd_data_u {
 	struct {
 		int idx;
 	} read_cleartext_password;
-};
+} __attribute__((aligned(16)));
 
 extern union cmd_data_u cmd_data;
 

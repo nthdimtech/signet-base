@@ -25,7 +25,6 @@ void usb_keyboard_type(u8 *chars_, u8 n)
 	chars = chars_;
 	char_pos = 0;
 	typing = 1;
-
 	usb_send_bytes(HID_KEYBOARD_EPIN_ADDR, chars, 2);
 	ms_type = ms_count;
 	char_pos_to_type = -1;
@@ -36,7 +35,7 @@ void usb_keyboard_idle()
 {
 	int ms_count = HAL_GetTick();
 	if (typing && char_pos_to_type >= 0 && ms_count > (ms_type + TYPE_RATE_MS)) {
-		usb_send_bytes(HID_KEYBOARD_EPIN_ADDR, chars + (char_pos_to_type * 2), 2);
+		usb_send_bytes(HID_KEYBOARD_EPIN_ADDR, chars + (char_pos_to_type * 4), 2);
 		ms_type = HAL_GetTick();
 		char_pos_to_type = -1;
 		char_pos++;
