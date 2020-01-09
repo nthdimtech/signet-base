@@ -1346,6 +1346,7 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 	break;
 	case UPDATE_UIDS:
 	case UPDATE_UID: {
+		//TODO: move this all into db.c
 		if (data_len < 4) {
 			finish_command_resp(INVALID_INPUT);
 			return 0;
@@ -1360,12 +1361,12 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 			return 0;
 		}
 		if (active_cmd == UPDATE_UID) {
-			update_uid_cmd(uid, data, sz, 1 /* short press */);
+			update_uid_cmd(uid, data, data_len, sz, 1 /* short press */);
 		} else {
 			if (!cmd_iter_count) {
-				update_uid_cmd(uid, data, sz, 2 /* long press */);
+				update_uid_cmd(uid, data, data_len, sz, 2 /* long press */);
 			} else {
-				update_uid_cmd(uid, data, sz, 0 /* no press */);
+				update_uid_cmd(uid, data, data_len, sz, 0 /* no press */);
 			}
 		}
 	}

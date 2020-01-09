@@ -280,7 +280,7 @@ struct block *db3_initialize_block(int block_num, struct block *block)
 	return block;
 }
 
-static void allocate_uid_blk(int uid, const u8 *data, int sz, int rev, const u8 *iv, struct block *block_temp, struct block_info *blk_info_temp)
+static void allocate_uid_blk (int uid, const u8 *data, int sz, int rev, const u8 *iv, struct block *block_temp, struct block_info *blk_info_temp)
 {
 	int index = blk_info_temp->part_occupancy;
 	blk_info_temp->part_occupancy++;
@@ -490,7 +490,7 @@ static enum update_uid_status update_uid (int uid, u8 *data, int sz,
 	return UPDATE_UID_SUCCESS;
 }
 
-void update_uid_cmd(int uid, u8 *data, int sz, int press_type)
+void update_uid_cmd (int uid, u8 *data, int data_len, int sz, int press_type)
 {
 	derive_iv(uid, cmd_data.update_uid.iv);
 	cmd_data.update_uid.uid = uid;
@@ -498,7 +498,7 @@ void update_uid_cmd(int uid, u8 *data, int sz, int press_type)
 	cmd_data.update_uid.write_count = 0;
 	cmd_data.update_uid.press_type = press_type;
 	cmd_data.update_uid.prev_block_num = INVALID_BLOCK;
-	memcpy(cmd_data.update_uid.entry, data, sz);
+	memcpy(cmd_data.update_uid.entry, data, data_len);
 	cmd_data.update_uid.entry_sz = sz;
 	update_uid_cmd_iter();
 }
