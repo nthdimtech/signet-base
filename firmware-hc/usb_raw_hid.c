@@ -11,8 +11,8 @@ static const u8 *raw_hid_tx_data = NULL;
 static int raw_hid_tx_seq = 0;
 static int raw_hid_tx_count = 0;
 
-static u8 raw_hid_tx_cmd_packet[CMD_HID_TX_SIZE] __attribute__((aligned(16)));
-static u8 raw_hid_tx_event_packet[CMD_HID_TX_SIZE] __attribute__((aligned(16)));
+static u8 raw_hid_tx_cmd_packet[HID_CMD_EPIN_SIZE] __attribute__((aligned(16)));
+static u8 raw_hid_tx_event_packet[HID_CMD_EPIN_SIZE] __attribute__((aligned(16)));
 
 static u8 event_mask = 0;
 static const u8 *event_data[8];

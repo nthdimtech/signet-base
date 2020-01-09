@@ -7,8 +7,6 @@ int usb_tx_pending(int ep);
 
 #include "usbd_hid.h"
 
-#define CMD_HID_TX_SIZE (HID_CMD_EPIN_SIZE)
-#define CMD_HID_RX_SIZE (HID_CMD_EPOUT_SIZE)
 #define FIDO_HID_TX_SIZE (HID_FIDO_EPIN_SIZE)
 #define FIDO_HID_RX_SIZE (HID_FIDO_EPOUT_SIZE)
 
