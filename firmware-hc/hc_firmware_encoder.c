@@ -3,7 +3,7 @@
 #include <memory.h>
 typedef unsigned char u8;
 #include "signetdev_hc_common.h"
-
+#include <zlib.h>
 
 struct hc_firmware_file_header fw_file_hdr;
 struct hc_firmware_file_body fw_file_body;
@@ -25,6 +25,9 @@ int main(int argc, char **argv)
 
 	memset(&fw_file_hdr, 0, sizeof(fw_file_hdr));
 	memset(&fw_file_body, 0, sizeof(fw_file_body));
+
+	fread(fw_file_body.firmware_A, 1, szA, fwA);
+	fread(fw_file_body.firmware_B, 1, szB, fwB);
 	
 	fw_file_hdr.fw_version.major = atoi(argv[4]);
 	fw_file_hdr.fw_version.minor = atoi(argv[5]);
@@ -33,13 +36,10 @@ int main(int argc, char **argv)
 	fw_file_hdr.file_prefix = HC_FIRMWARE_FILE_PREFIX;
 	fw_file_hdr.file_version = HC_FIRMWARE_FILE_VERSION;
 	fw_file_hdr.header_size = sizeof(fw_file_hdr);
-	fw_file_hdr.A_crc = 0;
-	fw_file_hdr.B_crc = 0;
 	fw_file_hdr.A_len = szA;
+	fw_file_hdr.A_crc = crc32(0, fw_file_body.firmware_A, szA);
 	fw_file_hdr.B_len = szB;
-
-	fread(fw_file_body.firmware_A, 1, szA, fwA);
-	fread(fw_file_body.firmware_B, 1, szB, fwB);
+	fw_file_hdr.B_crc = crc32(0, fw_file_body.firmware_B, szB);
 
 	fwrite(&fw_file_hdr, 1, sizeof(fw_file_hdr),fwOut);
 	fwrite(&fw_file_body, 1, sizeof(fw_file_body),fwOut);
