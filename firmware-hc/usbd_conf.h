@@ -6,11 +6,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define USBD_MAX_NUM_INTERFACES               1
+enum usb_interfaces {
+	INTERFACE_KEYBOARD,
+	INTERFACE_CMD,
+	INTERFACE_FIDO,
+	INTERFACE_MSC,
+	INTERFACE_MAX
+};
+
+#define USBD_MAX_NUM_INTERFACES               (INTERFACE_MAX)
 #define USBD_MAX_NUM_CONFIGURATION            1
 #define USBD_MAX_STR_DESC_SIZ                 0x100
 #define USBD_SUPPORT_USER_STRING              0
-#define USBD_SELF_POWERED                     1
 #define USBD_DEBUG_LEVEL                      0
 
 /* Exported macro ------------------------------------------------------------*/

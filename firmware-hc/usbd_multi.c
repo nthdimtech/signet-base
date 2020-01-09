@@ -160,7 +160,7 @@ static uint8_t USBD_Multi_CfgHSDesc[] __attribute__((aligned (4))) = {
 		USB_DESC_TYPE_INTERFACE,/*bDescriptorType: Interface descriptor type*/
 		INTERFACE_KEYBOARD,         /*bInterfaceNumber: Number of Interface*/
 		0x00,         /*bAlternateSetting: Alternate setting*/
-		0x01,         /*bNumEndpoints*/
+		0x02,         /*bNumEndpoints*/
 		0x03,         /*bInterfaceClass: HID*/
 		0x01,         /*bInterfaceSubClass : 1=BOOT, 0=no boot*/
 		0x01,         /*nInterfaceProtocol : 0=none, 1=keyboard, 2=mouse*/
@@ -181,38 +181,14 @@ static uint8_t USBD_Multi_CfgHSDesc[] __attribute__((aligned (4))) = {
 		HID_KEYBOARD_EPIN_ADDR,
 		3,
 		HID_KEYBOARD_EPIN_SIZE, 0,
-		HID_HS_BINTERVAL, //polling period
+		10, //polling period
 
-	//
-	// Mass storage descriptors
-	//
-	// Interface descriptor, IN endpoint, OUT endpoint
-	//
-		/********************  Mass Storage interface ********************/
-		0x09,   /* bLength: Interface Descriptor size */
-		USB_DESC_TYPE_INTERFACE,   /* bDescriptorType: */
-		INTERFACE_MSC,   /* bInterfaceNumber: Number of Interface */
-		0x00,   /* bAlternateSetting: Alternate setting */
-		0x02,   /* bNumEndpoints*/
-		0x08,   /* bInterfaceClass: MSC Class */
-		0x06,   /* bInterfaceSubClass : SCSI transparent*/
-		0x50,   /* nInterfaceProtocol */
-		0x05,          /* iInterface: */
-
-		/********************  Mass Storage Endpoints ********************/
-		0x07,   /*Endpoint descriptor length = 7*/
-		USB_DESC_TYPE_ENDPOINT,   /*Endpoint descriptor type */
-		MSC_EPIN_ADDR,   /*Endpoint address (IN, address 1) */
-		0x02,   /*Bulk endpoint type */
-		LOBYTE(MSC_MAX_HS_PACKET), HIBYTE(MSC_MAX_HS_PACKET),
-		0x00,   /*Polling interval in milliseconds */
-
-		0x07,   /*Endpoint descriptor length = 7 */
-		USB_DESC_TYPE_ENDPOINT,   /*Endpoint descriptor type */
-		MSC_EPOUT_ADDR,   /*Endpoint address (OUT, address 1) */
-		0x02,   /*Bulk endpoint type */
-		LOBYTE(MSC_MAX_HS_PACKET), HIBYTE(MSC_MAX_HS_PACKET),
-		0x00,    /*Polling interval in milliseconds*/
+		7,
+		USB_DESC_TYPE_ENDPOINT,
+		HID_KEYBOARD_EPOUT_ADDR,
+		3,
+		HID_KEYBOARD_EPOUT_SIZE, 0,
+		10, //polling period
 
 	//
 	// Command HID descriptors
@@ -290,7 +266,7 @@ static uint8_t USBD_Multi_CfgHSDesc[] __attribute__((aligned (4))) = {
 		HID_FIDO_EPIN_ADDR,     /*bEndpointAddress: Endpoint Address (IN)*/
 		0x03,          /*bmAttributes: Interrupt endpoint*/
 		HID_FIDO_EPIN_SIZE, 0x00,
-		HID_HS_BINTERVAL,          /*bInterval: Polling Interval */
+		10,          /*bInterval: Polling Interval */
 
 		/******************** Descriptor of FIDO HID OUT endpoint ********************/
 		0x07,          /*bLength: Endpoint Descriptor size*/
@@ -298,7 +274,38 @@ static uint8_t USBD_Multi_CfgHSDesc[] __attribute__((aligned (4))) = {
 		HID_FIDO_EPOUT_ADDR,     /*bEndpointAddress: Endpoint Address (IN)*/
 		0x03,          /*bmAttributes: Interrupt endpoint*/
 		HID_FIDO_EPOUT_SIZE, 0x00,
-		HID_HS_BINTERVAL,          /*bInterval: Polling Interval */
+		10,          /*bInterval: Polling Interval */
+
+	//
+	// Mass storage descriptors
+	//
+	// Interface descriptor, IN endpoint, OUT endpoint
+	//
+		/********************  Mass Storage interface ********************/
+		0x09,   /* bLength: Interface Descriptor size */
+		USB_DESC_TYPE_INTERFACE,   /* bDescriptorType: */
+		INTERFACE_MSC,   /* bInterfaceNumber: Number of Interface */
+		0x00,   /* bAlternateSetting: Alternate setting */
+		0x02,   /* bNumEndpoints*/
+		0x08,   /* bInterfaceClass: MSC Class */
+		0x06,   /* bInterfaceSubClass : SCSI transparent*/
+		0x50,   /* nInterfaceProtocol */
+		0x0,          /* iInterface: */
+
+		/********************  Mass Storage Endpoints ********************/
+		0x07,   /*Endpoint descriptor length = 7*/
+		USB_DESC_TYPE_ENDPOINT,   /*Endpoint descriptor type */
+		MSC_EPIN_ADDR,   /*Endpoint address (IN, address 1) */
+		0x02,   /*Bulk endpoint type */
+		LOBYTE(MSC_EPIN_SIZE), HIBYTE(MSC_EPIN_SIZE),
+		0x00,   /*Polling interval in milliseconds */
+
+		0x07,   /*Endpoint descriptor length = 7 */
+		USB_DESC_TYPE_ENDPOINT,   /*Endpoint descriptor type */
+		MSC_EPOUT_ADDR,   /*Endpoint address (OUT, address 1) */
+		0x02,   /*Bulk endpoint type */
+		LOBYTE(MSC_EPOUT_SIZE), HIBYTE(MSC_EPOUT_SIZE),
+		0x00,    /*Polling interval in milliseconds*/
 };
 
 

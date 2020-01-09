@@ -1,4 +1,6 @@
 #include "main.h"
+#include "usbd_multi.h"
+#include "usbd_msc.h"
 
 #define CURSOR_STEP     5
 
@@ -136,12 +138,12 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
 	/* Initialize LL Driver */
 	HAL_PCD_Init(&hpcd);
 
-	HAL_PCDEx_SetRxFiFo(&hpcd, 0x120);    //1024
-	HAL_PCDEx_SetTxFiFo(&hpcd, 0, 0x20);  //512
-	HAL_PCDEx_SetTxFiFo(&hpcd, 1, 0x20);  //128
-	HAL_PCDEx_SetTxFiFo(&hpcd, 2, 0x80); //1024
-	HAL_PCDEx_SetTxFiFo(&hpcd, 3, 0x100);  //128
-	HAL_PCDEx_SetTxFiFo(&hpcd, 4, 0x20);  //128
+	HAL_PCDEx_SetRxFiFo(&hpcd, 0x100);
+	HAL_PCDEx_SetTxFiFo(&hpcd, 0, (USB_MAX_EP0_SIZE*2)/4);
+	HAL_PCDEx_SetTxFiFo(&hpcd, INTERFACE_KEYBOARD + 1, (HID_KEYBOARD_EPIN_SIZE*2)/4);
+	HAL_PCDEx_SetTxFiFo(&hpcd, INTERFACE_CMD + 1, (HID_CMD_EPIN_SIZE)/4);
+	HAL_PCDEx_SetTxFiFo(&hpcd, INTERFACE_FIDO + 1, (HID_CMD_EPIN_SIZE*2)/4);
+	HAL_PCDEx_SetTxFiFo(&hpcd, INTERFACE_MSC + 1, (MSC_EPIN_SIZE)/4);
 	return USBD_OK;
 }
 

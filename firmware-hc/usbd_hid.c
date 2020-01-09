@@ -148,7 +148,6 @@ uint8_t  USBD_HID_Setup (USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req)
 		case HID_REQ_GET_IDLE:
 			USBD_CtlSendData (pdev, (uint8_t *)(void *)&hhid->IdleState, 1U);
 			break;
-
 		default:
 			USBD_CtlError (pdev, req);
 			ret = USBD_FAIL;
@@ -253,6 +252,7 @@ void USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 	int interfaceNum = endpointToInterface(epnum);
 	switch (interfaceNum) {
 	case INTERFACE_CMD:
+	case INTERFACE_KEYBOARD:
 	case INTERFACE_FIDO: {
 		USBD_HID_HandleTypeDef *hhid = ((USBD_HID_HandleTypeDef *)s_pdev->pClassData[interfaceNum]);
 		hhid->state = HID_IDLE;
