@@ -287,11 +287,28 @@ int signetdev_begin_update_firmware(void *user, int *token)
 		UPDATE_FIRMWARE, SIGNETDEV_CMD_BEGIN_UPDATE_FIRMWARE);
 }
 
+int signetdev_begin_update_firmware_hc(void *user, int *token, const struct hc_firmware_info *fw_info)
+{
+	*token = get_cmd_token();
+
+	return signetdev_priv_send_message(user, *token,
+			UPDATE_FIRMWARE, SIGNETDEV_CMD_BEGIN_UPDATE_FIRMWARE,
+			0, (const u8 *)fw_info, sizeof(*fw_info), SIGNETDEV_PRIV_GET_RESP);
+}
+
 int signetdev_reset_device(void *user, int *token)
 {
 	*token = get_cmd_token();
 	int rc = execute_command_no_resp(user, *token,
 		RESET_DEVICE, SIGNETDEV_CMD_RESET_DEVICE);
+	return rc;
+}
+
+int signetdev_switch_boot_mode(void *user, int *token)
+{
+	*token = get_cmd_token();
+	int rc = execute_command_no_resp(user, *token,
+		SWITCH_BOOT_MODE, SIGNETDEV_CMD_SWITCH_BOOT_MODE);
 	return rc;
 }
 
@@ -687,6 +704,12 @@ int signetdev_erase_pages(void *param, int *token, unsigned int n_pages, const u
 			SIGNETDEV_PRIV_GET_RESP);
 }
 
+int signetdev_erase_pages_hc(void *param, int *token)
+{
+	*token = get_cmd_token();
+	return execute_command(param, *token, ERASE_FLASH_PAGES, SIGNETDEV_CMD_ERASE_PAGES);
+}
+
 void signetdev_priv_handle_device_event(int event_type, const u8 *resp, int resp_len)
 {
 	if (g_device_event_cb) {
@@ -822,7 +845,7 @@ void signetdev_priv_handle_command_resp(void *user, int token,
 		} break;
 	case STARTUP: {
 		struct signetdev_startup_resp_data cb_resp;
-		if (resp_code == OKAY && resp_len < (HASH_FN_SZ + SALT_SZ_V2 + 6)) {
+		if (resp_code == OKAY && resp_len < STARTUP_RESP_SIZE) {
 			signetdev_priv_handle_error();
 			break;
 		} else if (resp_code == OKAY || resp_code == UNKNOWN_DB_FORMAT) {
@@ -832,8 +855,10 @@ void signetdev_priv_handle_command_resp(void *user, int token,
 			cb_resp.device_state = resp[3];
 			cb_resp.root_block_format = resp[4];
 			cb_resp.db_format = resp[5];
-			memcpy(cb_resp.hashfn, resp + 6, HASH_FN_SZ);
-			memcpy(cb_resp.salt, resp + 6 + HASH_FN_SZ, SALT_SZ_V2);
+			cb_resp.boot_mode = resp[6];
+			cb_resp.upgrade_state = resp[7];
+			memcpy(cb_resp.hashfn, resp + STARTUP_RESP_INFO_SIZE, HASH_FN_SZ);
+			memcpy(cb_resp.salt, resp + STARTUP_RESP_INFO_SIZE + HASH_FN_SZ, SALT_SZ_V2);
 		}
 		if (g_command_resp_cb)
 			g_command_resp_cb(g_command_resp_cb_param,
@@ -970,6 +995,9 @@ void signetdev_priv_process_rx_packet(struct rx_message_state *state, u8 *rx_pac
 {
 	int seq = rx_packet_buf[0] & 0x7f;
 	int last = rx_packet_buf[0] >> 7;
+	if (seq > 30) {
+		seq = seq;
+	}
 	const u8 *rx_packet_header = rx_packet_buf + RAW_HID_HEADER_SIZE;
 	if (seq == 0x7f) {
 		int event_type = rx_packet_header[0];

@@ -2,6 +2,7 @@
 #define SIGNETDEV_H
 
 #include "../common/signetdev_common.h"
+#include "../common/signetdev_hc_common.h"
 #include <stdint.h>
 
 void signetdev_initialize_api();
@@ -47,6 +48,7 @@ typedef enum signetdev_cmd_id {
 	SIGNETDEV_CMD_END_DEVICE_RESTORE,
 	SIGNETDEV_CMD_BEGIN_UPDATE_FIRMWARE,
 	SIGNETDEV_CMD_RESET_DEVICE,
+        SIGNETDEV_CMD_SWITCH_BOOT_MODE,
 	SIGNETDEV_CMD_TYPE,
 	SIGNETDEV_CMD_CHANGE_MASTER_PASSWORD,
 	SIGNETDEV_CMD_BEGIN_INITIALIZE_DEVICE,
@@ -76,7 +78,9 @@ int signetdev_logout(void *user, int *token);
 int signetdev_login(void *user, int *token, u8 *key, unsigned int key_len, int gen_token);
 int signetdev_login_token(void *user, int *api_token, u8 *login_token);
 int signetdev_begin_update_firmware(void *user, int *token);
+int signetdev_begin_update_firmware_hc(void *user, int *token, const struct hc_firmware_info *fw_info);
 int signetdev_reset_device(void *user, int *token);
+int signetdev_switch_boot_mode(void *user, int *token);
 int signetdev_get_progress(void *user, int *token, int progress, int state);
 int signetdev_wipe(void *user, int *token);
 int signetdev_begin_device_backup(void *user, int *token);
@@ -105,6 +109,7 @@ int signetdev_write_block(void *param, int *token, unsigned int idx, const void 
 int signetdev_get_rand_bits(void *param, int *token, int sz);
 int signetdev_write_flash(void *param, int *token, u32 addr, const void *data, unsigned int data_len);
 int signetdev_erase_pages(void *param, int *token, unsigned int n_pages, const u8 *page_numbers);
+int signetdev_erase_pages_hc(void *param, int *token);
 
 int signetdev_update_uid(void *user, int *token, unsigned int id, unsigned int size, const u8 *data, const u8 *mask);
 int signetdev_update_uids(void *user, int *token, unsigned int id, unsigned int size, const u8 *data, const u8 *mask, unsigned int entries_remaining);
@@ -137,6 +142,8 @@ struct signetdev_startup_resp_data {
 	int device_state;
 	int root_block_format;
 	int db_format;
+        enum hc_boot_mode boot_mode;
+        u32 upgrade_state;
 	u8 hashfn[HASH_FN_SZ];
 	u8 salt[SALT_SZ_V2];
 };

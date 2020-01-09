@@ -261,9 +261,10 @@ static void startup_cmd(struct send_message_req *msg)
 			if (msg->resp_code)
 				*msg->resp_code = OKAY;
 			db_scan();
-			memcpy(msg->resp + 6, root_page->header.v2.hashfn, HASH_FN_SZ);
-			memcpy(msg->resp + 6 + HASH_FN_SZ, root_page->header.v2.salt, SALT_SZ_V2);
+			memcpy(msg->resp + STARTUP_RESP_INFO_SIZE, root_page->header.v2.hashfn, HASH_FN_SZ);
+			memcpy(msg->resp + STARTUP_RESP_INFO_SIZE + HASH_FN_SZ, root_page->header.v2.salt, SALT_SZ_V2);
 			signetdev_priv_message_send_resp(msg, STARTUP_RESP_SIZE, 0);
+			break;
 		default:
 			if (msg->resp_code)
 				*msg->resp_code = UNKNOWN_DB_FORMAT;
