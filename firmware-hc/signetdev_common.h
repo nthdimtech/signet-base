@@ -57,7 +57,8 @@ enum device_state {
 	DS_LOGGED_OUT,
 	DS_LOGGED_IN,
 	DS_BACKING_UP_DEVICE,
-	DS_RESTORING_DEVICE
+	DS_RESTORING_DEVICE,
+	DS_BOOTLOADER
 };
 
 enum command_responses {

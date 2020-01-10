@@ -4,6 +4,7 @@
 #include "commands.h"
 #include "signetdev_common.h"
 #include "firmware_update_state.h"
+#include "bootloader_state.h"
 #include "types.h"
 #include "stm32f7xx_hal.h"
 #include "crc.h"
@@ -14,8 +15,8 @@
 #include "flash.h"
 #include "signet_aes.h"
 
-//NEN_TODO
 #include "firmware_update_state.h"
+#include "bootloader_state.h"
 
 #include "rtc_rand.h"
 #include "main.h"
@@ -1249,8 +1250,8 @@ int logged_out_state(int cmd, u8 *data, int data_len)
 #endif
 #ifdef FACTORY_MODE
 	case UPDATE_FIRMWARE:
-		finish_command_resp(OKAY);
-		enter_state(DS_FIRMWARE_UPDATE);
+		update_firmware_cmd(data, data_len);
+		update_firmware_cmd_complete();
 		break;
 #endif
 	default:
@@ -1487,11 +1488,15 @@ void startup_cmd_iter()
 		resp[7] = root_page.upgrade_state;
 		break;
 	default:
+#ifdef BOOT_MODE_B
 		enter_state(DS_UNINITIALIZED);
+		resp[3] = g_device_state;
 		finish_command(UNKNOWN_DB_FORMAT, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
+#endif
 		return;
 	}
 
+#ifdef BOOT_MODE_B
 	switch (g_db_version) {
 	case CURRENT_DB_FORMAT:
 		db3_startup_scan(cmd_data.startup.block, &cmd_data.startup.blk_info);
@@ -1501,6 +1506,11 @@ void startup_cmd_iter()
 		finish_command(UNKNOWN_DB_FORMAT, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
 		return;
 	}
+#else
+	enter_state(DS_BOOTLOADER);
+	resp[3] = g_device_state;
+	finish_command(OKAY, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
+#endif
 }
 
 u32 compute_device_data_crc(struct hc_device_data *d)
@@ -1635,6 +1645,9 @@ int cmd_packet_recv()
 		break;
 	case DS_ERASING_PAGES:
 		ret = erasing_pages_state(active_cmd, data, data_len);
+		break;
+	case DS_BOOTLOADER:
+		ret = bootloader_state(active_cmd, data, data_len);
 		break;
 	case DS_LOGGED_OUT:
 		ret = logged_out_state(active_cmd, data, data_len);
