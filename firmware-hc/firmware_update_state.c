@@ -7,6 +7,7 @@
 #include "flash.h"
 #include "memory_layout.h"
 #include "crc.h"
+#include "main.h"
 
 struct hc_firmware_info g_update_firmware;
 
@@ -116,7 +117,7 @@ static void reset_device_cmd(u8 *data, int data_len)
 	HAL_NVIC_SystemReset();
 }
 
-static void switch_boot_mode_cmd(u8 *data, int data_len)
+void switch_boot_mode_cmd(u8 *data, int data_len)
 {
 	enum hc_boot_mode mode = flash_get_boot_mode();
 	u32 crc;
@@ -140,6 +141,8 @@ static void switch_boot_mode_cmd(u8 *data, int data_len)
 	default:
 		return;
 	}
+	HAL_PCD_DeInit(&hpcd_USB_OTG_HS);
+	HAL_Delay(1000);
 	HAL_NVIC_SystemReset();
 }
 

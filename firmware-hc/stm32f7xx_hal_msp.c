@@ -1,5 +1,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+
 /**
   * Initializes the Global MSP.
   */
@@ -90,7 +91,7 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef *hpcd)
 		__HAL_RCC_USB_OTG_FS_CLK_ENABLE();
 
 		/* Set USBFS Interrupt priority */
-		HAL_NVIC_SetPriority(OTG_FS_IRQn, 128, 128);
+		HAL_NVIC_SetPriority(OTG_FS_IRQn, DEFAULT_INT_PRIORITY, 0);
 
 		/* Enable USBFS Interrupt */
 		HAL_NVIC_EnableIRQ(OTG_FS_IRQn);
@@ -102,7 +103,7 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef *hpcd)
 			__HAL_USB_OTG_FS_WAKEUP_EXTI_ENABLE_IT();
 
 			/* Set EXTI Wakeup Interrupt priority*/
-			HAL_NVIC_SetPriority(OTG_FS_WKUP_IRQn, 128, 128);
+			HAL_NVIC_SetPriority(OTG_FS_WKUP_IRQn, DEFAULT_INT_PRIORITY, 0);
 
 			/* Enable EXTI Interrupt */
 			HAL_NVIC_EnableIRQ(OTG_FS_WKUP_IRQn);
@@ -117,7 +118,7 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef *hpcd)
 		__HAL_RCC_USB_OTG_HS_ULPI_CLK_ENABLE();
 
 		/* Set USBHS Interrupt to the lowest priority */
-		HAL_NVIC_SetPriority(OTG_HS_IRQn, 128, 128);
+		HAL_NVIC_SetPriority(OTG_HS_IRQn, DEFAULT_INT_PRIORITY, 0);
 
 		/* Enable USBHS Interrupt */
 		HAL_NVIC_EnableIRQ(OTG_HS_IRQn);
@@ -269,7 +270,7 @@ void HAL_MMC_MspInit(MMC_HandleTypeDef* hmmc)
 
 		__HAL_LINKDMA(&hmmc1, hdmarx, emmc_dma_in);
 
-		HAL_NVIC_SetPriority(SDMMC1_IRQn, 128, 128);
+		HAL_NVIC_SetPriority(SDMMC1_IRQn, DEFAULT_INT_PRIORITY, 0);
 		HAL_NVIC_EnableIRQ(SDMMC1_IRQn);
 	}
 }
