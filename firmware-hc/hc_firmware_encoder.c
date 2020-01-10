@@ -37,9 +37,9 @@ int main(int argc, char **argv)
 	fw_file_hdr.file_version = HC_FIRMWARE_FILE_VERSION;
 	fw_file_hdr.header_size = sizeof(fw_file_hdr);
 	fw_file_hdr.A_len = szA;
-	fw_file_hdr.A_crc = crc32(0, fw_file_body.firmware_A, szA);
+	fw_file_hdr.A_crc = crc32(0, fw_file_body.firmware_A, sizeof(fw_file_body.firmware_A));
 	fw_file_hdr.B_len = szB;
-	fw_file_hdr.B_crc = crc32(0, fw_file_body.firmware_B, szB);
+	fw_file_hdr.B_crc = crc32(0, fw_file_body.firmware_B, sizeof(fw_file_body.firmware_B));
 
 	fwrite(&fw_file_hdr, 1, sizeof(fw_file_hdr),fwOut);
 	fwrite(&fw_file_body, 1, sizeof(fw_file_body),fwOut);

@@ -132,7 +132,7 @@ static enum update_uid_status find_uid (int uid, const struct uid_ent **, int *b
 static enum update_uid_status deallocate_uid (int uid, int *block_num, struct block *block_temp, struct block_info *blk_info_temp, int deallocate_block);
 static int block_crc(const struct block *blk)
 {
-	return crc_32((&blk->header.crc) + 1, (BLK_SIZE/4) - 1);
+	return crc_32(((u8 *)(&blk->header.crc)) + 4, BLK_SIZE - 4);
 }
 
 //

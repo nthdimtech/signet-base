@@ -1185,12 +1185,13 @@ int uninitialized_state(int cmd, u8 *data, int data_len)
 #endif
 #ifdef FACTORY_MODE
 	case UPDATE_FIRMWARE:
-		firmware_update_cmd(data, data_len);
-		firmware_update_cmd_complete();
+		update_firmware_cmd(data, data_len);
+		update_firmware_cmd_complete();
 		break;
 #else
 	case UPDATE_FIRMWARE:
 		if (is_device_wiped()) {
+			update_firmware_cmd(data, data_len);
 			begin_long_button_press_wait();
 		} else {
 			finish_command_resp(DEVICE_NOT_WIPED);
@@ -1403,6 +1404,7 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		finish_command_resp(OKAY);
 		break;
 	case UPDATE_FIRMWARE:
+		update_firmware_cmd(data, data_len);
 		begin_long_button_press_wait();
 		break;
 #ifndef SIGNET_HC
@@ -1503,7 +1505,7 @@ void startup_cmd_iter()
 
 u32 compute_device_data_crc(struct hc_device_data *d)
 {
-	return crc_32(((u32 *)d) + 1, (sizeof(struct hc_device_data)/4) - 1);
+	return crc_32(((u8 *)d) + 4, sizeof(struct hc_device_data) - 4);
 }
 
 void cmd_init()

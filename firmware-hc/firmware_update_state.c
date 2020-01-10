@@ -6,6 +6,18 @@
 #include "signetdev_common.h"
 #include "flash.h"
 #include "memory_layout.h"
+#include "crc.h"
+
+struct hc_firmware_info g_update_firmware;
+
+void update_firmware_cmd(u8 *data, int data_len)
+{
+	if (data_len < sizeof(g_update_firmware)) {
+		finish_command_resp(INVALID_INPUT);
+		return;
+	}
+	memcpy(&g_update_firmware, data, sizeof(g_update_firmware));
+}
 
 void update_firmware_cmd_complete()
 {
@@ -107,13 +119,22 @@ static void reset_device_cmd(u8 *data, int data_len)
 static void switch_boot_mode_cmd(u8 *data, int data_len)
 {
 	enum hc_boot_mode mode = flash_get_boot_mode();
+	u32 crc;
 	switch (mode) {
 	case HC_BOOT_BOOTLOADER_MODE:
-		//TODO: Check CRC and possibly signature of firmware bytes written
+		crc = crc_32((u8 *)BOOT_AREA_B, HC_BOOT_AREA_B_LEN);
+		if (crc != g_update_firmware.firmware_crc) {
+			finish_command_resp(INVALID_STATE);
+			return;
+		}
 		flash_set_boot_mode(HC_BOOT_APPLICATION_MODE);
 		break;
 	case HC_BOOT_APPLICATION_MODE:
-		//TODO: Check CRC and possibly signature of firmware bytes written
+		crc = crc_32((u8 *)BOOT_AREA_A, HC_BOOT_AREA_A_LEN);
+		if (crc != g_update_firmware.firmware_crc) {
+			finish_command_resp(INVALID_STATE);
+			return;
+		}
 		flash_set_boot_mode(HC_BOOT_BOOTLOADER_MODE);
 		break;
 	default:

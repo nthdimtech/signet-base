@@ -14,7 +14,7 @@ all: $(TARGET_BIN)
 HTUPLE:=arm-none-eabi
 
 LIBS=-lnettle -lhogweed -lmini-gmp
-CFLAGS=-Wno-unused -Werror -ffunction-sections -fdata-sections -O0 -Os -DSIGNET_HC
+CFLAGS=-Wno-unused -Werror -ffunction-sections -fdata-sections -O0 -g -DSIGNET_HC
 ASFLAGS=
 LDFLAGS=-Wl,"--gc-sections"
 LDFLAGS+=-Wl,"-Map=$(TARGET_MAP)"
@@ -73,6 +73,8 @@ MCU_SOURCES = main.c \
 	stm32f7xx/stm32f7xx_hal_pcd.c \
 	stm32f7xx/stm32f7xx_hal_pcd_ex.c \
 	stm32f7xx/stm32f7xx_hal_cryp.c \
+	stm32f7xx/stm32f7xx_hal_crc.c \
+	stm32f7xx/stm32f7xx_hal_crc_ex.c \
 	stm32f7xx/stm32f7xx_hal_pwr_ex.c \
 	stm32f7xx/stm32f7xx_it.c
 

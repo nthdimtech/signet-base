@@ -9,6 +9,7 @@
 #include "rtc_rand.h"
 #include "commands.h"
 #include "usb_keyboard.h"
+#include "crc.h"
 
 #include "memory_layout.h"
 
@@ -280,6 +281,7 @@ int main (void)
 	DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
 
 	__HAL_RCC_CRC_CLK_ENABLE();
+	crc_init();
 
 	HAL_NVIC_SetPriority(RNG_IRQn, 128, 128);
 	HAL_NVIC_EnableIRQ(RNG_IRQn);
