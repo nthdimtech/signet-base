@@ -7,11 +7,6 @@
 #include "flash.h"
 #include "memory_layout.h"
 
-void update_firmware_cmd(u8 *data, int data_len)
-{
-	//TODO: Load firmware info
-}
-
 void update_firmware_cmd_complete()
 {
 	finish_command_resp(OKAY);
@@ -60,14 +55,14 @@ static void erase_flash_pages_cmd(u8 *data, int data_len)
 		break;
 	default:
 		finish_command_resp(INVALID_STATE);
-		break;
+		return;
 	}
-	u8 *addr = (u8 *)flash_sector_to_addr(cmd_data.erase_flash_pages.index);
-	flash_write_page(addr, NULL, 0);
 	int temp[] = {cmd_data.erase_flash_pages.max_page -
 		cmd_data.erase_flash_pages.min_page + 1};
 	enter_progressing_state(DS_ERASING_PAGES, 1, temp);
 	finish_command_resp(OKAY);
+	u8 *addr = (u8 *)flash_sector_to_addr(cmd_data.erase_flash_pages.index);
+	flash_write_page(addr, NULL, 0);
 }
 
 void write_flash_cmd(u8 *data, int data_len)
@@ -150,7 +145,7 @@ int firmware_update_state(int cmd, u8 *data, int data_len)
 
 int erasing_pages_state(int cmd, u8 *data, int data_len)
 {
-	switch(cmd) {
+	switch (cmd) {
 	case GET_PROGRESS:
 		get_progress_cmd(data, data_len);
 		break;

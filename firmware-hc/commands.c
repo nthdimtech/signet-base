@@ -65,8 +65,8 @@ struct hc_device_data *_root_page = NULL;
 static int n_progress_components = 0;
 int g_progress_level[8];
 static int progress_maximum[8];
-static int progress_check = 0;
-static int progress_target_state = DS_DISCONNECTED;
+static int g_progress_check = 0;
+static int g_progress_target_state = DS_DISCONNECTED;
 static int waiting_for_button_press = 0;
 static int waiting_for_long_button_press = 0;
 
@@ -308,7 +308,7 @@ void initialize_cmd_complete();
 void enter_progressing_state (enum device_state state, int _n_progress_components, int *_progress_maximum)
 {
 	g_device_state = state;
-	progress_check = 0;
+	g_progress_check = 0;
 	n_progress_components = _n_progress_components;
 	int i;
 	for (i = 0; i < n_progress_components; i++) {
@@ -372,7 +372,7 @@ void get_progress_check ()
 	if (active_cmd == GET_PROGRESS) {
 		int total_progress = get_total_progress();
 		int total_progress_maximum = get_total_progress_maximum();
-		if (progress_target_state == g_device_state && total_progress > progress_check) {
+		if (g_progress_target_state == g_device_state && total_progress > g_progress_check) {
 			u8 resp[4*(8+1)] = {
 				total_progress & 0xff,
 				total_progress >> 8,
@@ -388,7 +388,7 @@ void get_progress_check ()
 				resp[j * 4 + 3] = progress_maximum[i] >> 8;
 			}
 			finish_command(OKAY, resp, (n_progress_components + 1) * 4);
-		} else if (progress_target_state != g_device_state) {
+		} else if (g_progress_target_state != g_device_state) {
 			finish_command_resp(INVALID_STATE);
 		}
 	}
@@ -543,7 +543,6 @@ static void write_block_complete()
 {
 	if (db3_write_block_complete())
 		return;
-	firmware_update_write_block_complete();
 	switch (g_device_state) {
 	case DS_INITIALIZING:
 		initializing_iter();
@@ -581,6 +580,7 @@ static void write_block_complete()
 void flash_write_complete()
 {
 	write_block_complete();
+	firmware_update_write_block_complete();
 }
 
 void flash_write_failed()
@@ -930,11 +930,11 @@ void wipe_cmd()
 
 void get_progress_cmd(u8 *data, int data_len)
 {
-	progress_check = data[0] | (data[1] << 8);
+	g_progress_check = data[0] | (data[1] << 8);
 	data += 2;
-	progress_target_state = data[0] | (data[1] << 8);
+	g_progress_target_state = data[0] | (data[1] << 8);
 	data += 2;
-	if (progress_target_state != g_device_state) {
+	if (g_progress_target_state != g_device_state) {
 		finish_command_resp(INVALID_STATE);
 	} else {
 		get_progress_check();
@@ -1191,7 +1191,6 @@ int uninitialized_state(int cmd, u8 *data, int data_len)
 #else
 	case UPDATE_FIRMWARE:
 		if (is_device_wiped()) {
-			update_firmware_cmd(data, data_len);
 			begin_long_button_press_wait();
 		} else {
 			finish_command_resp(DEVICE_NOT_WIPED);
@@ -1404,7 +1403,6 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		finish_command_resp(OKAY);
 		break;
 	case UPDATE_FIRMWARE:
-		update_firmware_cmd(data, data_len);
 		begin_long_button_press_wait();
 		break;
 #ifndef SIGNET_HC
@@ -1632,6 +1630,9 @@ int cmd_packet_recv()
 		break;
 	case DS_FIRMWARE_UPDATE:
 		ret = firmware_update_state(active_cmd, data, data_len);
+		break;
+	case DS_ERASING_PAGES:
+		ret = erasing_pages_state(active_cmd, data, data_len);
 		break;
 	case DS_LOGGED_OUT:
 		ret = logged_out_state(active_cmd, data, data_len);
