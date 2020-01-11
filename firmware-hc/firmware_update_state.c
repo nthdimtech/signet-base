@@ -71,7 +71,7 @@ static void erase_flash_pages_cmd(u8 *data, int data_len)
 		return;
 	}
 	int temp[] = {cmd_data.erase_flash_pages.max_page -
-		cmd_data.erase_flash_pages.min_page + 1};
+		cmd_data.erase_flash_pages.min_page};
 	enter_progressing_state(DS_ERASING_PAGES, 1, temp);
 	finish_command_resp(OKAY);
 	u8 *addr = (u8 *)flash_sector_to_addr(cmd_data.erase_flash_pages.index);
