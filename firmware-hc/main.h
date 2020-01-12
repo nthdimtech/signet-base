@@ -18,7 +18,8 @@ void resume_blinking();
 int is_blinking();
 void timer_start(int ms);
 void timer_stop();
-
+void assert(int cont);
+void assert_lit(int cont, int l1, int l2);
 void Error_Handler();
 
 extern PCD_HandleTypeDef hpcd_USB_OTG_HS;

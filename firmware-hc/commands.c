@@ -143,12 +143,6 @@ void emmc_user_db_start()
 	}
 }
 
-void assert(int cond)
-{
-//	if (!cond)
-//		while(1);
-}
-
 void emmc_user_read_db_rx_complete()
 {
 	emmc_user_done();
@@ -178,7 +172,7 @@ void emmc_user_done()
 
 void emmc_user_queue(enum emmc_user user)
 {
-	assert(!g_emmc_user_ready[user]);
+	assert_lit(!g_emmc_user_ready[user], 0, 1);
 	g_emmc_user_ready[user] = 1;
 }
 
@@ -243,6 +237,12 @@ void MMC_DMATXTransmitComplete(MMC_HandleTypeDef *hmmc)
 	default:
 		assert(0);
 	}
+}
+
+void HAL_MMC_ErrorCallback(MMC_HandleTypeDef *hmmc)
+{
+	UNUSED(hmmc);
+	assert_lit(0, 1, 0);
 }
 
 void emmc_user_write_db_tx_complete(MMC_HandleTypeDef *hmmc1)

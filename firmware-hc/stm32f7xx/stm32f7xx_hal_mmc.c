@@ -1207,9 +1207,6 @@ HAL_StatusTypeDef HAL_MMC_WriteBlocks_DMA(MMC_HandleTypeDef *hmmc, uint8_t *pDat
 		/* Enable SDMMC DMA transfer */
 		__HAL_MMC_DMA_ENABLE(hmmc);
 
-		//__HAL_DMA_DISABLE(hmmc->hdmatx);
-		//while((hmmc->hdmatx->Instance->CR & DMA_SxCR_EN) != RESET);
-
 		/* Enable the DMA Channel */
 		HAL_DMA_Start_IT(hmmc->hdmatx, (uint32_t)pData, (uint32_t)&hmmc->Instance->FIFO, (uint32_t)(BLOCKSIZE * NumberOfBlocks)/4);
 

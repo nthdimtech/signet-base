@@ -114,6 +114,25 @@ __weak void button_release()
 {
 }
 
+static void fail(int l1, int l2)
+{
+	setLED1(l1);
+	setLED2(l2);
+	while(1);
+}
+
+void assert(int cond)
+{
+	assert_lit(cond, 1, 1);
+}
+
+void assert_lit(int cond, int l1, int l2)
+{
+	if (!cond) {
+		fail(l1,l2);
+	}
+}
+
 void timer_start(int ms)
 {
 	int ms_count = HAL_GetTick();
