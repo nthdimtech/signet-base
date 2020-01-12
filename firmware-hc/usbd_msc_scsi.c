@@ -7,6 +7,7 @@
 #include "buffer_manager.h"
 #include "usbd_multi.h"
 #include "memory_layout.h"
+#include "main.h"
 extern struct bufferFIFO usbBulkBufferFIFO;
 
 static int8_t SCSI_TestUnitReady(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params);
@@ -280,6 +281,8 @@ USBD_HandleTypeDef  *s_pdev;
 extern MMC_HandleTypeDef hmmc1;
 static volatile int mmcStageIdx;
 static volatile int mmcReadLen;
+static u8 *mmcBufferRead;
+static const u8 *mmcBufferWrite;
 static volatile int mmcBlockAddr = -1;
 static volatile int mmcDataToTransfer;
 static volatile int mmcSubDataToTransfer;
@@ -290,30 +293,37 @@ static volatile int mmcTransferActive = 0;
 void readProcessingComplete(struct bufferFIFO *bf)
 {
 	MSC_BOT_SendCSW (s_pdev, USBD_CSW_CMD_PASSED);
-	emmc_user_done();
+	assert_lit(mmcDataToTransfer == 0, 1, 1);
 }
+
+int g_usb_transmitting = 0;
 
 static int8_t SCSI_ProcessRead (USBD_HandleTypeDef  *pdev, uint8_t lun)
 {
-	USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*)pdev->pClassData[INTERFACE_MSC];
-	uint32_t len = MIN(hmsc->scsi_blk_len, hmsc->writeLen);
-	hmsc->scsi_blk_addr += len;
-	hmsc->scsi_blk_len -= len;
-	hmsc->csw.dDataResidue -= len;
-	if (hmsc->scsi_blk_len == 0) {
-		bufferFIFO_stallStage(&usbBulkBufferFIFO, hmsc->stageIdx);
+	if (g_usb_transmitting) {
+		g_usb_transmitting = 0;
+		USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*)pdev->pClassData[INTERFACE_MSC];
+		uint32_t len = MIN(hmsc->scsi_blk_len, hmsc->writeLen);
+		hmsc->scsi_blk_addr += len;
+		hmsc->scsi_blk_len -= len;
+		hmsc->csw.dDataResidue -= len;
+		if (hmsc->scsi_blk_len == 0) {
+			bufferFIFO_stallStage(&usbBulkBufferFIFO, hmsc->stageIdx);
+		}
+		bufferFIFO_processingComplete(&usbBulkBufferFIFO, hmsc->stageIdx, len);
+		return 0;
 	}
-	bufferFIFO_processingComplete(&usbBulkBufferFIFO, hmsc->stageIdx, len);
 	return 0;
 }
 
 static void processUSBReadBuffer(struct bufferFIFO *bf, int readSize, const uint8_t *bufferRead, uint8_t *bufferWrite, int stageIdx)
 {
+	g_usb_transmitting = 1;
 	USBD_MSC_BOT_HandleTypeDef  *hmsc = (USBD_MSC_BOT_HandleTypeDef*) s_pdev->pClassData[INTERFACE_MSC];
 	hmsc->stageIdx = stageIdx;
 	hmsc->writeBuffer = bufferWrite;
 	hmsc->writeLen = readSize;
-	USBD_LL_Transmit(s_pdev, MSC_EPIN_ADDR, bufferWrite, readSize);
+	USBD_LL_Transmit(s_pdev, MSC_EPIN_ADDR, hmsc->writeBuffer, hmsc->writeLen);
 }
 
 static void processMMCReadBuffer(struct bufferFIFO *bf, int readLen, const uint8_t *bufferRead, uint8_t *bufferWrite, int stageIdx)
@@ -324,16 +334,12 @@ static void processMMCReadBuffer(struct bufferFIFO *bf, int readLen, const uint8
 	} else {
 		len = bf->maxBufferSize;
 	}
+	mmcBufferRead = bufferWrite;
 	mmcStageIdx = stageIdx;
 	mmcReadLen = len;
 	mmcTransferActive = 1;
-	HAL_MMC_CardStateTypeDef cardState;
-	do {
-		cardState = HAL_MMC_GetCardState(&hmmc1);
-	} while (cardState != HAL_MMC_CARD_TRANSFER);
-	HAL_MMC_ReadBlocks_DMA(&hmmc1, bufferWrite,
-			mmcBlockAddr + EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ),
-			mmcReadLen/512);
+	emmc_user_queue(EMMC_USER_STORAGE);
+	emmc_user_schedule();
 }
 
 void emmc_user_read_storage_rx_complete()
@@ -347,6 +353,7 @@ void emmc_user_read_storage_rx_complete()
 	if (mmcDataToTransfer == 0) {
 		bufferFIFO_stallStage(&usbBulkBufferFIFO, mmcStageIdx);
 	}
+	emmc_user_done();
 	bufferFIFO_processingComplete(&usbBulkBufferFIFO, mmcStageIdx, mmcReadLen);
 }
 
@@ -373,8 +380,6 @@ static int8_t SCSI_Read10(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *params
 
 		uint64_t blk_len = ((uint64_t)params[7] <<  8) | (uint64_t)params[8];
 
-	       	//blk_addr += EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ);
-
 		if(SCSI_CheckAddressRange(pdev, lun, blk_addr,
 		                          blk_len) < 0) {
 			return -1; /* error */
@@ -388,6 +393,7 @@ static int8_t SCSI_Read10(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *params
 			SCSI_SenseCode(pdev, hmsc->cbw.bLUN, ILLEGAL_REQUEST, INVALID_CDB);
 			return -1;
 		}
+		uint32_t len = MIN(hmsc->scsi_blk_len, usbBulkBufferFIFO.maxBufferSize);
 		mmcDataToTransfer = hmsc->scsi_blk_len;
 		mmcBlocksToTransfer = blk_len;
 		mmcBlockAddr = blk_addr;
@@ -395,26 +401,38 @@ static int8_t SCSI_Read10(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *params
 		usbBulkBufferFIFO.processStage[0] = processMMCReadBuffer;
 		usbBulkBufferFIFO.processStage[1] = processUSBReadBuffer;
 		usbBulkBufferFIFO.processingComplete = readProcessingComplete;
-		emmc_user_queue(EMMC_USER_STORAGE);
-		emmc_user_schedule();
+		bufferFIFO_start(&usbBulkBufferFIFO, len);
 		return 0;
 	}
-	hmsc->bot_data_length = MSC_MEDIA_PACKET;
-
 	return SCSI_ProcessRead(pdev, lun);
 }
 
 void emmc_user_storage_start()
 {
 	USBD_MSC_BOT_HandleTypeDef  *hmsc = (USBD_MSC_BOT_HandleTypeDef*) s_pdev->pClassData[INTERFACE_MSC];
-	uint32_t len = MIN(hmsc->scsi_blk_len, usbBulkBufferFIFO.maxBufferSize);
-	bufferFIFO_start(&usbBulkBufferFIFO, len);
+	HAL_MMC_CardStateTypeDef cardState;
+	if (hmsc->bot_state == USBD_BOT_DATA_IN) {
+		do {
+			cardState = HAL_MMC_GetCardState(&hmmc1);
+		} while (cardState != HAL_MMC_CARD_TRANSFER);
+		HAL_MMC_ReadBlocks_DMA(&hmmc1, mmcBufferRead,
+				mmcBlockAddr + EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ),
+				mmcReadLen/512);
+	} else if (hmsc->bot_state == USBD_BOT_DATA_OUT) {
+		do {
+			cardState = HAL_MMC_GetCardState(&hmmc1);
+		} while (cardState != HAL_MMC_CARD_TRANSFER);
+
+		HAL_MMC_WriteBlocks_DMA_Initial(&hmmc1, mmcBufferWrite, mmcReadLen,
+				mmcBlockAddr + EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ),
+				mmcReadLen/512);
+	}
 }
 
 void writeProcessingComplete(struct bufferFIFO *bf)
 {
 	MSC_BOT_SendCSW (s_pdev, USBD_CSW_CMD_PASSED);
-	emmc_user_done();
+	assert_lit(mmcDataToTransfer == 0, 1, 1);
 }
 
 void processUSBWriteBuffer(struct bufferFIFO *bf, int readSize, const uint8_t *bufferRead, uint8_t *bufferWrite, int stageIdx)
@@ -455,14 +473,9 @@ void processMMCWriteBuffer(struct bufferFIFO *bf, int readLen, const uint8_t *bu
 	mmcReadLen = readLen;
 	while (mmcTransferActive);
 	mmcTransferActive = 1;
-	HAL_MMC_CardStateTypeDef cardState;
-	do {
-		cardState = HAL_MMC_GetCardState(&hmmc1);
-	} while (cardState != HAL_MMC_CARD_TRANSFER);
-
-	HAL_MMC_WriteBlocks_DMA_Initial(&hmmc1, bufferRead, mmcReadLen,
-			mmcBlockAddr + EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ),
-			mmcReadLen/512);
+	mmcBufferWrite = bufferRead;
+	emmc_user_queue(EMMC_USER_STORAGE);
+	emmc_user_schedule();
 }
 
 int mmcShortWriteCount = 0;
@@ -473,6 +486,7 @@ void emmc_user_write_storage_tx_complete(MMC_HandleTypeDef *hmmc1)
 	if (mmcDataToTransfer == 0) {
 		bufferFIFO_stallStage(&usbBulkBufferFIFO, mmcStageIdx);
 	}
+	emmc_user_done();
 	bufferFIFO_processingComplete(&usbBulkBufferFIFO, mmcStageIdx, mmcReadLen);
 }
 
@@ -527,6 +541,7 @@ static int8_t SCSI_Write10 (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *par
 		hmsc->bot_state = USBD_BOT_DATA_OUT;
 
 		/* Prepare EP to receive first data packet */
+		uint32_t len = MIN(hmsc->scsi_blk_len, usbBulkBufferFIFO.maxBufferSize);
 		mmcDataToTransfer = hmsc->scsi_blk_len;
 		mmcBlocksToTransfer = blk_len;
 		mmcBlockAddr = blk_addr;
@@ -534,8 +549,7 @@ static int8_t SCSI_Write10 (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *par
 		usbBulkBufferFIFO.processStage[0] = processUSBWriteBuffer;
 		usbBulkBufferFIFO.processStage[1] = processMMCWriteBuffer;
 		usbBulkBufferFIFO.processingComplete = writeProcessingComplete;
-		emmc_user_queue(EMMC_USER_STORAGE);
-		emmc_user_schedule();
+		bufferFIFO_start(&usbBulkBufferFIFO, len);
 	} else { /* Write Process ongoing */
 		return SCSI_ProcessWrite(pdev, lun);
 	}
