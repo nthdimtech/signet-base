@@ -104,6 +104,11 @@ union cmd_data_u {
 		u8 block[NUM_CLEARTEXT_PASS * 64];
 	} read_cleartext_password_names;
 	struct {
+		u8 block[BLK_SIZE];
+		u32 addr;
+		u16 sz;
+	} write_flash;
+	struct {
 		u8 iv[AES_BLK_SIZE];
 		int uid;
 		int block_num;

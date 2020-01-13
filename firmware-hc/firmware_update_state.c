@@ -20,6 +20,15 @@ void update_firmware_cmd(u8 *data, int data_len)
 	memcpy(&g_update_firmware, data, sizeof(g_update_firmware));
 }
 
+void write_flash_cmd_complete()
+{
+	u8 resp[] = {
+		(cmd_data.write_flash.addr / 512) >> 8,
+		(cmd_data.write_flash.addr / 512) & 0xff
+	};
+	finish_command(OKAY, resp, 2);
+}
+
 void update_firmware_cmd_complete()
 {
 	finish_command_resp(OKAY);
@@ -99,14 +108,18 @@ void write_flash_cmd(u8 *data, int data_len)
 	}
 
 	u8 *dest = (u8 *)(data[0] + (data[1] << 8) + (data[2] << 16) + (data[3] << 24));
+	cmd_data.write_flash.addr = (u32)dest;
 	dest += write_addr_base;
 	data += 4;
 	data_len -= 4;
+	memcpy(cmd_data.write_flash.block, data, data_len);
+	cmd_data.write_flash.sz = (u16)data_len;
+
 	if (!in_memory_range((u32)dest, write_addr_base, write_addr_len) ||
-		!in_memory_range((u32)(dest + data_len - 1), write_addr_base, write_addr_len)) {
+		!in_memory_range((u32)(dest + cmd_data.write_flash.sz - 1), write_addr_base, write_addr_len)) {
 		finish_command_resp(INVALID_INPUT);
 	} else {
-		if (!flash_write(dest, data, data_len)) {
+		if (!flash_write(dest, cmd_data.write_flash.block, cmd_data.write_flash.sz)) {
 			finish_command_resp(INVALID_STATE);
 		}
 	}
@@ -141,6 +154,7 @@ void switch_boot_mode_cmd(u8 *data, int data_len)
 	default:
 		return;
 	}
+	led_on();
 	HAL_PCD_DeInit(&hpcd_USB_OTG_HS);
 	HAL_Delay(1000);
 	HAL_NVIC_SystemReset();

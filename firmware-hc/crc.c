@@ -24,3 +24,8 @@ u32 crc_32(const u8 *din, int count)
 	u32 crc = HAL_CRC_Calculate(&hcrc, (uint32_t *)din, count);
 	return ~crc;
 }
+
+u32 crc_32_cont(const u8 *din, int count)
+{
+	return ~HAL_CRC_Accumulate(&hcrc, (uint32_t *)din, count);
+}

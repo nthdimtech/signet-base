@@ -6,6 +6,7 @@
 #endif
 #include "usb_raw_hid.h"
 #include "usb_keyboard.h"
+#include "main.h"
 
 #define LSB(X) ((X) & 0xff)
 #define MSB(X) ((X) >> 8)
@@ -291,6 +292,8 @@ uint8_t USBD_HID_SendReport     (USBD_HandleTypeDef  *pdev,
 			                  interfaceToEndpointIn(interfaceNum),
 			                  report,
 			                  len);
+		} else {
+			assert(0);
 		}
 	}
 	return USBD_OK;
@@ -347,6 +350,7 @@ void usb_send_bytes(int ep, const u8 *data, int length)
 	case INTERFACE_FIDO: {
 		USBD_HID_HandleTypeDef *hhid = ((USBD_HID_HandleTypeDef *)s_pdev->pClassData[interfaceNum]);
 		if (usb_tx_pending(ep)) {
+			assert(!hhid->tx_report);
 			hhid->tx_report = data;
 		} else {
 			int interfaceNum = endpointToInterface(ep);

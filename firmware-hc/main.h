@@ -18,7 +18,9 @@ void resume_blinking();
 int is_blinking();
 void timer_start(int ms);
 void timer_stop();
+#ifndef assert
 void assert(int cont);
+#endif
 void assert_lit(int cont, int l1, int l2);
 void Error_Handler();
 

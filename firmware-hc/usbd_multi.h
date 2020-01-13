@@ -9,8 +9,8 @@ extern "C" {
 
 #include  "usbd_ioreq.h"
 
-#define HID_KEYBOARD_EPIN_ADDR            0x01U
-#define HID_KEYBOARD_EPOUT_ADDR           0x81U
+#define HID_KEYBOARD_EPOUT_ADDR           0x01U
+#define HID_KEYBOARD_EPIN_ADDR            0x81U
 #define HID_KEYBOARD_EPIN_SIZE            64U
 #define HID_KEYBOARD_EPOUT_SIZE           64U
 

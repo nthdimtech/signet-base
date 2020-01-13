@@ -35,7 +35,7 @@ static int cmd_messages_remaining = 0;
 enum device_state g_device_state = DS_DISCONNECTED;
 
 // Incoming buffer for next command request
-u8 cmd_packet_buf[CMD_PACKET_BUF_SIZE];
+u8 cmd_packet_buf[CMD_PACKET_BUF_SIZE] __attribute__((aligned(16)));
 
 //Paramaters and temporary state for the command currently being
 //executed
@@ -567,8 +567,10 @@ static void write_block_complete()
 	case CHANGE_MASTER_PASSWORD:
 	case WRITE_BLOCK:
 	case ERASE_BLOCK:
-	case WRITE_FLASH:
 		finish_command_resp(OKAY);
+		break;
+	case WRITE_FLASH:
+		write_flash_cmd_complete();
 		break;
 	case STARTUP:
 		startup_cmd_iter();
