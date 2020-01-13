@@ -22,11 +22,7 @@ void update_firmware_cmd(u8 *data, int data_len)
 
 void write_flash_cmd_complete()
 {
-	u8 resp[] = {
-		(cmd_data.write_flash.addr / 512) >> 8,
-		(cmd_data.write_flash.addr / 512) & 0xff
-	};
-	finish_command(OKAY, resp, 2);
+	finish_command_resp(OKAY);
 }
 
 void update_firmware_cmd_complete()
