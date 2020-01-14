@@ -58,12 +58,12 @@ USBD_HandleTypeDef USBD_Device;
 #define BUTTON_IRQ (EXTI0_IRQn)
 #define BUTTON_HANDLER (EXTI0_IRQHandler)
 
-static void setLED1(int x)
+void setLED1(int x)
 {
 	HAL_GPIO_WritePin(LED1_PORT, LED1_PIN, x ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 
-static void setLED2(int x)
+void setLED2(int x)
 {
 	HAL_GPIO_WritePin(LED2_PORT, LED2_PIN, x ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
@@ -289,8 +289,14 @@ int main (void)
 	//SCB_EnableDCache();
 	HAL_Init();
 	SystemClock_Config();
-	MX_DMA_Init();
 	MX_GPIO_Init();
+	int blink_duration = 500;
+	HAL_Delay(blink_duration);
+	led_on();
+	HAL_Delay(blink_duration);
+	led_off();
+
+	MX_DMA_Init();
 	MX_AES_Init();
 	//MX_RNG_Init();
 	MX_SDMMC1_MMC_Init();
@@ -318,18 +324,6 @@ int main (void)
 #ifdef USE_UART
 	MX_USART1_UART_Init();
 #endif
-
-#ifdef ENABLE_FIDO2
-	int blink_duration = 200;
-#else
-	int blink_duration = 20;
-#endif
-
-	HAL_Delay(blink_duration);
-	led_on();
-	HAL_Delay(blink_duration);
-	led_off();
-	HAL_Delay(blink_duration);
 #ifdef ENABLE_FIDO2
 	mp_set_memory_functions(mp_alloc, mp_realloc, mp_dealloc);
 	crypto_ecc256_init();
