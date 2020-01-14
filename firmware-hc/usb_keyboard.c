@@ -26,6 +26,7 @@ void usb_keyboard_type(u8 *chars_, u8 n)
 	chars = chars_;
 	char_pos = 0;
 	typing = 1;
+	led_on();
 	usb_send_bytes(HID_KEYBOARD_EPIN_ADDR, chars, 2);
 	ms_type = ms_count;
 	char_pos_to_type = -1;
@@ -48,6 +49,7 @@ void usb_tx_keyboard()
 	if (typing) {
 		if (char_pos == n_chars) {
 			typing = 0;
+			led_off();
 			usb_keyboard_typing_done();
 		} else {
 			char_pos_to_type = char_pos;
