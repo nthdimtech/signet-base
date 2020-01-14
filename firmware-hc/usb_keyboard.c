@@ -2,6 +2,7 @@
 #include "usbd_hid.h"
 #include "usb_keyboard.h"
 #include "print.h"
+#include "main.h"
 
 volatile int typing = 0;
 static u8 n_chars;
@@ -10,7 +11,7 @@ static u8 char_pos;
 static volatile int ms_type = 0;
 static volatile int char_pos_to_type;
 
-#define TYPE_RATE_MS 15
+#define TYPE_RATE_MS 25
 
 void usb_keyboard_type(u8 *chars_, u8 n)
 {
