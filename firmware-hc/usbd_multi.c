@@ -181,14 +181,14 @@ static uint8_t USBD_Multi_CfgHSDesc[] __attribute__((aligned (4))) = {
 		HID_KEYBOARD_EPIN_ADDR,
 		3,
 		HID_KEYBOARD_EPIN_SIZE, 0,
-		10, //polling period
+		7, //polling period
 
 		7,
 		USB_DESC_TYPE_ENDPOINT,
 		HID_KEYBOARD_EPOUT_ADDR,
 		3,
 		HID_KEYBOARD_EPOUT_SIZE, 0,
-		10, //polling period
+		7, //polling period
 
 	//
 	// Command HID descriptors
