@@ -274,7 +274,7 @@ static uint8_t USBD_Multi_CfgHSDesc[] __attribute__((aligned (4))) = {
 		HID_FIDO_EPOUT_ADDR,     /*bEndpointAddress: Endpoint Address (IN)*/
 		0x03,          /*bmAttributes: Interrupt endpoint*/
 		HID_FIDO_EPOUT_SIZE, 0x00,
-		10,          /*bInterval: Polling Interval */
+		HID_HS_BINTERVAL,          /*bInterval: Polling Interval */
 
 	//
 	// Mass storage descriptors
