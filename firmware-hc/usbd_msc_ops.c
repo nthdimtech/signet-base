@@ -69,11 +69,10 @@ int8_t STORAGE_GetCapacity (uint8_t lun, uint32_t *block_num, uint16_t *block_si
 	if (lun < g_num_scsi_volumes) {
 		*block_num = (u32)(g_scsi_volume[lun].n_regions * g_scsi_region_size_blocks);
 		*block_size = (uint16_t)hmmc1.MmcCard.BlockSize;
+		return 0;
 	} else {
-		*block_num = 0;
-		*block_size = (uint16_t)hmmc1.MmcCard.BlockSize;
+		return -1;
 	}
-	return 0;
 }
 
 int8_t  STORAGE_IsReady (uint8_t lun)
@@ -118,6 +117,6 @@ int8_t STORAGE_Write (uint8_t lun,
 
 int8_t STORAGE_GetMaxLun (void)
 {
-	return g_num_scsi_volumes - 1;
+	return (MAX_SCSI_VOLUMES - 1);
 }
 

@@ -122,13 +122,11 @@ void MSC_BOT_DataOut (USBD_HandleTypeDef  *pdev,
 		break;
 
 	case USBD_BOT_DATA_OUT:
-
 		if(SCSI_ProcessCmd(pdev,
 		                   hmsc->cbw.bLUN,
 		                   &hmsc->cbw.CB[0]) < 0) {
 			MSC_BOT_SendCSW (pdev, USBD_CSW_CMD_FAILED);
 		}
-
 		break;
 
 	default:
@@ -151,7 +149,7 @@ static void  MSC_BOT_CBW_Decode (USBD_HandleTypeDef  *pdev)
 
 	if ((USBD_LL_GetRxDataSize (pdev,MSC_EPOUT_ADDR) != USBD_BOT_CBW_LENGTH) ||
 	    (hmsc->cbw.dSignature != USBD_BOT_CBW_SIGNATURE) ||
-	    (hmsc->cbw.bLUN > 1U) ||
+	    (hmsc->cbw.bLUN >= MAX_SCSI_VOLUMES) ||
 	    (hmsc->cbw.bCBLength < 1U) || (hmsc->cbw.bCBLength > 16U)) {
 
 		SCSI_SenseCode(pdev, hmsc->cbw.bLUN, ILLEGAL_REQUEST, INVALID_CDB);
@@ -160,7 +158,7 @@ static void  MSC_BOT_CBW_Decode (USBD_HandleTypeDef  *pdev)
 		MSC_BOT_Abort(pdev);
 	} else {
 		if(SCSI_ProcessCmd(pdev, hmsc->cbw.bLUN, &hmsc->cbw.CB[0]) < 0) {
-			if(hmsc->bot_state == USBD_BOT_NO_DATA) {
+			if (hmsc->bot_state == USBD_BOT_NO_DATA) {
 				MSC_BOT_SendCSW (pdev, USBD_CSW_CMD_FAILED);
 			} else {
 				MSC_BOT_Abort(pdev);
