@@ -31,17 +31,17 @@ int8_t STORAGE_GetMaxLun (void);
 int8_t  STORAGE_Inquirydata[] = {//36
 
 	/* LUN 0 */
-	0x00,
-	0x80,
-	0x02,
-	0x02,
-	(STANDARD_INQUIRY_DATA_LEN - 5),
-	0x00,
-	0x00,
-	0x00,
-	'S', 'T', 'M', ' ', ' ', ' ', ' ', ' ', /* Manufacturer : 8 bytes */
-	'P', 'r', 'o', 'd', 'u', 'c', 't', ' ', /* Product      : 16 Bytes */
-	' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+	0x00, //Device connected
+	0x80, //Removable
+	0x02, //Version
+	0x02, //SCSI-3
+	(STANDARD_INQUIRY_DATA_LEN - 5), //Remaining data
+	0x00, //
+	0x00, // No special flags
+	0x00, //
+	'N', 'T', 'H', 'D', 'I', 'M', ' ', ' ', /* Manufacturer : 8 bytes */
+	'S', 'i', 'g', 'n', 'e', 't', ' ', 'H', /* Product      : 16 Bytes */
+	'C', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
 	'0', '.', '0','1',                      /* Version      : 4 Bytes */
 };
 
@@ -67,13 +67,13 @@ extern MMC_HandleTypeDef hmmc1;
 int8_t STORAGE_GetCapacity (uint8_t lun, uint32_t *block_num, uint16_t *block_size)
 {
 	if (lun < g_num_scsi_volumes) {
-		*block_num = (u32)(g_scsi_volume[lun].n_regions * (STORAGE_REGION_SIZE/hmmc1.MmcCard.BlockSize));
+		*block_num = (u32)(g_scsi_volume[lun].n_regions * g_scsi_region_size_blocks);
 		*block_size = (uint16_t)hmmc1.MmcCard.BlockSize;
 	} else {
 		*block_num = 0;
-		*block_size = 0;
+		*block_size = (uint16_t)hmmc1.MmcCard.BlockSize;
 	}
-	return (0);
+	return 0;
 }
 
 int8_t  STORAGE_IsReady (uint8_t lun)
@@ -118,6 +118,6 @@ int8_t STORAGE_Write (uint8_t lun,
 
 int8_t STORAGE_GetMaxLun (void)
 {
-	return MAX_SCSI_VOLUMES;
+	return g_num_scsi_volumes - 1;
 }
 

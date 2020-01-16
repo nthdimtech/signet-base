@@ -51,7 +51,7 @@ void usbd_scsi_init()
 	u32 nr_blocks  = hmmc1.MmcCard.BlockNbr - (EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ));
 	g_scsi_region_size_blocks = (STORAGE_REGION_SIZE)/hmmc1.MmcCard.BlockSize;
 	g_num_scsi_volumes = 2;
-	g_scsi_num_regions = g_scsi_region_size_blocks / nr_blocks;
+	g_scsi_num_regions = nr_blocks / g_scsi_region_size_blocks;
 
 	g_scsi_volume[0].nr = 2;
 	g_scsi_volume[0].flags = HC_VOLUME_FLAG_VALID;
@@ -165,7 +165,7 @@ static int8_t  SCSI_Inquiry(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *par
 			hmsc->bot_data[len] = MSC_Page00_Inquiry_Data[len];
 		}
 	} else {
-		pPage = (uint8_t *)(void *)&((USBD_StorageTypeDef *)pdev->pUserData)->pInquiry[lun * STANDARD_INQUIRY_DATA_LEN];
+		pPage = (uint8_t *)(void *)&((USBD_StorageTypeDef *)pdev->pUserData)->pInquiry[0 * STANDARD_INQUIRY_DATA_LEN];
 		len = (uint16_t)pPage[4] + 5U;
 
 		if (params[4] <= len) {
