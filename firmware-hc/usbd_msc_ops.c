@@ -1,7 +1,9 @@
 #include "usbd_msc_ops.h"
+#include "usbd_msc_scsi.h"
 #include "memory_layout.h"
 
 #define STORAGE_LUN_NBR                  1
+
 
 int8_t STORAGE_Init (uint8_t lun);
 
@@ -64,19 +66,38 @@ extern MMC_HandleTypeDef hmmc1;
 
 int8_t STORAGE_GetCapacity (uint8_t lun, uint32_t *block_num, uint16_t *block_size)
 {
-	*block_num  = hmmc1.MmcCard.BlockNbr - (EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ));
-	*block_size = hmmc1.MmcCard.BlockSize;
+	if (lun < g_num_scsi_volumes) {
+		*block_num = (u32)(g_scsi_volume[lun].n_regions * (STORAGE_REGION_SIZE/hmmc1.MmcCard.BlockSize));
+		*block_size = (uint16_t)hmmc1.MmcCard.BlockSize;
+	} else {
+		*block_num = 0;
+		*block_size = 0;
+	}
 	return (0);
 }
 
 int8_t  STORAGE_IsReady (uint8_t lun)
 {
-	return (0);
+	if (lun < g_num_scsi_volumes) {
+		if (g_scsi_volume[lun].visible)
+			return 0;
+		else
+			return 1;
+	} else {
+		return 1;
+	}
 }
 
 int8_t  STORAGE_IsWriteProtected (uint8_t lun)
 {
-	return  0;
+	if (lun < g_num_scsi_volumes) {
+		if (g_scsi_volume[lun].writable)
+			return 0;
+		else
+			return 1;
+	} else {
+		return 1;
+	}
 }
 
 int8_t STORAGE_Read (uint8_t lun,
@@ -97,6 +118,6 @@ int8_t STORAGE_Write (uint8_t lun,
 
 int8_t STORAGE_GetMaxLun (void)
 {
-	return (STORAGE_LUN_NBR - 1);
+	return MAX_SCSI_VOLUMES;
 }
 

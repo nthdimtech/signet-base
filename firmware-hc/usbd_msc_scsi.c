@@ -27,6 +27,52 @@ static int8_t SCSI_CheckAddressRange (USBD_HandleTypeDef *pdev, uint8_t lun,
 static int8_t SCSI_ProcessRead (USBD_HandleTypeDef *pdev, uint8_t lun);
 static int8_t SCSI_ProcessWrite (USBD_HandleTypeDef *pdev, uint8_t lun);
 
+int g_num_scsi_volumes;
+int g_scsi_num_regions;
+int g_scsi_region_size_blocks;
+struct scsi_volume g_scsi_volume[MAX_SCSI_VOLUMES];
+
+USBD_HandleTypeDef  *s_pdev;
+
+extern MMC_HandleTypeDef hmmc1;
+static volatile int mmcStageIdx;
+static volatile int mmcReadLen;
+static u8 *mmcBufferRead;
+static const u8 *mmcBufferWrite;
+static volatile int mmcBlockAddr = -1;
+static volatile int mmcDataToTransfer;
+static volatile int mmcSubDataToTransfer;
+static volatile int mmcBlocksToTransfer;
+static volatile int mmcDataTransferred;
+static volatile int mmcTransferActive = 0;
+
+void usbd_scsi_init()
+{
+	u32 nr_blocks  = hmmc1.MmcCard.BlockNbr - (EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ));
+	g_scsi_region_size_blocks = (STORAGE_REGION_SIZE)/hmmc1.MmcCard.BlockSize;
+	g_num_scsi_volumes = 2;
+	g_scsi_num_regions = g_scsi_region_size_blocks / nr_blocks;
+
+	g_scsi_volume[0].nr = 2;
+	g_scsi_volume[0].flags = HC_VOLUME_FLAG_VALID;
+	g_scsi_volume[0].region_start = 0;
+	g_scsi_volume[0].n_regions = (8192/32);
+	g_scsi_volume[0].started = 0;
+	g_scsi_volume[0].visible = 1;
+	g_scsi_volume[0].writable = 1;
+
+	g_scsi_volume[1].nr = 2;
+	g_scsi_volume[1].flags = HC_VOLUME_FLAG_VALID |
+		HC_VOLUME_FLAG_ENCRYPTED |
+		HC_VOLUME_FLAG_HIDDEN |
+		HC_VOLUME_FLAG_VISIBLE_ON_UNLOCK;
+	g_scsi_volume[1].region_start = g_scsi_volume[0].n_regions;
+	g_scsi_volume[1].n_regions = g_scsi_num_regions - g_scsi_volume[0].n_regions;
+	g_scsi_volume[1].started = 0;
+	g_scsi_volume[1].visible = 1;
+	g_scsi_volume[1].writable = 1;
+}
+
 int8_t SCSI_ProcessCmd(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *cmd)
 {
 	switch (cmd[0]) {
@@ -98,11 +144,9 @@ static int8_t SCSI_TestUnitReady(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t
 	if(((USBD_StorageTypeDef *)pdev->pUserData)->IsReady(lun) != 0) {
 		SCSI_SenseCode(pdev, lun, NOT_READY, MEDIUM_NOT_PRESENT);
 		hmsc->bot_state = USBD_BOT_NO_DATA;
-
 		return -1;
 	}
 	hmsc->bot_data_length = 0U;
-
 	return 0;
 }
 
@@ -269,26 +313,39 @@ void SCSI_SenseCode(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t sKey, uint8_
 	}
 }
 
+struct start_stop_unit {
+	u8 cmd;
+	u8 immed;
+	u8 reserved;
+	u8 pwr_modifier;
+	u8 params;
+	u8 control;
+} __attribute__((packed));
+
 static int8_t SCSI_StartStopUnit(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params)
 {
 	USBD_MSC_BOT_HandleTypeDef  *hmsc = (USBD_MSC_BOT_HandleTypeDef*) pdev->pClassData[INTERFACE_MSC];
+	//
+	// This command has a number of parameters but we can ignore all except the power condition
+	// and the start bit. If the power state is being changed then we are supposed to ignore the
+	// start bit, otherwise we should respond to it.
+	//
+
+	//IMMED: We will always return status immediately so this flag has no meaning for us
+	//LOEJ: Ejecting the medium is not a meaningful concept for a virtual volume
+	//NO_FLUSH: We aren't performing any cacheing so this is irrelevant
+	//
+	struct start_stop_unit *ssu = (struct start_stop_unit *)(params);
+	if ((ssu->params & 0xf0) == 0 && (ssu->pwr_modifier & 1) == 0) {
+		if (ssu->params & 0x1) {
+			//Start unit
+		} else {
+			//Stop unit
+		}
+	}
 	hmsc->bot_data_length = 0U;
 	return 0;
 }
-
-USBD_HandleTypeDef  *s_pdev;
-
-extern MMC_HandleTypeDef hmmc1;
-static volatile int mmcStageIdx;
-static volatile int mmcReadLen;
-static u8 *mmcBufferRead;
-static const u8 *mmcBufferWrite;
-static volatile int mmcBlockAddr = -1;
-static volatile int mmcDataToTransfer;
-static volatile int mmcSubDataToTransfer;
-static volatile int mmcBlocksToTransfer;
-static volatile int mmcDataTransferred;
-static volatile int mmcTransferActive = 0;
 
 void readProcessingComplete(struct bufferFIFO *bf)
 {
@@ -412,19 +469,32 @@ void emmc_user_storage_start()
 	USBD_MSC_BOT_HandleTypeDef  *hmsc = (USBD_MSC_BOT_HandleTypeDef*) s_pdev->pClassData[INTERFACE_MSC];
 	HAL_MMC_CardStateTypeDef cardState;
 	if (hmsc->bot_state == USBD_BOT_DATA_IN) {
-		do {
-			cardState = HAL_MMC_GetCardState(&hmmc1);
-		} while (cardState != HAL_MMC_CARD_TRANSFER);
-		HAL_MMC_ReadBlocks_DMA(&hmmc1, mmcBufferRead,
-				mmcBlockAddr + EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ),
-				mmcReadLen/512);
-	} else if (hmsc->bot_state == USBD_BOT_DATA_OUT) {
+		int lun = hmsc->cbw.bLUN;
+
 		do {
 			cardState = HAL_MMC_GetCardState(&hmmc1);
 		} while (cardState != HAL_MMC_CARD_TRANSFER);
 
+		u32 blockAddrAdj = mmcBlockAddr +
+			(EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ)) +
+			(g_scsi_volume[lun].region_start * g_scsi_region_size_blocks);
+
+		HAL_MMC_ReadBlocks_DMA(&hmmc1, mmcBufferRead,
+				blockAddrAdj,
+				mmcReadLen/512);
+	} else if (hmsc->bot_state == USBD_BOT_DATA_OUT) {
+		int lun = hmsc->cbw.bLUN;
+
+		do {
+			cardState = HAL_MMC_GetCardState(&hmmc1);
+		} while (cardState != HAL_MMC_CARD_TRANSFER);
+
+		u32 blockAddrAdj = mmcBlockAddr +
+			(EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ)) +
+			(g_scsi_volume[lun].region_start * g_scsi_region_size_blocks);
+
 		HAL_MMC_WriteBlocks_DMA_Initial(&hmmc1, mmcBufferWrite, mmcReadLen,
-				mmcBlockAddr + EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ),
+				blockAddrAdj,
 				mmcReadLen/512);
 	}
 }

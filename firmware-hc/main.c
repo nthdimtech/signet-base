@@ -347,19 +347,7 @@ int main (void)
 	ctaphid_init();
 #endif
 
-#if BOOT_MODE_TOGGLE_TEST
-	enum hc_boot_mode mode = flash_get_boot_mode();
-	switch (mode) {
-	case HC_BOOT_BOOTLOADER_MODE:
-		flash_set_boot_mode(HC_BOOT_APPLICATION_MODE);
-		break;
-	case HC_BOOT_APPLICATION_MODE:
-		flash_set_boot_mode(HC_BOOT_BOOTLOADER_MODE);
-		break;
-	default:
-		break;
-	}
-#endif
+	usbd_scsi_init();
 
 	USBD_Init(&USBD_Device, &Multi_Desc, 0);
 	USBD_RegisterClass(&USBD_Device, USBD_MULTI_CLASS);
