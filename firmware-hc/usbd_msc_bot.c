@@ -152,7 +152,7 @@ static void  MSC_BOT_CBW_Decode (USBD_HandleTypeDef  *pdev)
 	    (hmsc->cbw.bLUN >= MAX_SCSI_VOLUMES) ||
 	    (hmsc->cbw.bCBLength < 1U) || (hmsc->cbw.bCBLength > 16U)) {
 
-		SCSI_SenseCode(pdev, hmsc->cbw.bLUN, ILLEGAL_REQUEST, INVALID_CDB);
+		SCSI_SenseCode(pdev, hmsc->cbw.bLUN, ILLEGAL_REQUEST, INVALID_CDB, 0);
 
 		hmsc->bot_status = USBD_BOT_STATUS_ERROR;
 		MSC_BOT_Abort(pdev);

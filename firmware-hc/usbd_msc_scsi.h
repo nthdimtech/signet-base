@@ -137,7 +137,7 @@ typedef struct _SENSE_ITEM {
 int8_t SCSI_ProcessCmd(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *cmd);
 
 void SCSI_SenseCode(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t sKey,
-                    uint8_t ASC);
+                    uint8_t ASC, uint8_t ASCQ);
 
 void emmc_user_read_storage_rx_complete();
 void emmc_user_write_storage_tx_complete(MMC_HandleTypeDef *hmmc1);
