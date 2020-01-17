@@ -77,7 +77,7 @@ int8_t SCSI_ProcessCmd(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *cmd)
 {
 	switch (cmd[0]) {
 	case SCSI_TEST_UNIT_READY:
-		SCSI_TestUnitReady(pdev, lun, cmd);
+		return SCSI_TestUnitReady(pdev, lun, cmd);
 		break;
 
 	case SCSI_REQUEST_SENSE:
@@ -142,6 +142,7 @@ static int8_t SCSI_TestUnitReady(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t
 
 	if(((USBD_StorageTypeDef *)pdev->pUserData)->IsReady(lun) != 0) {
 		SCSI_SenseCode(pdev, lun, NOT_READY, MEDIUM_NOT_PRESENT, 0);
+		hmsc->bot_data_length = 0U;
 		hmsc->bot_state = USBD_BOT_NO_DATA;
 		return -1;
 	}
@@ -267,34 +268,41 @@ static int8_t SCSI_ModeSense10 (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t 
 	return 0;
 }
 
+static u8 sense_data[REQUEST_SENSE_DATA_LEN];
+
 static int8_t SCSI_RequestSense (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params)
 {
 	uint8_t i;
 	USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*) pdev->pClassData[INTERFACE_MSC];
-
-	uint8_t *bot_data = hmsc->bot_data;
-
-	for(i = 0U ; i < REQUEST_SENSE_DATA_LEN; i++) {
-		bot_data[i] = 0U;
-	}
-
-	bot_data[0]	= 0x70U;
-	bot_data[7]	= REQUEST_SENSE_DATA_LEN - 6U;
-
-	if((hmsc->scsi_sense_head != hmsc->scsi_sense_tail)) {
-
-		bot_data[2]     = hmsc->scsi_sense[hmsc->scsi_sense_head].Skey;
-		bot_data[12]    = hmsc->scsi_sense[hmsc->scsi_sense_head].w.b.ASC;
-		bot_data[13]    = hmsc->scsi_sense[hmsc->scsi_sense_head].w.b.ASCQ;
-		hmsc->scsi_sense_head++;
-
-		if (hmsc->scsi_sense_head == SENSE_LIST_DEEPTH) {
-			hmsc->scsi_sense_head = 0U;
+	if(hmsc->bot_state == USBD_BOT_IDLE) { /* Idle */
+		for(i = 0U ; i < REQUEST_SENSE_DATA_LEN; i++) {
+			sense_data[i] = 0U;
 		}
-	}
-	hmsc->bot_data_length = REQUEST_SENSE_DATA_LEN;
-	if (params[4] <= REQUEST_SENSE_DATA_LEN) {
-		hmsc->bot_data_length = params[4];
+
+		sense_data[0]	= 0x70U;
+		sense_data[7]	= 10;//REQUEST_SENSE_DATA_LEN - 7U;
+
+		if((hmsc->scsi_sense_head != hmsc->scsi_sense_tail)) {
+
+			sense_data[2]     = hmsc->scsi_sense[hmsc->scsi_sense_head].Skey;
+			sense_data[12]    = hmsc->scsi_sense[hmsc->scsi_sense_head].w.b.ASC;
+			sense_data[13]    = hmsc->scsi_sense[hmsc->scsi_sense_head].w.b.ASCQ;
+			hmsc->scsi_sense_head++;
+
+			if (hmsc->scsi_sense_head == SENSE_LIST_DEEPTH) {
+				hmsc->scsi_sense_head = 0U;
+			}
+		}
+		int len = REQUEST_SENSE_DATA_LEN;
+		if (params[4] <= REQUEST_SENSE_DATA_LEN) {
+			len = params[4];
+		}
+		uint16_t length = (uint16_t)MIN(hmsc->cbw.dDataLength, len);
+		hmsc->csw.dDataResidue -= len;
+		hmsc->csw.bStatus = USBD_CSW_CMD_PASSED;
+		hmsc->bot_state = USBD_BOT_SEND_DATA;
+		hmsc->bot_data_length = 0;
+		USBD_LL_Transmit(pdev, MSC_EPIN_ADDR, sense_data, length);
 	}
 	return 0;
 }
