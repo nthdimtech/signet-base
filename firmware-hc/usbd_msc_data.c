@@ -12,7 +12,7 @@ const uint8_t  MSC_Page00_Inquiry_Data[] = {
 	0x83
 };
 /* USB Mass storage sense 6  Data */
-const uint8_t  MSC_Mode_Sense6_data[] = {
+const uint8_t  MSC_Mode_Sense6_data[] __attribute__((aligned(16))) = {
 	0x00,
 	0x00,
 	0x00,
@@ -23,7 +23,7 @@ const uint8_t  MSC_Mode_Sense6_data[] = {
 	0x00
 };
 /* USB Mass storage sense 10  Data */
-const uint8_t  MSC_Mode_Sense10_data[] = {
+const uint8_t  MSC_Mode_Sense10_data[] __attribute__((aligned(16))) = {
 	0x00,
 	0x06,
 	0x00,
