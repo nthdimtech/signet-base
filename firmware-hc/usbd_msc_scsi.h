@@ -27,6 +27,7 @@ extern "C" {
 
 #include "usbd_def.h"
 #include "memory_layout.h"
+#include "signetdev_common.h"
 
 #define SENSE_LIST_DEEPTH                           4U
 
@@ -120,7 +121,9 @@ extern int g_num_scsi_volumes;
 extern int g_scsi_num_regions;
 extern int g_scsi_region_size_blocks;
 extern struct scsi_volume g_scsi_volume[MAX_SCSI_VOLUMES];
+
 void usbd_scsi_init();
+void usbd_scsi_device_state_change(enum device_state state);
 
 typedef struct _SENSE_ITEM {
 	char Skey;

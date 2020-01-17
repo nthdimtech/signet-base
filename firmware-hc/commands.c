@@ -309,6 +309,7 @@ void initialize_cmd_complete();
 void enter_progressing_state (enum device_state state, int _n_progress_components, int *_progress_maximum)
 {
 	g_device_state = state;
+	usbd_scsi_device_state_change(g_device_state);
 	g_progress_check = 0;
 	n_progress_components = _n_progress_components;
 	int i;

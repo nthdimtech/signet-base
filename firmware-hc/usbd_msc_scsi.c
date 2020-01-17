@@ -46,6 +46,62 @@ static volatile int mmcBlocksToTransfer;
 static volatile int mmcDataTransferred;
 static volatile int mmcTransferActive = 0;
 
+void usbd_scsi_device_state_change(enum device_state state)
+{
+	for (int i = 0; i < g_num_scsi_volumes; i++) {
+		struct scsi_volume *v = g_scsi_volume + i;
+		if (!v->flags & HC_VOLUME_FLAG_VALID) {
+			v->visible = 0;
+			v->writable = 0;
+			continue;
+		}
+		if (v->flags & HC_VOLUME_FLAG_READ_ONLY) {
+			if (v->flags & HC_VOLUME_FLAG_VISIBLE_ON_UNLOCK) {
+				switch (state) {
+				case DS_LOGGED_OUT:
+				case DS_ERASING_PAGES:
+				case DS_WIPING:
+				case DS_INITIALIZING:
+				case DS_UNINITIALIZED:
+				case DS_DISCONNECTED:
+				case DS_RESTORING_DEVICE:
+				case DS_BOOTLOADER:
+					v->writable = 0;
+					break;
+				case DS_LOGGED_IN:
+				case DS_FIRMWARE_UPDATE:
+				case DS_BACKING_UP_DEVICE:
+				default:
+					v->writable = 1;
+					break;
+				}
+			}
+		}
+		if (v->flags & HC_VOLUME_FLAG_HIDDEN) {
+			if (v->flags & HC_VOLUME_FLAG_VISIBLE_ON_UNLOCK) {
+				switch (state) {
+				case DS_LOGGED_OUT:
+				case DS_ERASING_PAGES:
+				case DS_WIPING:
+				case DS_INITIALIZING:
+				case DS_UNINITIALIZED:
+				case DS_DISCONNECTED:
+				case DS_RESTORING_DEVICE:
+				case DS_BOOTLOADER:
+					v->visible = 0;
+					break;
+				case DS_LOGGED_IN:
+				case DS_FIRMWARE_UPDATE:
+				case DS_BACKING_UP_DEVICE:
+				default:
+					v->visible = 1;
+					break;
+				}
+			}
+		}
+	}
+}
+
 void usbd_scsi_init()
 {
 	u32 nr_blocks  = hmmc1.MmcCard.BlockNbr - (EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ));
@@ -63,13 +119,12 @@ void usbd_scsi_init()
 
 	g_scsi_volume[1].nr = 2;
 	g_scsi_volume[1].flags = HC_VOLUME_FLAG_VALID |
-		HC_VOLUME_FLAG_ENCRYPTED |
 		HC_VOLUME_FLAG_HIDDEN |
 		HC_VOLUME_FLAG_VISIBLE_ON_UNLOCK;
 	g_scsi_volume[1].region_start = g_scsi_volume[0].n_regions;
 	g_scsi_volume[1].n_regions = g_scsi_num_regions - g_scsi_volume[0].n_regions;
 	g_scsi_volume[1].started = 0;
-	g_scsi_volume[1].visible = 1;
+	g_scsi_volume[1].visible = 0;
 	g_scsi_volume[1].writable = 1;
 }
 
