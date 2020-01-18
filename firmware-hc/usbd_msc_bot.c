@@ -99,7 +99,9 @@ void MSC_BOT_DataIn (USBD_HandleTypeDef  *pdev,
 	case USBD_BOT_LAST_DATA_IN:
 		MSC_BOT_SendCSW (pdev, USBD_CSW_CMD_PASSED);
 		break;
-
+	case USBD_BOT_NO_DATA:
+		MSC_BOT_SendCSW (pdev, USBD_CSW_CMD_PASSED);
+		break;
 	default:
 		break;
 	}
