@@ -137,12 +137,12 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
 
 	/* Initialize LL Driver */
 	HAL_PCD_Init(&hpcd);
-	HAL_PCDEx_SetRxFiFo(&hpcd, (HID_CMD_EPOUT_SIZE/4) + 0x20); //Max packet size plus extra entries for bookkeeping
-	HAL_PCDEx_SetTxFiFo(&hpcd, 0, (USB_MAX_EP0_SIZE * 1) / 4); //128
-	HAL_PCDEx_SetTxFiFo(&hpcd, HID_KEYBOARD_EPIN_ADDR & 0x7f, (HID_KEYBOARD_EPIN_SIZE * 1) / 4);
-	HAL_PCDEx_SetTxFiFo(&hpcd, HID_CMD_EPIN_ADDR & 0x7f, (HID_CMD_EPIN_SIZE * 1) / 4);
-	HAL_PCDEx_SetTxFiFo(&hpcd, HID_FIDO_EPIN_ADDR & 0x7f, (HID_FIDO_EPIN_SIZE * 1) / 4);
-	HAL_PCDEx_SetTxFiFo(&hpcd, MSC_EPIN_ADDR & 0x7f, (MSC_EPIN_SIZE * 1) / 4);
+	HAL_PCDEx_SetRxFiFo(&hpcd, 2048/4);
+	HAL_PCDEx_SetTxFiFo(&hpcd, 0, (USB_MAX_EP0_SIZE * 1) / 4); //64
+	HAL_PCDEx_SetTxFiFo(&hpcd, HID_KEYBOARD_EPIN_ADDR & 0x7f, (HID_KEYBOARD_EPIN_SIZE * 1) / 4); //64
+	HAL_PCDEx_SetTxFiFo(&hpcd, HID_CMD_EPIN_ADDR & 0x7f, (HID_CMD_EPIN_SIZE * 1) / 4); //1024
+	HAL_PCDEx_SetTxFiFo(&hpcd, HID_FIDO_EPIN_ADDR & 0x7f, (HID_FIDO_EPIN_SIZE * 1) / 4); //64
+	HAL_PCDEx_SetTxFiFo(&hpcd, MSC_EPIN_ADDR & 0x7f, (MSC_EPIN_SIZE * 1) / 4); //512
 	return USBD_OK;
 }
 
