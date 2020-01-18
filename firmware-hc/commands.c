@@ -31,6 +31,8 @@
 int active_cmd = -1;
 static int cmd_iter_count = 0;
 static int cmd_messages_remaining = 0;
+static int g_write_db_tx_complete = 0;
+static int g_read_db_tx_complete = 0;
 
 enum device_state g_device_state = DS_DISCONNECTED;
 
@@ -143,10 +145,18 @@ void emmc_user_db_start()
 	}
 }
 
-void emmc_user_read_db_rx_complete()
+void command_idle()
 {
-	emmc_user_done();
-	read_block_complete();
+	if (g_read_db_tx_complete) {
+		g_read_db_tx_complete = 0;
+		emmc_user_done();
+		read_block_complete();
+	}
+	if (g_write_db_tx_complete) {
+		g_write_db_tx_complete = 0;
+		emmc_user_done();
+		write_block_complete();
+	}
 }
 
 void emmc_user_schedule()
@@ -211,7 +221,7 @@ void HAL_MMC_RxCpltCallback(MMC_HandleTypeDef *hmmc1)
 		emmc_user_read_storage_rx_complete();
 		break;
 	case EMMC_USER_DB:
-		emmc_user_read_db_rx_complete();
+		g_read_db_tx_complete = 1;
 		break;
 	default:
 		assert(0);
@@ -245,12 +255,6 @@ void HAL_MMC_ErrorCallback(MMC_HandleTypeDef *hmmc)
 	assert_lit(0, 1, 0);
 }
 
-void emmc_user_write_db_tx_complete(MMC_HandleTypeDef *hmmc1)
-{
-	emmc_user_done();
-	write_block_complete();
-}
-
 void HAL_MMC_TxCpltCallback(MMC_HandleTypeDef *hmmc1)
 {
 	switch (g_emmc_user) {
@@ -258,7 +262,7 @@ void HAL_MMC_TxCpltCallback(MMC_HandleTypeDef *hmmc1)
 		emmc_user_write_storage_tx_complete(hmmc1);
 		break;
 	case EMMC_USER_DB:
-		emmc_user_write_db_tx_complete(hmmc1);
+		g_write_db_tx_complete = 1;
 		break;
 	default:
 		assert(0);
@@ -586,6 +590,7 @@ void flash_write_complete()
 	write_block_complete();
 	firmware_update_write_block_complete();
 }
+
 
 void flash_write_failed()
 {

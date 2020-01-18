@@ -363,6 +363,7 @@ int main (void)
 		}
 		usb_keyboard_idle();
 		blink_idle();
+		command_idle();
 		flash_idle();
 		int current_button_state = buttonState() ? 0 : 1;
 

@@ -270,7 +270,7 @@ void HAL_MMC_MspInit(MMC_HandleTypeDef* hmmc)
 
 		__HAL_LINKDMA(&hmmc1, hdmarx, emmc_dma_in);
 
-		HAL_NVIC_SetPriority(SDMMC1_IRQn, DEFAULT_INT_PRIORITY, 0);
+		HAL_NVIC_SetPriority(SDMMC1_IRQn, LOW_INT_PRIORITY, 0);
 		HAL_NVIC_EnableIRQ(SDMMC1_IRQn);
 	}
 }

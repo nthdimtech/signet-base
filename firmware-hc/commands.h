@@ -168,4 +168,6 @@ void emmc_user_done();
 //TODO: Use functions to update progress
 extern int g_progress_level[];
 
+void command_idle();
+
 #endif
