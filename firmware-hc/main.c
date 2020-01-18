@@ -498,9 +498,9 @@ static void MX_SDMMC1_MMC_Init(void)
 static void MX_DMA_Init(void)
 {
 	__HAL_RCC_DMA2_CLK_ENABLE();
-	HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, DEFAULT_INT_PRIORITY, 0);
+	HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, LOW_INT_PRIORITY, 0);
 	HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
-	HAL_NVIC_SetPriority(DMA2_Stream6_IRQn, DEFAULT_INT_PRIORITY, 0);
+	HAL_NVIC_SetPriority(DMA2_Stream6_IRQn, LOW_INT_PRIORITY, 0);
 	HAL_NVIC_EnableIRQ(DMA2_Stream6_IRQn);
 }
 
