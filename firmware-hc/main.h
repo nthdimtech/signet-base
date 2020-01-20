@@ -5,7 +5,7 @@
 #include "usbd_desc.h"
 #include "usbd_multi.h"
 
-#define LOW_INT_PRIORITY (2)
+#define LOW_INT_PRIORITY (3)
 #define DEFAULT_INT_PRIORITY (2)
 #define HIGH_INT_PRIORITY (1)
 #define HIGHEST_INT_PRIORITY (0)
