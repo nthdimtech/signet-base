@@ -123,6 +123,7 @@ extern int g_scsi_region_size_blocks;
 extern struct scsi_volume g_scsi_volume[MAX_SCSI_VOLUMES];
 
 void usbd_scsi_init();
+void usbd_scsi_idle();
 void usbd_scsi_device_state_change(enum device_state state);
 
 typedef struct _SENSE_ITEM {

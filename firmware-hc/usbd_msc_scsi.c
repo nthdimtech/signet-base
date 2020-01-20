@@ -46,6 +46,12 @@ static volatile int mmcBlocksToTransfer;
 static volatile int mmcDataTransferred;
 static volatile int mmcTransferActive = 0;
 
+static int g_cryptStageIdx;
+static int g_cryptTxLen;
+int g_cryptDataToTransfer;
+int g_cryptBufCount;
+extern CRYP_HandleTypeDef hcryp;
+
 void usbd_scsi_device_state_change(enum device_state state)
 {
 	for (int i = 0; i < g_num_scsi_volumes; i++) {
@@ -119,6 +125,7 @@ void usbd_scsi_init()
 
 	g_scsi_volume[1].nr = 2;
 	g_scsi_volume[1].flags = HC_VOLUME_FLAG_VALID |
+		HC_VOLUME_FLAG_ENCRYPTED |
 		HC_VOLUME_FLAG_HIDDEN |
 		HC_VOLUME_FLAG_VISIBLE_ON_UNLOCK;
 	g_scsi_volume[1].region_start = g_scsi_volume[0].n_regions;
@@ -489,6 +496,13 @@ static void processMMCReadBuffer(struct bufferFIFO *bf, int readLen, const uint8
 	emmc_user_schedule();
 }
 
+static void processDecryptReadBuffer(struct bufferFIFO *bf, int readLen, const uint8_t *bufferRead, uint8_t *bufferWrite, int stageIdx)
+{
+	g_cryptStageIdx = stageIdx;
+	g_cryptTxLen = readLen;
+	HAL_CRYP_Decrypt_DMA(&hcryp, (uint32_t *)bufferRead, readLen/4, (uint32_t *)bufferWrite);
+}
+
 void emmc_user_read_storage_rx_complete()
 {
 	mmcTransferActive = 0;
@@ -551,9 +565,20 @@ static int8_t SCSI_Read10(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *params
 		mmcBlocksToTransfer = blk_len;
 		mmcBlockAddr = blk_addr;
 		mmcDataTransferred = 0;
-		usbBulkBufferFIFO.processStage[0] = processMMCReadBuffer;
-		usbBulkBufferFIFO.processStage[1] = processUSBReadBuffer;
-		usbBulkBufferFIFO.processingComplete = readProcessingComplete;
+		if (g_scsi_volume[lun].flags & HC_VOLUME_FLAG_ENCRYPTED) {
+			g_cryptDataToTransfer = hmsc->scsi_blk_len;
+			g_cryptBufCount = 0;
+			usbBulkBufferFIFO.numStages = 3;
+			usbBulkBufferFIFO.processStage[0] = processMMCReadBuffer;
+			usbBulkBufferFIFO.processStage[1] = processDecryptReadBuffer;
+			usbBulkBufferFIFO.processStage[2] = processUSBReadBuffer;
+			usbBulkBufferFIFO.processingComplete = readProcessingComplete;
+		} else {
+			usbBulkBufferFIFO.numStages = 2;
+			usbBulkBufferFIFO.processStage[0] = processMMCReadBuffer;
+			usbBulkBufferFIFO.processStage[1] = processUSBReadBuffer;
+			usbBulkBufferFIFO.processingComplete = readProcessingComplete;
+		}
 		bufferFIFO_start(&usbBulkBufferFIFO, len);
 		return 0;
 	}
@@ -614,6 +639,33 @@ void processUSBWriteBuffer(struct bufferFIFO *bf, int readSize, const uint8_t *b
 	hmsc->writeBuffer = bufferWrite;
 	hmsc->writeLen = len;
 	USBD_LL_PrepareReceive (s_pdev, MSC_EPOUT_ADDR, bufferWrite, len);
+}
+
+static int g_cryptOutInt = 0;
+
+void HAL_CRYP_OutCpltCallback(CRYP_HandleTypeDef *hcryp)
+{
+	g_cryptOutInt = 1;
+}
+
+void usbd_scsi_idle()
+{
+	if (g_cryptOutInt) {
+		g_cryptOutInt = 0;
+		g_cryptDataToTransfer -= g_cryptTxLen;
+		g_cryptBufCount++;
+		if (g_cryptDataToTransfer == 0) {
+			bufferFIFO_stallStage(&usbBulkBufferFIFO, g_cryptStageIdx);
+		}
+		bufferFIFO_processingComplete(&usbBulkBufferFIFO, g_cryptStageIdx, g_cryptTxLen);
+	}
+}
+
+void processEncryptWriteBuffer(struct bufferFIFO *bf, int readSize, const uint8_t *bufferRead, uint8_t *bufferWrite, int stageIdx)
+{
+	g_cryptStageIdx = stageIdx;
+	g_cryptTxLen = readSize;
+	HAL_CRYP_Encrypt_DMA(&hcryp, (uint32_t *)bufferRead, readSize/4, (uint32_t *)bufferWrite);
 }
 
 int mmcTXDmaActive = 0;
@@ -720,9 +772,20 @@ static int8_t SCSI_Write10 (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *par
 		mmcBlocksToTransfer = blk_len;
 		mmcBlockAddr = blk_addr;
 		mmcDataTransferred = 0;
-		usbBulkBufferFIFO.processStage[0] = processUSBWriteBuffer;
-		usbBulkBufferFIFO.processStage[1] = processMMCWriteBuffer;
-		usbBulkBufferFIFO.processingComplete = writeProcessingComplete;
+		if (g_scsi_volume[lun].flags & HC_VOLUME_FLAG_ENCRYPTED) {
+			g_cryptDataToTransfer = hmsc->scsi_blk_len;
+			g_cryptBufCount = 0;
+			usbBulkBufferFIFO.numStages = 3;
+			usbBulkBufferFIFO.processStage[0] = processUSBWriteBuffer;
+			usbBulkBufferFIFO.processStage[1] = processEncryptWriteBuffer;
+			usbBulkBufferFIFO.processStage[2] = processMMCWriteBuffer;
+			usbBulkBufferFIFO.processingComplete = writeProcessingComplete;
+		} else {
+			usbBulkBufferFIFO.numStages = 2;
+			usbBulkBufferFIFO.processStage[0] = processUSBWriteBuffer;
+			usbBulkBufferFIFO.processStage[1] = processMMCWriteBuffer;
+			usbBulkBufferFIFO.processingComplete = writeProcessingComplete;
+		}
 		bufferFIFO_start(&usbBulkBufferFIFO, len);
 	} else { /* Write Process ongoing */
 		return SCSI_ProcessWrite(pdev, lun);

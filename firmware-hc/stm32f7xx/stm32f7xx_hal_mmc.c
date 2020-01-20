@@ -1063,6 +1063,9 @@ HAL_StatusTypeDef HAL_MMC_ReadBlocks_DMA(MMC_HandleTypeDef *hmmc, uint8_t *pData
 		/* Set the DMA Abort callback */
 		hmmc->hdmarx->XferAbortCallback = MMC_DMATxAbort;
 
+		/* Switch DMA direction in TX and RX are sharing a stream */
+		hmmc->hdmarx->Instance->CR = (hmmc->hdmarx->Instance->CR & ~DMA_SxCR_DIR) | DMA_PERIPH_TO_MEMORY;
+
 		/* Enable the DMA Channel */
 		HAL_DMA_Start_IT(hmmc->hdmarx, (uint32_t)&hmmc->Instance->FIFO, (uint32_t)pData, (uint32_t)(BLOCKSIZE * NumberOfBlocks)/4);
 
@@ -1305,6 +1308,9 @@ HAL_StatusTypeDef HAL_MMC_WriteBlocks_DMA_Initial(MMC_HandleTypeDef *hmmc, const
 
 		/* Enable SDMMC DMA transfer */
 		__HAL_MMC_DMA_ENABLE(hmmc);
+
+		/* Switch DMA direction in TX and RX are sharing a stream */
+		hmmc->hdmatx->Instance->CR = (hmmc->hdmatx->Instance->CR & ~DMA_SxCR_DIR) | DMA_MEMORY_TO_PERIPH;
 
 		/* Enable the DMA Channel */
 		HAL_DMA_Start_IT(hmmc->hdmatx, (uint32_t)pData, (uint32_t)&hmmc->Instance->FIFO, (uint32_t)(txSize)/4);

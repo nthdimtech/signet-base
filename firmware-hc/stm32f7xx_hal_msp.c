@@ -1,6 +1,11 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
+DMA_HandleTypeDef hdma_aes_in;
+DMA_HandleTypeDef hdma_aes_out;
+extern CRYP_HandleTypeDef hcryp;
+extern MMC_HandleTypeDef hmmc1;
+
 /**
   * Initializes the Global MSP.
   */
@@ -10,17 +15,44 @@ void HAL_MspInit(void)
 	__HAL_RCC_SYSCFG_CLK_ENABLE();
 }
 
-/**
-* @brief CRYP MSP Initialization
-* This function configures the hardware resources used in this example
-* @param hcryp: CRYP handle pointer
-* @retval None
-*/
 void HAL_CRYP_MspInit(CRYP_HandleTypeDef* hcryp)
 {
 	if(hcryp->Instance==AES) {
 		/* Peripheral clock enable */
 		__HAL_RCC_AES_CLK_ENABLE();
+		hdma_aes_in.Instance = DMA2_Stream6;
+		hdma_aes_in.Init.Channel = DMA_CHANNEL_2;
+		hdma_aes_in.Init.Direction = DMA_MEMORY_TO_PERIPH;
+		hdma_aes_in.Init.PeriphInc = DMA_PINC_DISABLE;
+		hdma_aes_in.Init.MemInc = DMA_MINC_ENABLE;
+		hdma_aes_in.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
+		hdma_aes_in.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
+		hdma_aes_in.Init.Mode = DMA_NORMAL;
+		hdma_aes_in.Init.Priority = DMA_PRIORITY_HIGH;
+		hdma_aes_in.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+		if (HAL_DMA_Init(&hdma_aes_in) != HAL_OK)
+		{
+			Error_Handler();
+		}
+		__HAL_LINKDMA(hcryp, hdmain, hdma_aes_in);
+
+		/* AES_OUT Init */
+		hdma_aes_out.Instance = DMA2_Stream5;
+		hdma_aes_out.Init.Channel = DMA_CHANNEL_2;
+		hdma_aes_out.Init.Direction = DMA_PERIPH_TO_MEMORY;
+		hdma_aes_out.Init.PeriphInc = DMA_PINC_DISABLE;
+		hdma_aes_out.Init.MemInc = DMA_MINC_ENABLE;
+		hdma_aes_out.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
+		hdma_aes_out.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
+		hdma_aes_out.Init.Mode = DMA_NORMAL;
+		hdma_aes_out.Init.Priority = DMA_PRIORITY_LOW;
+		hdma_aes_out.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+		if (HAL_DMA_Init(&hdma_aes_out) != HAL_OK)
+		{
+			Error_Handler();
+		}
+
+		__HAL_LINKDMA(hcryp, hdmaout, hdma_aes_out);
 	}
 }
 
@@ -156,27 +188,45 @@ void HAL_PCD_MspDeInit(PCD_HandleTypeDef *hpcd)
 	}
 }
 
-#if !PROTOTYPE_VERSION
-
 DMA_HandleTypeDef emmc_dma_in;
 DMA_HandleTypeDef emmc_dma_out;
 
+#define MMC_CONTEXT_READ_FLAGS (MMC_CONTEXT_READ_MULTIPLE_BLOCK | MMC_CONTEXT_READ_SINGLE_BLOCK)
+#define MMC_CONTEXT_WRITE_FLAGS (MMC_CONTEXT_WRITE_MULTIPLE_BLOCK | MMC_CONTEXT_WRITE_SINGLE_BLOCK)
+
 void DMA2_Stream3_IRQHandler(void)
 {
-	HAL_DMA_IRQHandler(&emmc_dma_out);
+	if (hmmc1.Context & MMC_CONTEXT_DMA) {
+		if (hmmc1.Context & MMC_CONTEXT_WRITE_FLAGS) {
+			HAL_DMA_IRQHandler(&emmc_dma_out);
+		} else if (hmmc1.Context & MMC_CONTEXT_READ_FLAGS) {
+			HAL_DMA_IRQHandler(&emmc_dma_in);
+		}
+	}
+}
+
+void DMA2_Stream5_IRQHandler(void)
+{
+	HAL_DMA_IRQHandler(&hdma_aes_out);
+}
+
+void AES_IRQHandler()
+{
+	HAL_CRYP_IRQHandler(&hcryp);
 }
 
 void DMA2_Stream6_IRQHandler(void)
 {
-	HAL_DMA_IRQHandler(&emmc_dma_in);
+	HAL_DMA_IRQHandler(&hdma_aes_in);
 }
-
-extern MMC_HandleTypeDef hmmc1;
 
 void SDMMC1_IRQHandler()
 {
 	HAL_MMC_IRQHandler(&hmmc1);
 }
+
+
+
 /**
 * @brief MMC MSP Initialization
 * This function configures the hardware resources used in this example
@@ -231,19 +281,18 @@ void HAL_MMC_MspInit(MMC_HandleTypeDef* hmmc)
 		HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
 		/* EMMC OUT Init */
-		emmc_dma_out.Instance = DMA2_Stream3; //*
-		emmc_dma_out.Init.Channel = DMA_CHANNEL_4; //*
-		emmc_dma_out.Init.Direction = DMA_MEMORY_TO_PERIPH; //*
-		emmc_dma_out.Init.PeriphInc = DMA_PINC_DISABLE; //*
-		emmc_dma_out.Init.MemInc = DMA_MINC_ENABLE; //*
-		emmc_dma_out.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD; //*
-		emmc_dma_out.Init.MemDataAlignment = DMA_MDATAALIGN_WORD; //*
-		emmc_dma_out.Init.Mode = DMA_PFCTRL; //*
-		emmc_dma_out.Init.MemBurst = DMA_MBURST_SINGLE; //?
-		emmc_dma_out.Init.PeriphBurst = DMA_PBURST_INC4; //*
-		emmc_dma_out.Init.Priority = DMA_PRIORITY_LOW; //1/2
-		emmc_dma_out.Init.FIFOMode = DMA_FIFOMODE_ENABLE; //1/2
-		//emmc_dma_out.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_FULL;
+		emmc_dma_out.Instance = DMA2_Stream3;
+		emmc_dma_out.Init.Channel = DMA_CHANNEL_4;
+		emmc_dma_out.Init.Direction = DMA_MEMORY_TO_PERIPH;
+		emmc_dma_out.Init.PeriphInc = DMA_PINC_DISABLE;
+		emmc_dma_out.Init.MemInc = DMA_MINC_ENABLE;
+		emmc_dma_out.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
+		emmc_dma_out.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
+		emmc_dma_out.Init.Mode = DMA_PFCTRL;
+		emmc_dma_out.Init.FIFOMode = DMA_FIFOMODE_ENABLE;
+		emmc_dma_out.Init.MemBurst = DMA_MBURST_SINGLE;
+		emmc_dma_out.Init.PeriphBurst = DMA_PBURST_INC4;
+		emmc_dma_out.Init.Priority = DMA_PRIORITY_LOW;
 		if (HAL_DMA_Init(&emmc_dma_out) != HAL_OK) {
 			Error_Handler();
 		}
@@ -251,19 +300,18 @@ void HAL_MMC_MspInit(MMC_HandleTypeDef* hmmc)
 		__HAL_LINKDMA(&hmmc1, hdmatx, emmc_dma_out);
 
 		/* EMMC IN Init */
-		emmc_dma_in.Instance = DMA2_Stream6; //*
-		emmc_dma_in.Init.Channel = DMA_CHANNEL_4; //*
-		emmc_dma_in.Init.Direction = DMA_PERIPH_TO_MEMORY; //*
-		emmc_dma_in.Init.PeriphInc = DMA_PINC_DISABLE; //*
-		emmc_dma_in.Init.MemInc = DMA_MINC_ENABLE; //*
-		emmc_dma_in.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD; //*
-		emmc_dma_in.Init.MemDataAlignment = DMA_MDATAALIGN_WORD; //*
+		emmc_dma_in.Instance = DMA2_Stream3;
+		emmc_dma_in.Init.Channel = DMA_CHANNEL_4;
+		emmc_dma_in.Init.Direction = DMA_PERIPH_TO_MEMORY;
+		emmc_dma_in.Init.PeriphInc = DMA_PINC_DISABLE;
+		emmc_dma_in.Init.MemInc = DMA_MINC_ENABLE;
+		emmc_dma_in.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
+		emmc_dma_in.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
 		emmc_dma_in.Init.Mode = DMA_PFCTRL;
+		emmc_dma_in.Init.FIFOMode = DMA_FIFOMODE_ENABLE;
 		emmc_dma_in.Init.MemBurst = DMA_MBURST_SINGLE;
 		emmc_dma_in.Init.PeriphBurst = DMA_PBURST_INC4;
 		emmc_dma_in.Init.Priority = DMA_PRIORITY_LOW;
-		emmc_dma_in.Init.FIFOMode = DMA_FIFOMODE_ENABLE;
-		//emmc_dma_in.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_FULL;
 		if (HAL_DMA_Init(&emmc_dma_in) != HAL_OK) {
 			Error_Handler();
 		}
@@ -307,64 +355,6 @@ void HAL_MMC_MspDeInit(MMC_HandleTypeDef* hmmc)
 		HAL_GPIO_DeInit(GPIOD, GPIO_PIN_2);
 	}
 }
-#else
-
-void HAL_SD_MspInit(SD_HandleTypeDef* hsd)
-{
-
-	GPIO_InitTypeDef GPIO_InitStruct = {0};
-	if(hsd->Instance==SDMMC2) {
-		__HAL_RCC_SDMMC2_CLK_ENABLE();
-		__HAL_RCC_GPIOD_CLK_ENABLE();
-		__HAL_RCC_GPIOG_CLK_ENABLE();
-
-		GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7;
-		GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-		GPIO_InitStruct.Pull = GPIO_NOPULL;
-		GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-		GPIO_InitStruct.Alternate = GPIO_AF11_SDMMC2;
-		HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
-
-		GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_12;
-		GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-		GPIO_InitStruct.Pull = GPIO_NOPULL;
-		GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-		GPIO_InitStruct.Alternate = GPIO_AF11_SDMMC2;
-		HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
-
-		GPIO_InitStruct.Pin = GPIO_PIN_11;
-		GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-		GPIO_InitStruct.Pull = GPIO_NOPULL;
-		GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-		GPIO_InitStruct.Alternate = GPIO_AF10_SDMMC2;
-		HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
-	}
-}
-
-void HAL_SD_MspDeInit(SD_HandleTypeDef* hsd)
-{
-
-	if(hsd->Instance==SDMMC2) {
-		/* Peripheral clock disable */
-		__HAL_RCC_SDMMC2_CLK_DISABLE();
-
-		/**SDMMC2 GPIO Configuration
-		PB4     ------> SDMMC2_D3
-		PB3     ------> SDMMC2_D2
-		PD7     ------> SDMMC2_CMD
-		PG10     ------> SDMMC2_D1
-		PD6     ------> SDMMC2_CK
-		PG9     ------> SDMMC2_D0
-		*/
-		HAL_GPIO_DeInit(GPIOB, GPIO_PIN_4|GPIO_PIN_3);
-
-		HAL_GPIO_DeInit(GPIOD, GPIO_PIN_7|GPIO_PIN_6);
-
-		HAL_GPIO_DeInit(GPIOG, GPIO_PIN_10|GPIO_PIN_9);
-	}
-}
-
-#endif
 
 /**
 * @brief UART MSP Initialization

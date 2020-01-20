@@ -14,8 +14,10 @@ struct bufferFIFO {
 
 	void (*processingComplete)(struct bufferFIFO *bf);
 	int _bufferSize[BUFFER_FIFO_MAX_BUFFERS];
+
 	int _stageWriteIndex[BUFFER_FIFO_MAX_STAGES];
 	int _stageReadIndex[BUFFER_FIFO_MAX_STAGES];
+
 	int _stalled[BUFFER_FIFO_MAX_STAGES];
 	int _stageProcessing[BUFFER_FIFO_MAX_STAGES];
 	int _processing;

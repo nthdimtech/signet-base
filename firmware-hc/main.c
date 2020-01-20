@@ -10,6 +10,7 @@
 #include "commands.h"
 #include "usb_keyboard.h"
 #include "crc.h"
+#include "usbd_msc_scsi.h"
 
 #include "memory_layout.h"
 
@@ -298,9 +299,9 @@ int main (void)
 
 	MX_DMA_Init();
 	MX_AES_Init();
-	//MX_RNG_Init();
 	MX_SDMMC1_MMC_Init();
 
+	//TODO: move this elsewhere
 	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
 	DWT->CYCCNT = 0;
 	DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
@@ -335,7 +336,6 @@ int main (void)
 	HAL_NVIC_SetPriority(EXTI0_IRQn, HIGH_INT_PRIORITY, 0);
 	HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 
-	usbBulkBufferFIFO.numStages = 2;
 	usbBulkBufferFIFO.maxBufferSize = USB_BULK_BUFFER_SIZE;
 	usbBulkBufferFIFO.bufferStorage = g_usbBulkBuffer;
 	usbBulkBufferFIFO.bufferCount = USB_BULK_BUFFER_COUNT;
@@ -365,6 +365,7 @@ int main (void)
 		blink_idle();
 		command_idle();
 		flash_idle();
+		usbd_scsi_idle();
 		int current_button_state = buttonState() ? 0 : 1;
 
 		if (g_press_pending) {
@@ -461,19 +462,6 @@ static void MX_AES_Init(void)
 }
 
 /**
-  * @brief RNG Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_RNG_Init(void)
-{
-	hrng.Instance = RNG;
-	if (HAL_RNG_Init(&hrng) != HAL_OK) {
-		Error_Handler();
-	}
-}
-
-/**
   * @brief SDMMC1 Initialization Function
   * @param None
   * @retval None
@@ -500,6 +488,8 @@ static void MX_DMA_Init(void)
 	__HAL_RCC_DMA2_CLK_ENABLE();
 	HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, LOW_INT_PRIORITY, 0);
 	HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
+	HAL_NVIC_SetPriority(DMA2_Stream5_IRQn, LOW_INT_PRIORITY, 0);
+	HAL_NVIC_EnableIRQ(DMA2_Stream5_IRQn);
 	HAL_NVIC_SetPriority(DMA2_Stream6_IRQn, LOW_INT_PRIORITY, 0);
 	HAL_NVIC_EnableIRQ(DMA2_Stream6_IRQn);
 }
