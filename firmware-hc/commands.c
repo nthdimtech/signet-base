@@ -34,6 +34,10 @@ static int cmd_messages_remaining = 0;
 static int g_write_db_tx_complete = 0;
 static int g_read_db_tx_complete = 0;
 
+static int g_mmc_tx_cplt = 0;
+static int g_mmc_tx_dma_cplt = 0;
+static int g_mmc_rx_cplt = 0;
+
 enum device_state g_device_state = DS_DISCONNECTED;
 
 // Incoming buffer for next command request
@@ -110,6 +114,11 @@ void write_root_block(const u8 *data, int sz);
 
 u32 compute_device_data_crc(struct hc_device_data *d);
 
+void emmc_user_write_storage_tx_dma_complete(MMC_HandleTypeDef *hmmc);
+void emmc_user_write_db_tx_dma_complete(MMC_HandleTypeDef *hmmc);
+
+extern MMC_HandleTypeDef hmmc1;
+
 void emmc_user_db_start()
 {
 	HAL_MMC_CardStateTypeDef cardState;
@@ -156,6 +165,45 @@ void command_idle()
 		g_write_db_tx_complete = 0;
 		emmc_user_done();
 		write_block_complete();
+	}
+	if (g_mmc_tx_cplt) {
+		g_mmc_tx_cplt = 0;
+		switch (g_emmc_user) {
+		case EMMC_USER_STORAGE:
+			emmc_user_write_storage_tx_complete(&hmmc1);
+			break;
+		case EMMC_USER_DB:
+			g_write_db_tx_complete = 1;
+			break;
+		default:
+			assert(0);
+		}
+	}
+	if (g_mmc_tx_dma_cplt) {
+		g_mmc_tx_dma_cplt = 0;
+		switch (g_emmc_user) {
+		case EMMC_USER_STORAGE:
+			emmc_user_write_storage_tx_dma_complete(&hmmc1);
+			break;
+		case EMMC_USER_DB:
+			emmc_user_write_db_tx_dma_complete(&hmmc1);
+			break;
+		default:
+			assert(0);
+		}
+	}
+	if (g_mmc_rx_cplt) {
+		g_mmc_rx_cplt = 0;
+		switch (g_emmc_user) {
+		case EMMC_USER_STORAGE:
+			emmc_user_read_storage_rx_complete();
+			break;
+		case EMMC_USER_DB:
+			g_read_db_tx_complete = 1;
+			break;
+		default:
+			assert(0);
+		}
 	}
 }
 
@@ -216,19 +264,8 @@ void write_data_block (int idx, const u8 *src)
 
 void HAL_MMC_RxCpltCallback(MMC_HandleTypeDef *hmmc1)
 {
-	switch (g_emmc_user) {
-	case EMMC_USER_STORAGE:
-		emmc_user_read_storage_rx_complete();
-		break;
-	case EMMC_USER_DB:
-		g_read_db_tx_complete = 1;
-		break;
-	default:
-		assert(0);
-	}
+	g_mmc_rx_cplt = 1;
 }
-
-void emmc_user_write_storage_tx_dma_complete(MMC_HandleTypeDef *hmmc);
 
 void emmc_user_write_db_tx_dma_complete(MMC_HandleTypeDef *hmmc)
 {
@@ -237,16 +274,7 @@ void emmc_user_write_db_tx_dma_complete(MMC_HandleTypeDef *hmmc)
 
 void MMC_DMATXTransmitComplete(MMC_HandleTypeDef *hmmc)
 {
-	switch (g_emmc_user) {
-	case EMMC_USER_STORAGE:
-		emmc_user_write_storage_tx_dma_complete(hmmc);
-		break;
-	case EMMC_USER_DB:
-		emmc_user_write_db_tx_dma_complete(hmmc);
-		break;
-	default:
-		assert(0);
-	}
+	g_mmc_tx_dma_cplt = 1;
 }
 
 void HAL_MMC_ErrorCallback(MMC_HandleTypeDef *hmmc)
@@ -257,16 +285,7 @@ void HAL_MMC_ErrorCallback(MMC_HandleTypeDef *hmmc)
 
 void HAL_MMC_TxCpltCallback(MMC_HandleTypeDef *hmmc1)
 {
-	switch (g_emmc_user) {
-	case EMMC_USER_STORAGE:
-		emmc_user_write_storage_tx_complete(hmmc1);
-		break;
-	case EMMC_USER_DB:
-		g_write_db_tx_complete = 1;
-		break;
-	default:
-		assert(0);
-	}
+	g_mmc_tx_cplt = 1;
 }
 
 //
