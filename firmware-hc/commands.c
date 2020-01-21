@@ -461,7 +461,7 @@ void derive_iv(u32 id, u8 *iv)
 		//TODO: What to do here?
 		break;
 	}
-	iv[AES_BLK_SIZE-1] += (u8)(id);
+	((u32 *)(iv + AES_BLK_SIZE - 4))[0] += (u8)(id);
 }
 
 static void finalize_root_page_check()
