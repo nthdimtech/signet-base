@@ -47,7 +47,7 @@ u8 cmd_packet_buf[CMD_PACKET_BUF_SIZE] __attribute__((aligned(16)));
 //executed
 union cmd_data_u cmd_data;
 
-u8 g_encrypt_key[AES_256_KEY_SIZE];
+u8 g_encrypt_key[AES_256_KEY_SIZE] __attribute__((aligned(16)));
 
 u8 token_auth_rand_cyphertext[AES_256_KEY_SIZE];
 u8 token_encrypt_key_cyphertext[AES_256_KEY_SIZE];

@@ -167,7 +167,7 @@ void emmc_user_done();
 
 //TODO: Use functions to update progress
 extern int g_progress_level[];
-
+extern u8 g_encrypt_key[];
 void command_idle();
 
 #endif

@@ -452,7 +452,7 @@ static void MX_AES_Init(void)
 	hcryp.Init.DataType = CRYP_DATATYPE_32B;
 	hcryp.Init.KeySize = CRYP_KEYSIZE_128B;
 	hcryp.Init.pKey = (uint32_t *)pKeyAES;
-	hcryp.Init.Algorithm = CRYP_AES_ECB;
+	hcryp.Init.Algorithm = CRYP_AES_CBC;
 	hcryp.Init.DataWidthUnit = CRYP_DATAWIDTHUNIT_WORD;
 	if (HAL_CRYP_Init(&hcryp) != HAL_OK) {
 		Error_Handler();
