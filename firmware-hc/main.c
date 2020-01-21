@@ -355,7 +355,6 @@ int main (void)
 	USBD_Start(&USBD_Device);
 
 	while (1) {
-		__asm__("cpsid i");
 		int ms_count = HAL_GetTick();
 		if (ms_count > g_timer_target && g_timer_target != 0) {
 			timer_timeout();
@@ -383,7 +382,6 @@ int main (void)
 			g_button_state = 0;
 			long_button_press();
 		}
-		__asm__("cpsie i");
 	}
 }
 

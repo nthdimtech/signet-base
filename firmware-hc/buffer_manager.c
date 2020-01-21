@@ -36,12 +36,15 @@ static int bufferFIFO_stageStalled(struct bufferFIFO *bf, int stage)
 
 void bufferFIFO_stallStage(struct bufferFIFO *bf, int stageIdx)
 {
+	__asm__("cpsid i");
 	bf->_stageProcessing[stageIdx] = 0;
 	bf->_stalled[stageIdx] = 1;
+	__asm__("cpsie i");
 }
 
 void bufferFIFO_processingComplete(struct bufferFIFO *bf, int stageIdx, int writeLen)
 {
+	__asm__("cpsid i");
 	if (writeLen >= 0) {
 		bf->_bufferSize[bf->_stageWriteIndex[stageIdx] % bf->bufferCount] = writeLen;
 	}
@@ -66,10 +69,12 @@ void bufferFIFO_processingComplete(struct bufferFIFO *bf, int stageIdx, int writ
 			bf->processingComplete(bf);
 		}
 	}
+	__asm__("cpsie i");
 }
 
 void bufferFIFO_start(struct bufferFIFO *bf, int firstBufferSize)
 {
+	__asm__("cpsid i");
 	bf->_processing = 1;
 	bf->_stall_index = 0;
 	for (int i = 0; i < bf->bufferCount; i++) {
@@ -96,6 +101,7 @@ void bufferFIFO_start(struct bufferFIFO *bf, int firstBufferSize)
 	}
 	bf->_bufferSize[bf->_stageWriteIndex[0]] = firstBufferSize;
 	bufferFIFO_execStage(bf, 0);
+	__asm__("cpsie i");
 }
 
 
