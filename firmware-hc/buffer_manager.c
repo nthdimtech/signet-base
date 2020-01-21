@@ -10,6 +10,7 @@ static void bufferFIFO_execStage(struct bufferFIFO *bf, int stageIdx)
 	bf->_stageProcessing[stageIdx] = 1;
 	bf->processStage[stageIdx](bf,
 	                           bf->_bufferSize[readBufferIdx],
+	                           bf->_bufferData[readBufferIdx],
 	                           bf->bufferStorage + bf->maxBufferSize * readBufferIdx,
 	                           bf->bufferStorage + bf->maxBufferSize * writeBufferIdx,
 	                           stageIdx);
@@ -42,11 +43,13 @@ void bufferFIFO_stallStage(struct bufferFIFO *bf, int stageIdx)
 	__asm__("cpsie i");
 }
 
-void bufferFIFO_processingComplete(struct bufferFIFO *bf, int stageIdx, int writeLen)
+void bufferFIFO_processingComplete(struct bufferFIFO *bf, int stageIdx, int writeLen, u32 bufferData)
 {
 	__asm__("cpsid i");
 	if (writeLen >= 0) {
-		bf->_bufferSize[bf->_stageWriteIndex[stageIdx] % bf->bufferCount] = writeLen;
+		int i = bf->_stageWriteIndex[stageIdx] % bf->bufferCount;
+		bf->_bufferSize[i] = writeLen;
+		bf->_bufferData[i] = bufferData;
 	}
 	int nextStageIdx = (stageIdx + 1) % bf->numStages;
 	//Advance read/write indexes
