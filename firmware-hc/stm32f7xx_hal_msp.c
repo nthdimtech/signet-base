@@ -1,9 +1,12 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
+#ifdef BOOT_MODE_B
 DMA_HandleTypeDef hdma_aes_in;
 DMA_HandleTypeDef hdma_aes_out;
 extern CRYP_HandleTypeDef hcryp;
+#endif
+
 extern MMC_HandleTypeDef hmmc1;
 
 /**
@@ -15,6 +18,7 @@ void HAL_MspInit(void)
 	__HAL_RCC_SYSCFG_CLK_ENABLE();
 }
 
+#ifdef BOOT_MODE_B
 void HAL_CRYP_MspInit(CRYP_HandleTypeDef* hcryp)
 {
 	if(hcryp->Instance==AES) {
@@ -55,6 +59,7 @@ void HAL_CRYP_MspInit(CRYP_HandleTypeDef* hcryp)
 		__HAL_LINKDMA(hcryp, hdmaout, hdma_aes_out);
 	}
 }
+#endif
 
 /**
 * @brief CRYP MSP De-Initialization
@@ -205,20 +210,22 @@ void DMA2_Stream3_IRQHandler(void)
 	}
 }
 
-void DMA2_Stream5_IRQHandler(void)
-{
-	HAL_DMA_IRQHandler(&hdma_aes_out);
-}
-
+#ifdef BOOT_MODE_B
 void AES_IRQHandler()
 {
 	HAL_CRYP_IRQHandler(&hcryp);
+}
+
+void DMA2_Stream5_IRQHandler(void)
+{
+	HAL_DMA_IRQHandler(&hdma_aes_out);
 }
 
 void DMA2_Stream6_IRQHandler(void)
 {
 	HAL_DMA_IRQHandler(&hdma_aes_in);
 }
+#endif
 
 void SDMMC1_IRQHandler()
 {

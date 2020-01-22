@@ -448,6 +448,7 @@ static void SystemClock_Config(void)
 
 static void MX_AES_Init(void)
 {
+#ifdef BOOT_MODE_B
 	hcryp.Instance = AES;
 	hcryp.Init.DataType = CRYP_DATATYPE_32B;
 	hcryp.Init.KeySize = CRYP_KEYSIZE_128B;
@@ -457,6 +458,7 @@ static void MX_AES_Init(void)
 	if (HAL_CRYP_Init(&hcryp) != HAL_OK) {
 		Error_Handler();
 	}
+#endif
 }
 
 /**

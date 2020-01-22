@@ -72,11 +72,14 @@ MCU_SOURCES = main.c \
 	stm32f7xx/stm32f7xx_hal_dma.c \
 	stm32f7xx/stm32f7xx_hal_pcd.c \
 	stm32f7xx/stm32f7xx_hal_pcd_ex.c \
-	stm32f7xx/stm32f7xx_hal_cryp.c \
 	stm32f7xx/stm32f7xx_hal_crc.c \
 	stm32f7xx/stm32f7xx_hal_crc_ex.c \
 	stm32f7xx/stm32f7xx_hal_pwr_ex.c \
 	stm32f7xx/stm32f7xx_it.c
+
+ifeq ($(BT_MODE), B)
+MCU_SOURCES += stm32f7xx/stm32f7xx_hal_cryp.c
+endif
 
 MCU_SOURCES_S = startup_stm32f733iekx.S
 

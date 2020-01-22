@@ -78,10 +78,18 @@ int8_t STORAGE_GetCapacity (uint8_t lun, uint32_t *block_num, uint16_t *block_si
 int8_t  STORAGE_IsReady (uint8_t lun)
 {
 	if (lun < g_num_scsi_volumes) {
+#ifdef BOOT_MODE_B
 		if (g_scsi_volume[lun].visible)
 			return 0;
 		else
 			return 1;
+#else
+		if (g_scsi_volume[lun].visible && !(g_scsi_volume[lun].flags & HC_VOLUME_FLAG_ENCRYPTED)) {
+			return 0;
+		} else {
+			return 1;
+		}
+#endif
 	} else {
 		return 1;
 	}
