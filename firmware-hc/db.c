@@ -9,6 +9,8 @@
 #include "signet_aes.h"
 #include "main.h"
 
+#ifdef BOOT_MODE_B
+
 enum update_uid_status {
 	UPDATE_UID_SUCCESS,
 	UPDATE_UID_NO_SPACE,
@@ -709,3 +711,5 @@ void read_all_uids_cmd(int masked)
 		read_all_uids_cmd_iter();
 	}
 }
+
+#endif

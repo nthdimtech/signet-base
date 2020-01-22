@@ -250,7 +250,9 @@ void read_data_block (int idx, u8 *dest)
 
 void write_data_block (int idx, const u8 *src)
 {
+#ifdef BOOT_MODE_B
 	invalidate_data_block_cache(idx);
+#endif
 	if (idx == ROOT_DATA_BLOCK) {
 		write_root_block(src, BLK_SIZE);
 	} else {
@@ -531,8 +533,10 @@ extern int block_read_cache_updating;
 
 static void read_block_complete()
 {
+#ifdef BOOT_MODE_B
 	if (db3_read_block_complete())
 		return;
+#endif
 	switch (active_cmd) {
 	case READ_BLOCK:
 		finish_command(OKAY, cmd_data.read_block.block, BLK_SIZE);
@@ -566,6 +570,7 @@ static void initializing_iter()
 
 static void write_block_complete()
 {
+#ifdef BOOT_MODE_B
 	if (db3_write_block_complete())
 		return;
 	switch (g_device_state) {
@@ -586,6 +591,7 @@ static void write_block_complete()
 	default:
 		break;
 	}
+#endif
 	switch (active_cmd) {
 	case WRITE_CLEARTEXT_PASSWORD:
 	case CHANGE_MASTER_PASSWORD:
@@ -630,11 +636,13 @@ void blink_timeout()
 
 void cmd_packet_sent()
 {
+#if BOOT_MODE_B
 	switch(active_cmd) {
 	case READ_ALL_UIDS:
 		read_all_uids_cmd_complete();
 		break;
 	}
+#endif
 }
 
 void long_button_press()
@@ -642,15 +650,18 @@ void long_button_press()
 	if (waiting_for_long_button_press) {
 		end_long_button_press_wait();
 		switch(active_cmd) {
+#if BOOT_MODE_B
 		case READ_ALL_UIDS:
 			read_all_uids_cmd_iter();
 			break;
 		case UPDATE_UIDS:
 			update_uid_cmd_complete();
 			break;
+#endif
 		case UPDATE_FIRMWARE:
 			update_firmware_cmd_complete();
 			break;
+#if BOOT_MODE_B
 		case WIPE: {
 			finish_command_resp(OKAY);
 			cmd_data.wipe_data.block_idx = ROOT_DATA_BLOCK;
@@ -691,6 +702,7 @@ void long_button_press()
 			}
 			write_root_block((const u8 *)&root_page, sizeof(root_page));
 			break;
+#endif
 		}
 	} else if (g_device_state == DS_DISCONNECTED) {
 		long_button_press_disconnected();
@@ -829,6 +841,7 @@ void button_press()
 		}
 		break;
 #endif
+#ifdef BOOT_MODE_B
 		case LOGIN:
 			switch (root_page.format) {
 			case CURRENT_ROOT_BLOCK_FORMAT: {
@@ -880,6 +893,7 @@ void button_press()
 		case READ_UID:
 			read_uid_cmd_complete();
 			break;
+#endif
 		case BUTTON_WAIT:
 			finish_command_resp(OKAY);
 			break;
@@ -1499,6 +1513,7 @@ void startup_cmd_iter()
 	resp[5] = 0;
 	resp[6] = (u8)flash_get_boot_mode();
 	resp[7] = 0;
+#ifdef BOOT_MODE_B
 	if (!g_root_page_valid) {
 		enter_state(DS_UNINITIALIZED);
 		finish_command(OKAY, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
@@ -1515,15 +1530,12 @@ void startup_cmd_iter()
 		resp[7] = root_page.upgrade_state;
 		break;
 	default:
-#ifdef BOOT_MODE_B
 		enter_state(DS_UNINITIALIZED);
 		resp[3] = g_device_state;
 		finish_command(UNKNOWN_DB_FORMAT, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
-#endif
 		return;
 	}
 
-#ifdef BOOT_MODE_B
 	switch (g_db_version) {
 	case CURRENT_DB_FORMAT:
 		db3_startup_scan(cmd_data.startup.block, &cmd_data.startup.blk_info);
@@ -1652,6 +1664,7 @@ int cmd_packet_recv()
 	switch (g_device_state) {
 	case DS_DISCONNECTED:
 		break;
+#ifdef BOOT_MODE_B
 	case DS_UNINITIALIZED:
 		ret = uninitialized_state(active_cmd, data, data_len);
 		break;
@@ -1667,6 +1680,7 @@ int cmd_packet_recv()
 	case DS_RESTORING_DEVICE:
 		ret = restoring_device_state(active_cmd, data, data_len);
 		break;
+#endif
 	case DS_FIRMWARE_UPDATE:
 		ret = firmware_update_state(active_cmd, data, data_len);
 		break;
@@ -1676,12 +1690,14 @@ int cmd_packet_recv()
 	case DS_BOOTLOADER:
 		ret = bootloader_state(active_cmd, data, data_len);
 		break;
+#ifdef BOOT_MODE_B
 	case DS_LOGGED_OUT:
 		ret = logged_out_state(active_cmd, data, data_len);
 		break;
 	case DS_LOGGED_IN:
 		ret = logged_in_state(active_cmd, data, data_len);
 		break;
+#endif
 	default:
 		break;
 	}
