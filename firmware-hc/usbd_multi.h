@@ -16,8 +16,8 @@ extern "C" {
 
 #define HID_CMD_EPOUT_ADDR                0x02U
 #define HID_CMD_EPIN_ADDR                 0x82U
-#define HID_CMD_EPIN_SIZE                 1024U
-#define HID_CMD_EPOUT_SIZE                1024U
+#define HID_CMD_EPIN_SIZE                 512U
+#define HID_CMD_EPOUT_SIZE                512U
 
 #define HID_FIDO_EPOUT_ADDR                0x03U
 #define HID_FIDO_EPIN_ADDR                 0x83U
@@ -26,8 +26,8 @@ extern "C" {
 
 #define MSC_EPOUT_ADDR               0x04U
 #define MSC_EPIN_ADDR                0x84U
-#define MSC_EPIN_SIZE                MSC_MAX_HS_PACKET
-#define MSC_EPOUT_SIZE               MSC_MAX_HS_PACKET
+#define MSC_EPIN_SIZE                (0x200)
+#define MSC_EPOUT_SIZE               (0x200)
 
 #define USB_HID_CONFIG_DESC_SIZ       (9 + \
 				((9 + 9 + 7 + 7) * 3) + \
