@@ -82,7 +82,7 @@ static void MX_DMA_Init(void);
 
 #include "buffer_manager.h"
 
-#define USB_BULK_BUFFER_SIZE (4096)
+#define USB_BULK_BUFFER_SIZE (16384)
 #define USB_BULK_BUFFER_COUNT (4)
 
 static uint8_t g_usbBulkBuffer[USB_BULK_BUFFER_SIZE * USB_BULK_BUFFER_COUNT] __attribute__((aligned(16)));
