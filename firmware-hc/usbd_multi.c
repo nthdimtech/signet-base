@@ -224,14 +224,14 @@ static uint8_t USBD_Multi_CfgHSDesc[] __attribute__((aligned (4))) = {
 		HID_CMD_EPIN_ADDR,     /*bEndpointAddress: Endpoint Address (IN)*/
 		0x03,          /*bmAttributes: Interrupt endpoint*/
 		LOBYTE(HID_CMD_EPIN_SIZE), HIBYTE(HID_CMD_EPIN_SIZE),
-		HID_HS_BINTERVAL,          /*bInterval: Polling Interval */
+		1,          /*bInterval: Polling Interval */
 		/******************** Descriptor of Command HID OUT endpoint ********************/
 		0x07,          /*bLength: Endpoint Descriptor size*/
 		USB_DESC_TYPE_ENDPOINT, /*bDescriptorType:*/
 		HID_CMD_EPOUT_ADDR,     /*bEndpointAddress: Endpoint Address (IN)*/
 		0x03,          /*bmAttributes: Interrupt endpoint*/
 		LOBYTE(HID_CMD_EPOUT_SIZE), HIBYTE(HID_CMD_EPOUT_SIZE),
-		HID_HS_BINTERVAL,          /*bInterval: Polling Interval */
+		1,          /*bInterval: Polling Interval */
 
 	//
 	// FIDO descriptors
