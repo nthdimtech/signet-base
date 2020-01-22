@@ -190,7 +190,6 @@ static void db3_startup_scan_resume ()
 		blk_info->part_occupancy = block_read->header.occupancy;
 		blk_info->part_count = get_part_count(block_read->header.part_size);
 		blk_info->part_tbl_offs = get_block_header_size(blk_info->part_count);
-#if 0
 		for (int j = 0; j < blk_info->part_occupancy; j++) {
 			const struct uid_ent *ent = block_read->uid_tbl + j;
 			int uid = ent->uid;
@@ -225,7 +224,6 @@ static void db3_startup_scan_resume ()
 #endif
 			}
 		}
-#endif
 	}
 	db3_startup_scan_blk_num++;
 	if (db3_startup_scan_blk_num <= MAX_DATA_BLOCK) {

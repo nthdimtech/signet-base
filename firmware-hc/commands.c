@@ -636,7 +636,7 @@ void blink_timeout()
 
 void cmd_packet_sent()
 {
-#if BOOT_MODE_B
+#ifdef BOOT_MODE_B
 	switch(active_cmd) {
 	case READ_ALL_UIDS:
 		read_all_uids_cmd_complete();
@@ -650,7 +650,7 @@ void long_button_press()
 	if (waiting_for_long_button_press) {
 		end_long_button_press_wait();
 		switch(active_cmd) {
-#if BOOT_MODE_B
+#ifdef BOOT_MODE_B
 		case READ_ALL_UIDS:
 			read_all_uids_cmd_iter();
 			break;
@@ -661,7 +661,7 @@ void long_button_press()
 		case UPDATE_FIRMWARE:
 			update_firmware_cmd_complete();
 			break;
-#if BOOT_MODE_B
+#ifdef BOOT_MODE_B
 		case WIPE: {
 			finish_command_resp(OKAY);
 			cmd_data.wipe_data.block_idx = ROOT_DATA_BLOCK;
