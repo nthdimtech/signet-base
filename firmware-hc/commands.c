@@ -1516,6 +1516,7 @@ void startup_cmd_iter()
 #ifdef BOOT_MODE_B
 	if (!g_root_page_valid) {
 		enter_state(DS_UNINITIALIZED);
+		resp[3] = g_device_state;
 		finish_command(OKAY, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
 		return;
 	}
@@ -1542,6 +1543,7 @@ void startup_cmd_iter()
 		break;
 	default:
 		enter_state(DS_UNINITIALIZED);
+		resp[3] = g_device_state;
 		finish_command(UNKNOWN_DB_FORMAT, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
 		return;
 	}
