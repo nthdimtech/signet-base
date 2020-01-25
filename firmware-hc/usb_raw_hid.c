@@ -91,7 +91,6 @@ int usb_raw_hid_rx(volatile u8 *data, int count)
 	int last = (data[0] >> 7) & 0x1;
 	int index = ((int)seq * RAW_HID_PAYLOAD_SIZE);
 	if ((index + RAW_HID_PAYLOAD_SIZE) > CMD_PACKET_BUF_SIZE) {
-		dprint_s("USB RAW HID: Data exceeds command buffer size\r\n");
 		return last;
 	}
 	for(int i = RAW_HID_HEADER_SIZE; i < RAW_HID_PACKET_SIZE; i++) {

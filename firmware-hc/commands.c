@@ -560,7 +560,6 @@ static void initializing_iter()
 	} else if (cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS) {
 		finalize_root_page_check();
 	} else {
-		dprint_s("DONE INITIALIZING\r\n");
 		g_root_block_version = CURRENT_ROOT_BLOCK_FORMAT;
 		g_db_version = CURRENT_DB_FORMAT;
 		g_root_page_valid = 1;
@@ -622,7 +621,6 @@ void flash_write_failed()
 	if (active_cmd != -1) {
 		finish_command_resp(WRITE_FAILED);
 	}
-	dprint_s("flash write failed\r\n");
 }
 
 void blink_timeout()
@@ -930,8 +928,6 @@ extern int test_state;
 
 void initialize_cmd(u8 *data, int data_len)
 {
-	dprint_s("INITIALIZE\r\n");
-
 	if (data_len < INITIALIZE_CMD_SIZE) {
 		finish_command_resp(INVALID_INPUT);
 		return;
@@ -966,7 +962,6 @@ void initialize_cmd_complete()
 
 void wipe_cmd()
 {
-	dprint_s("WIPE\r\n");
 	begin_long_button_press_wait();
 }
 
@@ -985,19 +980,16 @@ void get_progress_cmd(u8 *data, int data_len)
 
 void backup_device_cmd(u8 *data, int data_len)
 {
-	dprint_s("BACKUP DEVICE\r\n");
 	begin_button_press_wait();
 }
 
 void restore_device_cmd ()
 {
-	dprint_s("RESTORE DEVICE\r\n");
 	begin_long_button_press_wait();
 }
 
 void read_block_cmd (u8 *data, int data_len)
 {
-	dprint_s("READ BLOCK\r\n");
 	if (data_len != 1) {
 		finish_command_resp(INVALID_INPUT);
 		return;
@@ -1013,7 +1005,6 @@ void read_block_cmd (u8 *data, int data_len)
 
 void write_block_cmd(u8 *data, int data_len)
 {
-	dprint_s("WRITE BLOCK\r\n");
 	//TODO: consider making the header 2 or 4 bytes to we can have alignment for DMA transfer
 	if (data_len != (1 + BLK_SIZE)) {
 		finish_command_resp(INVALID_INPUT);
@@ -1031,7 +1022,6 @@ void write_block_cmd(u8 *data, int data_len)
 
 void erase_block_cmd(u8 *data, int data_len)
 {
-	dprint_s("ERASE BLOCK\r\n");
 	if (data_len != 1) {
 		finish_command_resp(INVALID_INPUT);
 		return;
@@ -1048,7 +1038,6 @@ void erase_block_cmd(u8 *data, int data_len)
 
 void get_device_capacity_cmd(u8 *data, int data_len)
 {
-	dprint_s("GET DEVICE CAPACITY\r\n");
 	//TODO
 	static struct {
 		u16 block_size;
@@ -1061,7 +1050,6 @@ void get_device_capacity_cmd(u8 *data, int data_len)
 
 void change_master_password_cmd(u8 *data, int data_len)
 {
-	dprint_s("CHANGE MASTER PASSWORD\r\n");
 	if (data_len != ((AES_256_KEY_SIZE * 2) + HASH_FN_SZ + SALT_SZ_V2)) {
 		finish_command_resp(INVALID_INPUT);
 		return;
@@ -1267,18 +1255,15 @@ int logged_out_state(int cmd, u8 *data, int data_len)
 		wipe_cmd();
 		break;
 	case BACKUP_DEVICE:
-		dprint_s("BACKUP DEVICE\r\n");
 		begin_long_button_press_wait();
 		break;
 	case RESTORE_DEVICE:
 		restore_device_cmd();
 		break;
 	case LOGIN:
-		dprint_s("LOGIN\r\n");
 		login_cmd(data, data_len);
 		break;
 	case LOGIN_TOKEN:
-		dprint_s("LOGIN TOKEN\r\n");
 		login_token_cmd(data, data_len);
 		break;
 	case GET_DEVICE_CAPACITY:
@@ -1423,7 +1408,6 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 	}
 	break;
 	case TYPE: {
-		dprint_s("TYPE\r\n");
 		int n_chars = data_len >> 1;
 		if (n_chars * 4 > sizeof(cmd_data.type_data.chars)) {
 			finish_command_resp(INVALID_INPUT);
@@ -1623,7 +1607,6 @@ int cmd_packet_recv()
 	}
 
 	if (prev_active_cmd != -1 && waiting_for_a_button_press && next_active_cmd == CANCEL_BUTTON_PRESS) {
-		dprint_s("CANCEL_BUTTON_PRESS\r\n");
 		end_button_press_wait();
 		finish_command_resp(BUTTON_PRESS_CANCELED);
 		return waiting_for_a_button_press;
@@ -1641,7 +1624,6 @@ int cmd_packet_recv()
 
 	//Always allow the GET_DEVICE_STATE command. It's easiest to handle it here
 	if (active_cmd == GET_DEVICE_STATE) {
-		dprint_s("GET_DEVICE_STATE\r\n");
 		u8 resp[] = {g_device_state};
 		finish_command(OKAY, resp, sizeof(resp));
 		return waiting_for_a_button_press;
@@ -1651,7 +1633,6 @@ int cmd_packet_recv()
 	if (active_cmd == CANCEL_BUTTON_PRESS) {
 		//If we didn't handle button cancelation press above, it could
 		//be a sign of a bug
-		dprint_s("CANCEL_BUTTON_PRESS misfire\r\n");
 		active_cmd = -1;
 		return waiting_for_a_button_press;
 	}
@@ -1704,7 +1685,6 @@ int cmd_packet_recv()
 		break;
 	}
 	if (ret) {
-		dprint_s("INVALID STATE\r\n");
 		finish_command_resp(INVALID_STATE);
 	}
 	if (messages_remaining) {
