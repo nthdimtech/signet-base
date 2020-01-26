@@ -3,6 +3,8 @@
 #include "types.h"
 #include "stm32f7xx.h"
 
+#ifdef BOOT_MODE_B
+
 static int rng_rand_level = 0;
 static u32 rng_rand_buf[1024];
 static int rng_rand_head = 0;
@@ -47,3 +49,4 @@ u32 rng_rand_get()
 	RNG->CR |= RNG_CR_IE;
 	return ret;
 }
+#endif

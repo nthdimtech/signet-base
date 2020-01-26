@@ -61,12 +61,6 @@ void HAL_CRYP_MspInit(CRYP_HandleTypeDef* hcryp)
 }
 #endif
 
-/**
-* @brief CRYP MSP De-Initialization
-* This function freeze the hardware resources used in this example
-* @param hcryp: CRYP handle pointer
-* @retval None
-*/
 void HAL_CRYP_MspDeInit(CRYP_HandleTypeDef* hcryp)
 {
 	if(hcryp->Instance==AES) {
@@ -75,12 +69,8 @@ void HAL_CRYP_MspDeInit(CRYP_HandleTypeDef* hcryp)
 	}
 }
 
-/**
-* @brief RNG MSP Initialization
-* This function configures the hardware resources used in this example
-* @param hrng: RNG handle pointer
-* @retval None
-*/
+#ifdef BOOT_MODE_B
+
 void HAL_RNG_MspInit(RNG_HandleTypeDef* hrng)
 {
 	if(hrng->Instance==RNG) {
@@ -89,12 +79,6 @@ void HAL_RNG_MspInit(RNG_HandleTypeDef* hrng)
 	}
 }
 
-/**
-* @brief RNG MSP De-Initialization
-* This function freeze the hardware resources used in this example
-* @param hrng: RNG handle pointer
-* @retval None
-*/
 void HAL_RNG_MspDeInit(RNG_HandleTypeDef* hrng)
 {
 	if(hrng->Instance==RNG) {
@@ -102,6 +86,8 @@ void HAL_RNG_MspDeInit(RNG_HandleTypeDef* hrng)
 		__HAL_RCC_RNG_CLK_DISABLE();
 	}
 }
+
+#endif
 
 /**
   * @brief  Initializes the PCD MSP.

@@ -5,6 +5,8 @@
 #include "commands.h"
 #include "stm32f7xx.h"
 
+#ifdef BOOT_MODE_B
+
 static int rtc_rand_level = 0;
 
 static u32 rtc_rand_buf[1024];
@@ -71,3 +73,5 @@ void rtc_rand_init(u16 rate)
 	RTC->ISR &= ~(RTC_ISR_WUTF);
 	RTC->CR |= RTC_CR_WUTE | RTC_CR_WUTIE;
 }
+
+#endif

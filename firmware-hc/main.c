@@ -309,6 +309,7 @@ int main (void)
 	__HAL_RCC_CRC_CLK_ENABLE();
 	crc_init();
 
+#ifdef BOOT_MODE_B
 	HAL_NVIC_SetPriority(RNG_IRQn, DEFAULT_INT_PRIORITY, 0);
 	HAL_NVIC_EnableIRQ(RNG_IRQn);
 	__HAL_RCC_RNG_CLK_ENABLE();
@@ -321,6 +322,7 @@ int main (void)
 	__HAL_RCC_RTC_CLK_ENABLE();
 	__HAL_RCC_RTC_ENABLE();
 	rtc_rand_init(0x7f);
+#endif
 
 #ifdef USE_UART
 	MX_USART1_UART_Init();

@@ -504,6 +504,8 @@ static void finalize_root_page_check()
 void get_rand_bits_cmd_check();
 void login_cmd_iter();
 
+#ifdef BOOT_MODE_B
+
 void cmd_rand_update()
 {
 	int avail = rand_avail();
@@ -528,6 +530,8 @@ void cmd_rand_update()
 		break;
 	}
 }
+
+#endif
 
 extern int block_read_cache_updating;
 
