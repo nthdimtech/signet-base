@@ -307,7 +307,7 @@ int signetdev_reset_device(void *user, int *token)
 int signetdev_switch_boot_mode(void *user, int *token)
 {
 	*token = get_cmd_token();
-	int rc = execute_command_no_resp(user, *token,
+	int rc = execute_command(user, *token,
 		SWITCH_BOOT_MODE, SIGNETDEV_CMD_SWITCH_BOOT_MODE);
 	return rc;
 }

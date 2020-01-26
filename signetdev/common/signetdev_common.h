@@ -57,7 +57,8 @@ enum device_state {
 	LOGGED_OUT,
 	LOGGED_IN,
 	BACKING_UP_DEVICE,
-	RESTORING_DEVICE
+        RESTORING_DEVICE,
+        BOOTLOADER
 };
 
 enum command_responses {
@@ -119,7 +120,6 @@ enum command_responses {
 #define STARTUP_RESP_INFO_SIZE (8)
 #define STARTUP_RESP_SIZE (STARTUP_RESP_INFO_SIZE + HASH_FN_SZ + SALT_SZ_V2)
 
-
 #define FLASH_PAGE_SIZE (16384)
 #define NUM_STORAGE_BLOCKS (1024)
 #define TOTAL_STORAGE_SIZE (NUM_STORAGE_BLOCKS * FLASH_PAGE_SIZE)
@@ -139,7 +139,7 @@ enum command_responses {
 #define USB_REV_ID (0x0483)
 #define USB_RAW_HID_USAGE_PAGE	0xFFAB	// recommended: 0xFF00 to 0xFFFF
 #define USB_RAW_HID_USAGE	0x0200	// recommended: 0x0100 to 0xFFFF
-#define RAW_HID_PACKET_SIZE 1024
+#define RAW_HID_PACKET_SIZE 512
 #define RAW_HID_HEADER_SIZE 1
 #define RAW_HID_PAYLOAD_SIZE (RAW_HID_PACKET_SIZE - RAW_HID_HEADER_SIZE)
 
