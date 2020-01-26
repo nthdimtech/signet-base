@@ -468,8 +468,10 @@ void derive_iv(u32 id, u8 *iv)
 
 static void finalize_root_page_check()
 {
+	__asm__("cpsid i");
 	if (rand_avail() >= (INIT_RAND_DATA_SZ/4) && !cmd_data.init_data.root_block_finalized && (cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS)) {
 		cmd_data.init_data.root_block_finalized = 1;
+		__asm__("cpsie i");
 		//NEN_TODO: compute CRC
 		for (int i = 0; i < (INIT_RAND_DATA_SZ/4); i++) {
 			((u32 *)cmd_data.init_data.rand)[i] ^= rand_get();
@@ -494,6 +496,8 @@ static void finalize_root_page_check()
 		memcpy(root_page.profile_auth_data[0].salt, cmd_data.init_data.salt, HC_HASH_FN_SALT_SZ);
 		memcpy(root_page.profile_auth_data[0].hash_function_params, cmd_data.init_data.hashfn, HC_HASH_FUNCTION_PARAMS_LENGTH);
 		write_root_block((const u8 *)&root_page, sizeof(root_page));
+	} else {
+		__asm__("cpsie i");
 	}
 }
 
