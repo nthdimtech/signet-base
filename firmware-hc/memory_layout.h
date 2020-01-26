@@ -95,15 +95,19 @@ struct hc_volume {
 	u32 flags;
 	u32 n_regions;
 	u8 volume_name[MAX_VOLUME_NAME_LEN];
-};
+} __attribute__ ((packed));
 
 struct hc_device_data {
 	u32 crc; //This must be the first entry
+
 	u16 format;
 	u16 db_format;
+
 	u16 data_iteration; //larger is newer
+	u16 reserved;
 	u8 device_id[DEVICE_ID_LEN];
 	u8 device_name[DEVICE_NAME_LEN];
+
 	u32 upgrade_state;
 	struct hc_firmware_version fw_version[2];
 	u8 firmware_hash_key[2][HC_FIRMWARE_HASH_KEY_LEN];
@@ -120,7 +124,7 @@ struct hc_device_data {
 
 	struct hcdb_profile_definition_block profile_info; //Encrypted
 	u32 user_data_len;
-	u8 user_data[];
+	u8 user_data[0];
 } __attribute__((packed));
 
 #endif
