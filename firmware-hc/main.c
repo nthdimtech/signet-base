@@ -83,7 +83,7 @@ static void MX_DMA_Init(void);
 #include "buffer_manager.h"
 
 #define USB_BULK_BUFFER_SIZE (16384)
-#define USB_BULK_BUFFER_COUNT (4)
+#define USB_BULK_BUFFER_COUNT (6)
 
 static uint8_t g_usbBulkBuffer[USB_BULK_BUFFER_SIZE * USB_BULK_BUFFER_COUNT] __attribute__((aligned(16)));
 struct bufferFIFO usbBulkBufferFIFO;
@@ -438,11 +438,16 @@ static void SystemClock_Config(void)
 	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_7) != HAL_OK) {
 		Error_Handler();
 	}
-	PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_SDMMC1 |RCC_PERIPHCLK_CLK48 | RCC_PERIPHCLK_RTC;
+	PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_SDMMC1 |RCC_PERIPHCLK_CLK48;
+#ifdef BOOT_MODE_B
+	PeriphClkInitStruct.PeriphClockSelection |= RCC_PERIPHCLK_RTC;
+#endif
 	PeriphClkInitStruct.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
 	PeriphClkInitStruct.Clk48ClockSelection = RCC_CLK48SOURCE_PLL;
 	PeriphClkInitStruct.Sdmmc1ClockSelection = RCC_SDMMC1CLKSOURCE_CLK48;
+#ifdef BOOT_MODE_B
 	PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
+#endif
 	if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK) {
 		Error_Handler();
 	}
