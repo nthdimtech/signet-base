@@ -3,6 +3,7 @@
 #include "stm32f7xx_hal.h"
 
 #include "memory_layout.h"
+#include "main.h"
 
 enum flash_state {
 	FLASH_IDLE,
@@ -135,9 +136,7 @@ void flash_idle()
 	case FLASH_WRITING:
 		for (int i = 0; i < 16 && flash_write_length > 0; i++) {
 			status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, flash_write_dest, *flash_write_src);
-			if (status != HAL_OK) {
-				while(1);
-			}
+			assert(status == HAL_OK);
 			flash_write_length -= 4;
 			flash_write_src++;
 			flash_write_dest += 4;
@@ -157,9 +156,12 @@ int flash_write (u8 *dest, const u8 *src, int count)
 		flash_write_dest = (u32)dest;
 		flash_write_src = (u32 *)src;
 		flash_write_length = count;
+		assert((flash_write_length & 3) == 0);
 		HAL_FLASH_Unlock();
 		flash_state = FLASH_WRITING;
 		return 1;
+	} else {
+		assert(0);
 	}
 	return 0;
 }
@@ -170,7 +172,10 @@ void flash_write_page (u8 *dest, const u8 *src, int count)
 		flash_write_dest = (u32)dest;
 		flash_write_src = (u32 *)src;
 		flash_write_length = count;
+		assert((flash_write_length & 3) == 0);
 		flash_erase_sector = flash_addr_to_sector((u32)dest);
 		flash_state = FLASH_ERASING;
+	} else {
+		assert(0);
 	}
 }
