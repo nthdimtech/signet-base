@@ -24,6 +24,7 @@ static int g_inotify_fd = -1;
 
 struct signetdev_connection {
 	int fd;
+	int is_hc_device;
 	struct send_message_req *tail_message;
 	struct send_message_req *head_message;
 	struct send_message_req *tail_cancel_message;
@@ -141,7 +142,7 @@ static int attempt_raw_hid_read()
 	return 0;
 }
 
-static int attempt_open_connection(const char *path)
+static int attempt_open_connection(const char *path, int is_hc_device)
 {
 	struct signetdev_connection *conn = &g_connection;
 	if (conn->fd >= 0) {
@@ -152,6 +153,7 @@ static int attempt_open_connection(const char *path)
 	if (fd >= 0) {
 		memset(conn, 0, sizeof(g_connection));
 		conn->fd = fd;
+		conn->is_hc_device = is_hc_device;
 		struct epoll_event ev;
 		ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
 		ev.data.fd = conn->fd;
@@ -184,9 +186,9 @@ static void handle_command(int command, void *p)
 		break;
 	case SIGNETDEV_CMD_OPEN:
 		//TODO: This seems sloppy. Need a list somewhere of all possible node names
-		rc = attempt_open_connection("/dev/signet-hc");
+		rc = attempt_open_connection("/dev/signet-hc", 1);
 		if (rc != 0) {
-			rc = attempt_open_connection("/dev/signet");
+			rc = attempt_open_connection("/dev/signet", 0);
 		}
 		command_response(rc);
 		break;
@@ -301,14 +303,17 @@ static void inotify_fd_readable()
 		while (idx < rc) {
 			struct inotify_event *ev = (struct inotify_event *)(buf + idx);
 			int attempt_open = 0;
+			int is_hc_devce = 0;
 			if (!strcmp(ev->name, "signet")) {
 				attempt_open = 1;
+				is_hc_devce = 0;
 			} else if (!strcmp(ev->name, "signet-hc")) {
 				attempt_open = 1;
+				is_hc_devce = 1;
 			}
 			strncat(path, ev->name, 16);
 			if (attempt_open) {
-				rc = attempt_open_connection(path);
+				rc = attempt_open_connection(path, is_hc_devce);
 				if (rc == 0) {
 					g_device_opened_cb(g_device_opened_cb_param);
 					break;

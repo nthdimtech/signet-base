@@ -11,6 +11,7 @@
 static int g_open_request_pending = 0;
 static HWND g_window = INVALID_HANDLE_VALUE;
 static HANDLE g_device_handle = INVALID_HANDLE_VALUE;
+static int g_is_hc_device = 0;
 
 static HANDLE g_msg_thread = INVALID_HANDLE_VALUE;
 static HANDLE g_msg_read_event = INVALID_HANDLE_VALUE;
@@ -315,10 +316,17 @@ void signetdev_priv_platform_deinit()
 
 int signetdev_open_connection()
 {
-	int ct = rawhid_open(1, USB_VENDOR_ID, USB_SIGNET_DESKTOP_PRODUCT_ID, USB_RAW_HID_USAGE_PAGE, USB_RAW_HID_USAGE);
+	int ct = rawhid_open(1, USB_SIGNET_HC_VENDOR_ID, USB_SIGNET_HC_PRODUCT_ID, USB_RAW_HID_USAGE_PAGE, USB_RAW_HID_USAGE);
 	if (ct != 1) {
-		g_open_request_pending = 1;
-		return -1;
+		ct = rawhid_open(1, USB_SIGNET_VENDOR_ID, USB_SIGNET_PRODUCT_ID, USB_RAW_HID_USAGE_PAGE, USB_RAW_HID_USAGE);
+		if (ct != 1) {
+			g_open_request_pending = 1;
+			return -1;
+		} else {
+			g_is_hc_device = 0;
+		}
+	} else {
+		g_is_hc_device = 1;
 	}
 	g_device_handle = rawhid_win32_get_handle(0);
 	g_open_request_pending = 0;
@@ -331,7 +339,7 @@ int signetdev_open_connection()
 	dbh.dbch_handle = g_device_handle;
 	dbh.dbch_devicetype = DBT_DEVTYP_HANDLE;
 	dbh.dbch_hdevnotify = NULL;
-	RegisterDeviceNotification((HANDLE)g_window, &dbh ,DEVICE_NOTIFY_WINDOW_HANDLE);
+	RegisterDeviceNotification((HANDLE)g_window, &dbh, DEVICE_NOTIFY_WINDOW_HANDLE);
 	return 0;
 }
 

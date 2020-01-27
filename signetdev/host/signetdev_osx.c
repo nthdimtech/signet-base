@@ -261,11 +261,25 @@ static int open_device(IOHIDDeviceRef dev)
 	return 1;
 }
 
+static int g_dev_hc = 0;
+static CFMutableDictionaryRef signet_dict;
+static CFMutableDictionaryRef signet_hc_dict;
+
 static void attach_callback(void *context, IOReturn r, void *hid_mgr, IOHIDDeviceRef dev)
 {
 	(void)context;
 	(void)r;
 	(void)hid_mgr;
+
+	CFArrayRef signet_matches = IOHIDDeviceCopyMatchingElements(dev, signet_dict, NULL);
+	CFArrayRef signet_hc_matches = IOHIDDeviceCopyMatchingElements(dev, signet_hc_dict, NULL);
+
+	if (CFArrayGetCount(signet_hc_matches) > CFArrayGetCount(signet_matches)) {
+		g_dev_hc = 1;
+	} else {
+		g_dev_hc = 0;
+	}
+
 	if (hid_dev == NULL) {
 		if (open_device(dev)) {
 			CFRetain((CFTypeRef)hid_dev);
@@ -290,34 +304,66 @@ void *transaction_thread(void *arg)
 	(void)arg;
 	CFNumberRef num;
 	IOReturn ret;
-	CFMutableDictionaryRef dict;
+	CFArrayRef all_dict;
+	int signet_vid = USB_SIGNET_VENDOR_ID;
+	int signet_pid = USB_SIGNET_PRODUCT_ID;
+	int signet_hc_vid = USB_SIGNET_HC_VENDOR_ID;
+	int signet_hc_pid = USB_SIGNET_HC_PRODUCT_ID;
+	int usage_page = USB_RAW_HID_USAGE_PAGE;
+	int usage = USB_RAW_HID_USAGE;
 
 	hid_manager = IOHIDManagerCreate(kCFAllocatorDefault, kIOHIDOptionsTypeNone);
 
-	dict = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+	signet_dict = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+	signet_hc_dict = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
 
-	int vid = USB_VENDOR_ID;
-	num = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &vid);
-	CFDictionarySetValue(dict, CFSTR(kIOHIDVendorIDKey), num);
+	//
+	// Create dictionary to match Signet device
+	//
+	num = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &signet_vid);
+	CFDictionarySetValue(signet_dict, CFSTR(kIOHIDVendorIDKey), num);
 	CFRelease(num);
 
-	int pid = USB_SIGNET_DESKTOP_PRODUCT_ID;
-	num = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &pid);
-	CFDictionarySetValue(dict, CFSTR(kIOHIDProductIDKey), num);
+	num = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &signet_pid);
+	CFDictionarySetValue(signet_dict, CFSTR(kIOHIDProductIDKey), num);
 	CFRelease(num);
 
-	int usage_page = USB_RAW_HID_USAGE_PAGE;
 	num = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &usage_page);
-	CFDictionarySetValue(dict, CFSTR(kIOHIDPrimaryUsagePageKey), num);
+	CFDictionarySetValue(signet_dict, CFSTR(kIOHIDPrimaryUsagePageKey), num);
 	CFRelease(num);
 
-	int usage = USB_RAW_HID_USAGE;
 	num = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &usage);
-	CFDictionarySetValue(dict, CFSTR(kIOHIDPrimaryUsageKey), num);
+	CFDictionarySetValue(signet_dict, CFSTR(kIOHIDPrimaryUsageKey), num);
 	CFRelease(num);
 
-	IOHIDManagerSetDeviceMatching(hid_manager, dict);
-	CFRelease(dict);
+	//
+	// Create dictionary to match Signet HC device
+	//
+	num = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &signet_hc_vid);
+	CFDictionarySetValue(signet_hc_dict, CFSTR(kIOHIDVendorIDKey), num);
+	CFRelease(num);
+
+	num = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &signet_hc_pid);
+	CFDictionarySetValue(signet_hc_dict, CFSTR(kIOHIDProductIDKey), num);
+	CFRelease(num);
+
+	num = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &usage_page);
+	CFDictionarySetValue(signet_hc_dict, CFSTR(kIOHIDPrimaryUsagePageKey), num);
+	CFRelease(num);
+
+	num = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &usage);
+	CFDictionarySetValue(signet_hc_dict, CFSTR(kIOHIDPrimaryUsageKey), num);
+	CFRelease(num);
+
+	//
+	// Combine dictionaries into an array
+	//
+	CFMutableDictionaryRef devices[2] = {signet_dict, signet_hc_dict};
+	all_dict = CFArrayCreate(NULL, (const void **)devices, 2, &kCFTypeArrayCallBacks);
+
+	IOHIDManagerSetDeviceMatchingMultiple(hid_manager, all_dict);
+	//IOHIDManagerSetDeviceMatching(hid_manager, dict);
+	CFRelease(signet_dict);
 
 	IOHIDManagerScheduleWithRunLoop(hid_manager, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
 	IOHIDManagerRegisterDeviceMatchingCallback(hid_manager, attach_callback, NULL);

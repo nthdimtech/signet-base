@@ -133,9 +133,11 @@ enum command_responses {
 #define MAX_UID ((1<<12)-1)
 #define MIN_UID (1)
 
-#define USB_VENDOR_ID (0x5E2A)
-#define USB_SIGNET_DESKTOP_PRODUCT_ID (0x0001)
-#define USB_SIGNET_MOBILE_PRODUCT_ID (0x0001)
+#define USB_SIGNET_VENDOR_ID (0x5E2A)
+#define USB_SIGNET_PRODUCT_ID (0x0001)
+#define USB_SIGNET_HC_VENDOR_ID (0x1209)
+#define USB_SIGNET_HC_PRODUCT_ID (0xDF11)
+
 #define USB_REV_ID (0x0483)
 #define USB_RAW_HID_USAGE_PAGE	0xFFAB	// recommended: 0xFF00 to 0xFFFF
 #define USB_RAW_HID_USAGE	0x0200	// recommended: 0x0100 to 0xFFFF
