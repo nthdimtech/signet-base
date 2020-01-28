@@ -186,7 +186,9 @@ static void detach_callback(void *context, IOReturn r, void *hid_mgr, IOHIDDevic
 	if (dev == hid_dev && hid_dev != NULL) {
 		CFRelease((CFTypeRef)hid_dev);
 		hid_dev = NULL;
+		g_dev_type = SIGNETDEV_DEVICE_NONE;
 	}
+	//TODO: Shouldn't this code be in the if block above?
 	if (g_rx_message_state.message) {
 		signetdev_priv_finalize_message(&g_rx_message_state.message, SIGNET_ERROR_DISCONNECT);
 	}
@@ -255,13 +257,13 @@ static int open_device(IOHIDDeviceRef dev)
 	if (g_opening_connection) {
 		g_opening_connection = 0;
 		if (g_device_opened_cb) {
-			g_device_opened_cb(g_device_opened_cb_param);
+			g_device_opened_cb(g_dev_type, g_device_opened_cb_param);
 		}
 	}
 	return 1;
 }
 
-static int g_dev_hc = 0;
+static enum signetdev_device_type g_dev_type = SIGNETDEV_DEVICE_NONE;
 static CFMutableDictionaryRef signet_dict;
 static CFMutableDictionaryRef signet_hc_dict;
 
@@ -275,15 +277,19 @@ static void attach_callback(void *context, IOReturn r, void *hid_mgr, IOHIDDevic
 	CFArrayRef signet_hc_matches = IOHIDDeviceCopyMatchingElements(dev, signet_hc_dict, NULL);
 
 	if (CFArrayGetCount(signet_hc_matches) > CFArrayGetCount(signet_matches)) {
-		g_dev_hc = 1;
+		g_dev_type = SIGNETDEV_DEVICE_HC;
 	} else {
-		g_dev_hc = 0;
+		g_dev_type = SIGNETDEV_DEVICE_ORIGINAL;
 	}
 
 	if (hid_dev == NULL) {
 		if (open_device(dev)) {
 			CFRetain((CFTypeRef)hid_dev);
+		} else {
+			g_dev_type = SIGNETDEV_DEVICE_NONE;
 		}
+	} else {
+		g_dev_type = SIGNETDEV_DEVICE_NONE;
 	}
 }
 

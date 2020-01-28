@@ -24,7 +24,7 @@ static int g_inotify_fd = -1;
 
 struct signetdev_connection {
 	int fd;
-	int is_hc_device;
+	enum signetdev_device_type device_type;
 	struct send_message_req *tail_message;
 	struct send_message_req *head_message;
 	struct send_message_req *tail_cancel_message;
@@ -90,6 +90,7 @@ static void handle_error()
 	if (conn->fd >= 0) {
 		close(conn->fd);
 		conn->fd = -1;
+		conn->device_type = SIGNETDEV_DEVICE_NONE;
 	}
 	if (g_error_handler) {
 		g_error_handler(g_error_handler_param);
@@ -142,18 +143,25 @@ static int attempt_raw_hid_read()
 	return 0;
 }
 
-static int attempt_open_connection(const char *path, int is_hc_device)
+static int attempt_open_connection()
 {
 	struct signetdev_connection *conn = &g_connection;
 	if (conn->fd >= 0) {
 		g_opening_connection = 0;
 		return 0;
 	}
-	int fd = open(path, O_RDWR | O_NONBLOCK);
+	int is_hc = 0;
+	int fd = open("/dev/signet-hc", O_RDWR | O_NONBLOCK);
+	if (fd >= 0) {
+		is_hc = 1;
+	} else {
+		is_hc = 0;
+		fd = open("/dev/signet", O_RDWR | O_NONBLOCK);
+	}
 	if (fd >= 0) {
 		memset(conn, 0, sizeof(g_connection));
 		conn->fd = fd;
-		conn->is_hc_device = is_hc_device;
+		conn->device_type = is_hc ? SIGNETDEV_DEVICE_HC : SIGNETDEV_DEVICE_ORIGINAL;
 		struct epoll_event ev;
 		ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
 		ev.data.fd = conn->fd;
@@ -161,9 +169,11 @@ static int attempt_open_connection(const char *path, int is_hc_device)
 		if (rc)
 			pthread_exit(NULL);
 		g_opening_connection = 0;
-		return 0;
+		return conn->device_type;
 	} else {
 		g_opening_connection = 1;
+		conn->fd = -1;
+		conn->device_type = SIGNETDEV_DEVICE_NONE;
 		return -1;
 	}
 }
@@ -185,12 +195,8 @@ static void handle_command(int command, void *p)
 		g_emulating = 0;
 		break;
 	case SIGNETDEV_CMD_OPEN:
-		//TODO: This seems sloppy. Need a list somewhere of all possible node names
-		rc = attempt_open_connection("/dev/signet-hc", 1);
-		if (rc != 0) {
-			rc = attempt_open_connection("/dev/signet", 0);
-		}
-		command_response(rc);
+		rc = attempt_open_connection();
+		command_response(conn->device_type);
 		break;
 	case SIGNETDEV_CMD_CLOSE:
 		g_opening_connection = 0;
@@ -198,6 +204,7 @@ static void handle_command(int command, void *p)
 			epoll_ctl(g_poll_fd, EPOLL_CTL_DEL, conn->fd, NULL);
 			close(conn->fd);
 			conn->fd = -1;
+			conn->device_type = SIGNETDEV_DEVICE_NONE;
 		}
 		break;
 	case SIGNETDEV_CMD_MESSAGE: {
@@ -293,7 +300,6 @@ static void inotify_fd_readable()
 {
 	while (g_opening_connection) {
 		u8 buf[4096];
-		char path[128] = "/dev/";
 		int rc = read(g_inotify_fd, buf, 4096);
 		if (rc == -1 && errno == EINTR)
 			break;
@@ -303,19 +309,15 @@ static void inotify_fd_readable()
 		while (idx < rc) {
 			struct inotify_event *ev = (struct inotify_event *)(buf + idx);
 			int attempt_open = 0;
-			int is_hc_devce = 0;
 			if (!strcmp(ev->name, "signet")) {
 				attempt_open = 1;
-				is_hc_devce = 0;
 			} else if (!strcmp(ev->name, "signet-hc")) {
 				attempt_open = 1;
-				is_hc_devce = 1;
 			}
-			strncat(path, ev->name, 16);
 			if (attempt_open) {
-				rc = attempt_open_connection(path, is_hc_devce);
+				rc = attempt_open_connection();
 				if (rc == 0) {
-					g_device_opened_cb(g_device_opened_cb_param);
+					g_device_opened_cb(g_connection.device_type, g_device_opened_cb_param);
 					break;
 				}
 			}
@@ -330,7 +332,7 @@ void *transaction_thread(void *arg)
 	struct signetdev_connection *conn = &g_connection;
 	g_opening_connection = 0;
 	conn->fd = -1;
-
+	conn->device_type = SIGNETDEV_DEVICE_NONE;
 	pthread_cleanup_push(handle_exit, NULL);
 
 	g_poll_fd = epoll_create1(0);

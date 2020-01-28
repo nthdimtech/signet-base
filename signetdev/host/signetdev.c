@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-void (*g_device_opened_cb)(void *) = NULL;
+void (*g_device_opened_cb)(enum signetdev_device_type, void *) = NULL;
 void *g_device_opened_cb_param = NULL;
 
 void (*g_device_closed_cb)(void *) = NULL;
@@ -27,7 +27,34 @@ int signetdev_max_entry_data_size()
 	return MAX_ENT_DATA_SIZE;
 }
 
-void signetdev_set_device_opened_cb(void (*device_opened)(void *), void *param)
+int signetdev_device_block_size()
+{
+	return BLK_SIZE;
+}
+
+int signetdev_device_num_data_blocks()
+{
+	return NUM_DATA_BLOCKS;
+}
+
+int signetdev_device_num_root_blocks()
+{
+	return 1;
+}
+
+int signetdev_device_num_storage_blocks()
+{
+	return NUM_DATA_BLOCKS + 1;
+}
+
+int signetdev_init_rand_data_size()
+{
+	return INIT_RAND_DATA_SZ;
+}
+
+
+
+void signetdev_set_device_opened_cb(void (*device_opened)(enum signetdev_device_type, void *), void *param)
 {
 	g_device_opened_cb = device_opened;
 	g_device_opened_cb_param = param;

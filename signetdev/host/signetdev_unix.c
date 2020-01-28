@@ -11,7 +11,7 @@ pthread_t worker_thread;
 int g_command_pipe[2];
 int g_command_resp_pipe[2];
 
-int signetdev_open_connection()
+enum signetdev_device_type signetdev_open_connection()
 {
 	return signetdev_priv_issue_command(SIGNETDEV_CMD_OPEN, NULL);
 }

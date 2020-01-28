@@ -553,7 +553,7 @@ int signetdev_emulate_init(const char *filename)
 	if (g_deviceState.db_file) {
 		fseek(g_deviceState.db_file, 0, SEEK_END);
 		long len = ftell(g_deviceState.db_file);
-		if (len != TOTAL_STORAGE_SIZE) {
+		if (len != (BLK_SIZE * NUM_STORAGE_BLOCKS)) {
 			return 0;
 		}
 		fseek(g_deviceState.db_file, SEEK_SET, 0);

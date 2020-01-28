@@ -2,10 +2,17 @@
 #define SIGNETDEV_H
 
 #include "../common/signetdev_common.h"
+#include "../common/signetdev_common_priv.h"
 #include "../common/signetdev_hc_common.h"
 #include <stdint.h>
 
 void signetdev_initialize_api();
+
+enum signetdev_device_type {
+        SIGNETDEV_DEVICE_NONE,
+        SIGNETDEV_DEVICE_ORIGINAL,
+        SIGNETDEV_DEVICE_HC,
+};
 
 struct signetdev_phy_key {
 	u8 scancode;
@@ -18,11 +25,18 @@ struct signetdev_key {
 };
 
 void signetdev_deinitialize_api();
-int signetdev_open_connection();
+enum signetdev_device_type signetdev_open_connection();
 void signetdev_close_connection();
 
-void signetdev_set_keymap(const struct signetdev_key *keys, int n_keys);
+//Device query functions
 int signetdev_max_entry_data_size();
+int signetdev_device_block_size();
+int signetdev_device_num_data_blocks();
+int signetdev_device_num_root_blocks();
+int signetdev_device_num_storage_blocks();
+int signetdev_init_rand_data_size();
+
+void signetdev_set_keymap(const struct signetdev_key *keys, int n_keys);
 int signetdev_can_type(const u8 *keys, int n_keys);
 int signetdev_can_type_w(const u16 *keys, int n_keys);
 int signetdev_to_scancodes_w(const u16 *keys, int n_keys, u16 *out, int *out_len_);
@@ -169,7 +183,7 @@ typedef void (*signetdev_cmd_resp_t)(void *cb_param, void *cmd_user_param, int c
 typedef void (*signetdev_device_event_t)(void *cb_param, int event_type, const void *resp_data, int resp_len);
 
 
-void signetdev_set_device_opened_cb(void (*device_opened)(void *), void *param);
+void signetdev_set_device_opened_cb(void (*device_opened)(enum signetdev_device_type, void *), void *param);
 void signetdev_set_device_closed_cb(void (*device_closed)(void *), void *param);
 void signetdev_set_command_resp_cb(signetdev_cmd_resp_t cmd_resp_cb, void *cb_param);
 void signetdev_set_device_event_cb(signetdev_device_event_t device_event_cb, void *cb_param);

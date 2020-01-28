@@ -314,24 +314,27 @@ void signetdev_priv_platform_deinit()
 	g_command_resp_event = INVALID_HANDLE_VALUE;
 }
 
-int signetdev_open_connection()
+enum signetdev_device_type signetdev_open_connection()
 {
 	int ct = rawhid_open(1, USB_SIGNET_HC_VENDOR_ID, USB_SIGNET_HC_PRODUCT_ID, USB_RAW_HID_USAGE_PAGE, USB_RAW_HID_USAGE);
+	g_device_type = SIGNETDEV_DEVICE_NONE;
 	if (ct != 1) {
 		ct = rawhid_open(1, USB_SIGNET_VENDOR_ID, USB_SIGNET_PRODUCT_ID, USB_RAW_HID_USAGE_PAGE, USB_RAW_HID_USAGE);
 		if (ct != 1) {
 			g_open_request_pending = 1;
 			return -1;
 		} else {
-			g_is_hc_device = 0;
+			g_device_type = SIGNETDEV_DEVICE_ORIGINAL;
 		}
 	} else {
-		g_is_hc_device = 1;
+		g_device_type = SIGNETDEV_DEVICE_HC;
 	}
 	g_device_handle = rawhid_win32_get_handle(0);
 	g_open_request_pending = 0;
 	if (request_next_packet()) {
-		return -1;
+		g_device_type = SIGNETDEV_DEVICE_NONE;
+		//TODO: Shouldn't we cleanup the device here?
+		return g_device_type;
 	}
 
 	DEV_BROADCAST_HANDLE dbh;
@@ -340,7 +343,7 @@ int signetdev_open_connection()
 	dbh.dbch_devicetype = DBT_DEVTYP_HANDLE;
 	dbh.dbch_hdevnotify = NULL;
 	RegisterDeviceNotification((HANDLE)g_window, &dbh, DEVICE_NOTIFY_WINDOW_HANDLE);
-	return 0;
+	return g_device_type;
 }
 
 void signetdev_win32_set_window_handle(HANDLE recp)
@@ -369,12 +372,12 @@ int signetdev_filter_window_messasage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 			break;
 		case DBT_DEVNODES_CHANGED:
 			if (g_open_request_pending) {
-				rc = signetdev_open_connection();
-				if (!rc) {
+				enum signetdev_device_type dev_type = signetdev_open_connection();
+				if (rc != SIGNETDEV_DEVICE_NONE) {
 					g_open_request_pending = 0;
 				}
 				if (!rc && g_device_opened_cb) {
-					g_device_opened_cb(g_device_opened_cb_param);
+					g_device_opened_cb(dev_type, g_device_opened_cb_param);
 				}
 			}
 			break;

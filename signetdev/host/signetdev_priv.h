@@ -66,7 +66,7 @@ struct rx_message_state {
 void signetdev_priv_prepare_message_state(struct tx_message_state *msg, unsigned int dev_cmd, unsigned int messages_remaining, u8 *payload, unsigned int payload_size);
 void signetdev_priv_advance_message_state(struct tx_message_state *msg);
 
-extern void (*g_device_opened_cb)(void *);
+extern void (*g_device_opened_cb)(enum signetdev_device_type dev_type, void *);
 extern void *g_device_opened_cb_param;
 
 extern void (*g_device_closed_cb)(void *);

@@ -1,9 +1,6 @@
 #ifndef SIGNETDEV_COMMON_H
 #define SIGNETDEV_COMMON_H
 
-#define CMD_PACKET_HEADER_SIZE 6
-#define CMD_PACKET_PAYLOAD_SIZE (BLK_SIZE + CMD_PACKET_HEADER_SIZE + 1)
-
 enum device_state {
 	DISCONNECTED,
 	RESET, //Defunct
@@ -52,20 +49,10 @@ enum command_responses {
 #define AES_128_KEY_SIZE (16)
 #define AES_256_KEY_SIZE (32)
 
-#define BLK_SIZE (16384)
-
 #define LOGIN_KEY_SZ (AES_256_KEY_SIZE)
 #define SALT_SZ_V1 (AES_128_KEY_SIZE)
 #define SALT_SZ_V2 (AES_256_KEY_SIZE)
 #define HASH_FN_SZ (AES_BLK_SIZE)
-
-#define CBC_IV_SZ (AES_BLK_SIZE)
-#define INIT_RAND_DATA_SZ ((AES_256_KEY_SIZE * 2) + CBC_IV_SZ)
-#define NUM_STORAGE_BLOCKS (1024)
-#define ROOT_DATA_BLOCK 0
-#define MIN_DATA_BLOCK 1
-#define MAX_DATA_BLOCK (NUM_STORAGE_BLOCKS - 1)
-#define NUM_DATA_BLOCKS (MAX_DATA_BLOCK - MIN_DATA_BLOCK + 1)
 
 #define INVALID_UID (0)
 #define MAX_UID ((1<<12)-1)
