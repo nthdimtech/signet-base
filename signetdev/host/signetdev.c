@@ -22,6 +22,11 @@ static void *g_device_event_cb_param = NULL;
 signetdev_conn_err_t g_error_handler = NULL;
 void *g_error_handler_param = NULL;
 
+int signetdev_max_entry_data_size()
+{
+	return MAX_ENT_DATA_SIZE;
+}
+
 void signetdev_set_device_opened_cb(void (*device_opened)(void *), void *param)
 {
 	g_device_opened_cb = device_opened;

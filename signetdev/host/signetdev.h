@@ -22,7 +22,7 @@ int signetdev_open_connection();
 void signetdev_close_connection();
 
 void signetdev_set_keymap(const struct signetdev_key *keys, int n_keys);
-
+int signetdev_max_entry_data_size();
 int signetdev_can_type(const u8 *keys, int n_keys);
 int signetdev_can_type_w(const u16 *keys, int n_keys);
 int signetdev_to_scancodes_w(const u16 *keys, int n_keys, u16 *out, int *out_len_);
