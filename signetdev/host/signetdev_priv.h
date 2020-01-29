@@ -47,8 +47,8 @@ struct attach_message {
 };
 
 struct tx_message_state {
-	u8 msg_buf[CMD_PACKET_BUF_SIZE];
-	u8 packet_buf[RAW_HID_PACKET_SIZE + 1];
+        u8 msg_buf[MAX_CMD_PACKET_BUF_SIZE];
+        u8 packet_buf[MAX_HID_PACKET_SIZE + 1];
 	unsigned int msg_size;
 	unsigned int msg_packet_seq;
 	unsigned int msg_packet_count;
@@ -59,7 +59,7 @@ struct rx_message_state {
         unsigned int expected_resp_size;
 	int expected_messages_remaining;
 	int resp_code;
-	int resp_buffer[CMD_PACKET_BUF_SIZE];
+        int resp_buffer[MAX_CMD_PACKET_BUF_SIZE];
 	struct send_message_req *message;
 };
 
@@ -89,5 +89,6 @@ int signetdev_emulate_handle_message_priv(struct send_message_req *msg);
 
 extern signetdev_conn_err_t g_error_handler;
 extern void *g_error_handler_param;
+enum signetdev_device_type g_device_type;
 
 #endif

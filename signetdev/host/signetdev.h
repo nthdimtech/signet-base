@@ -34,7 +34,6 @@ int signetdev_device_block_size();
 int signetdev_device_num_data_blocks();
 int signetdev_device_num_root_blocks();
 int signetdev_device_num_storage_blocks();
-int signetdev_init_rand_data_size();
 
 void signetdev_set_keymap(const struct signetdev_key *keys, int n_keys);
 int signetdev_can_type(const u8 *keys, int n_keys);
@@ -139,14 +138,14 @@ struct signetdev_get_rand_bits_resp_data {
 struct signetdev_read_all_uids_resp_data {
 	int uid;
 	int size;
-	u8 data[CMD_PACKET_PAYLOAD_SIZE];
-	u8 mask[CMD_PACKET_PAYLOAD_SIZE];
+        u8 data[MAX_CMD_PACKET_PAYLOAD_SIZE];
+        u8 mask[MAX_CMD_PACKET_PAYLOAD_SIZE];
 };
 
 struct signetdev_read_uid_resp_data {
 	int size;
-	u8 data[CMD_PACKET_PAYLOAD_SIZE];
-	u8 mask[CMD_PACKET_PAYLOAD_SIZE];
+        u8 data[MAX_CMD_PACKET_PAYLOAD_SIZE];
+        u8 mask[MAX_CMD_PACKET_PAYLOAD_SIZE];
 };
 
 struct signetdev_startup_resp_data {

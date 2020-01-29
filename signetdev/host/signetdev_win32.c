@@ -11,7 +11,6 @@
 static int g_open_request_pending = 0;
 static HWND g_window = INVALID_HANDLE_VALUE;
 static HANDLE g_device_handle = INVALID_HANDLE_VALUE;
-static int g_is_hc_device = 0;
 
 static HANDLE g_msg_thread = INVALID_HANDLE_VALUE;
 static HANDLE g_msg_read_event = INVALID_HANDLE_VALUE;

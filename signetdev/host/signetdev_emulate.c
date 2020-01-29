@@ -1,5 +1,5 @@
 
-#include "signetdev/common/signetdev_common.h"
+#include "signetdev/common/signetdev_common_priv.h"
 #include "signetdev/host/signetdev_priv.h"
 
 #include <stdio.h>
@@ -15,7 +15,7 @@ static struct {
 	enum device_state state;
 	enum device_state progress_state;
 	FILE *db_file;
-	u8 device_data[NUM_STORAGE_BLOCKS][BLK_SIZE];
+	u8 device_data[MAX_NUM_STORAGE_BLOCKS][MAX_BLK_SIZE];
 	u8 encrypt_key[AES_256_KEY_SIZE];
 	int header_version;
 	int db_version;
@@ -124,7 +124,7 @@ struct db_uid_ent *uid_to_db_ent(int uid)
 //Returns the number of partitions a block can hold if it's partition size is 'part_size' sub blocks
 static size_t get_part_count(size_t part_size)
 {
-	size_t max_sub_blocks = (BLK_SIZE/SUB_BLK_SIZE);
+	size_t max_sub_blocks = (signetdev_device_block_size()/SUB_BLK_SIZE);
 	size_t count = max_sub_blocks/part_size;
 	while (count && ((get_block_header_size(count) + (count * part_size))) > max_sub_blocks) {
 		count--;
@@ -198,7 +198,7 @@ static int db_scan()
 	unsigned int i;
 	for (i = MIN_UID; i <= MAX_UID; i++)
 		g_deviceState.uid_map[i].block = INVALID_BLOCK;
-	for (unsigned int i = MIN_DATA_BLOCK; i <= MAX_DATA_BLOCK; i++) {
+	for (unsigned int i = MIN_DATA_BLOCK; i <= (signetdev_device_num_storage_blocks() - 1); i++) {
 		struct db_block *blk = (struct db_block *)g_deviceState.device_data[i];
 		unsigned int part_size = blk->header.part_size;
 		unsigned int occupancy = blk->header.occupancy;
@@ -261,14 +261,14 @@ static void startup_cmd(struct send_message_req *msg)
 			if (msg->resp_code)
 				*msg->resp_code = OKAY;
 			db_scan();
-			memcpy(msg->resp + STARTUP_RESP_INFO_SIZE, root_page->header.v2.hashfn, HASH_FN_SZ);
-			memcpy(msg->resp + STARTUP_RESP_INFO_SIZE + HASH_FN_SZ, root_page->header.v2.salt, SALT_SZ_V2);
-			signetdev_priv_message_send_resp(msg, STARTUP_RESP_SIZE, 0);
+			memcpy(msg->resp + signetdev_priv_startup_resp_info_size(), root_page->header.v2.hashfn, HASH_FN_SZ);
+			memcpy(msg->resp + signetdev_priv_startup_resp_info_size() + HASH_FN_SZ, root_page->header.v2.salt, SALT_SZ_V2);
+			signetdev_priv_message_send_resp(msg, signetdev_priv_startup_resp_size(), 0);
 			break;
 		default:
 			if (msg->resp_code)
 				*msg->resp_code = UNKNOWN_DB_FORMAT;
-			signetdev_priv_message_send_resp(msg, STARTUP_RESP_SIZE, 0);
+			signetdev_priv_message_send_resp(msg, signetdev_priv_startup_resp_size(), 0);
 			break;
 		}
 	}
@@ -410,7 +410,7 @@ static int read_all_uids_cmd_iter(struct send_message_req *msg)
 	struct db_block *blk = uid_to_db_block(uid);
 	unsigned int index = g_deviceState.uid_map[uid].index;
 	unsigned int sz = blk->uid_tbl[index].sz;
-	memset(msg->resp, 0, BLK_SIZE);
+	memset(msg->resp, 0, signetdev_device_block_size());
 	msg->resp[0] = (u8)(uid & 0xff);
 	msg->resp[1] = (u8)(uid >> 8);
 	msg->resp[2] = (u8)(sz & 0xff);
@@ -553,12 +553,12 @@ int signetdev_emulate_init(const char *filename)
 	if (g_deviceState.db_file) {
 		fseek(g_deviceState.db_file, 0, SEEK_END);
 		long len = ftell(g_deviceState.db_file);
-		if (len != (BLK_SIZE * NUM_STORAGE_BLOCKS)) {
+		if (len != (signetdev_device_block_size() * signetdev_device_num_storage_blocks())) {
 			return 0;
 		}
 		fseek(g_deviceState.db_file, SEEK_SET, 0);
-		size_t rc = fread(g_deviceState.device_data, BLK_SIZE, NUM_STORAGE_BLOCKS, g_deviceState.db_file);
-		if (rc != NUM_STORAGE_BLOCKS) {
+		size_t rc = fread(g_deviceState.device_data, signetdev_device_block_size(), signetdev_device_num_storage_blocks(), g_deviceState.db_file);
+		if (rc != signetdev_device_num_storage_blocks()) {
 			return 0;
 		}
 	}

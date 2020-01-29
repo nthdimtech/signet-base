@@ -64,7 +64,7 @@ struct hc_firmware_file_body {
 } __attribute__((packed));
 
 #define SIGNET_HC_MAJOR_VERSION 0
-#define SIGNET_HC_MINOR_VERSION 8
-#define SIGNET_HC_STEP_VERSION 0
+#define SIGNET_HC_MINOR_VERSION 1
+#define SIGNET_HC_STEP_VERSION 2
 
 #endif

@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "../common/signetdev_common.h"
+#include "../common/signetdev_common_priv.h"
 
 extern signetdev_conn_err_t g_error_handler;
 extern void *g_error_handler_param;
@@ -24,7 +25,6 @@ static int g_inotify_fd = -1;
 
 struct signetdev_connection {
 	int fd;
-	enum signetdev_device_type device_type;
 	struct send_message_req *tail_message;
 	struct send_message_req *head_message;
 	struct send_message_req *tail_cancel_message;
@@ -90,7 +90,7 @@ static void handle_error()
 	if (conn->fd >= 0) {
 		close(conn->fd);
 		conn->fd = -1;
-		conn->device_type = SIGNETDEV_DEVICE_NONE;
+		g_device_type = SIGNETDEV_DEVICE_NONE;
 	}
 	if (g_error_handler) {
 		g_error_handler(g_error_handler_param);
@@ -118,7 +118,7 @@ static int attempt_raw_hid_write()
 		return 0;
 	}
 	signetdev_priv_advance_message_state(&conn->tx_state);
-	int rc = write(conn->fd, conn->tx_state.packet_buf, RAW_HID_PACKET_SIZE + 1);
+	int rc = write(conn->fd, conn->tx_state.packet_buf, signetdev_priv_hid_packet_size() + 1);
 	if (rc == -1 && errno == EAGAIN) {
 		return 1;
 	} else if (rc == -1) {
@@ -130,11 +130,11 @@ static int attempt_raw_hid_write()
 static int attempt_raw_hid_read()
 {
 	struct signetdev_connection *conn = &g_connection;
-	u8 rx_packet_buf[RAW_HID_PACKET_SIZE];
-	int rc = read(conn->fd, rx_packet_buf, RAW_HID_PACKET_SIZE);
+	u8 rx_packet_buf[MAX_HID_PACKET_SIZE];
+	int rc = read(conn->fd, rx_packet_buf, signetdev_priv_hid_packet_size());
 	if (rc == -1 && errno == EAGAIN) {
 		return 1;
-	} else if (rc != RAW_HID_PACKET_SIZE) {
+	} else if (rc != signetdev_priv_hid_packet_size()) {
 		handle_error();
 		return 1;
 	} else {
@@ -148,8 +148,8 @@ static int attempt_open_connection()
 	struct signetdev_connection *conn = &g_connection;
 	if (conn->fd >= 0) {
 		g_opening_connection = 0;
-		conn->device_type = SIGNETDEV_DEVICE_NONE;
-		return conn->device_type;
+		g_device_type = SIGNETDEV_DEVICE_NONE;
+		return g_device_type;
 	}
 	int is_hc = 0;
 	int fd = open("/dev/signet-hc", O_RDWR | O_NONBLOCK);
@@ -162,7 +162,7 @@ static int attempt_open_connection()
 	if (fd >= 0) {
 		memset(conn, 0, sizeof(g_connection));
 		conn->fd = fd;
-		conn->device_type = is_hc ? SIGNETDEV_DEVICE_HC : SIGNETDEV_DEVICE_ORIGINAL;
+		g_device_type = is_hc ? SIGNETDEV_DEVICE_HC : SIGNETDEV_DEVICE_ORIGINAL;
 		struct epoll_event ev;
 		ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
 		ev.data.fd = conn->fd;
@@ -170,19 +170,18 @@ static int attempt_open_connection()
 		if (rc)
 			pthread_exit(NULL);
 		g_opening_connection = 0;
-		return conn->device_type;
+		return g_device_type;
 	} else {
 		g_opening_connection = 1;
 		conn->fd = -1;
-		conn->device_type = SIGNETDEV_DEVICE_NONE;
-		return conn->device_type;
+		g_device_type = SIGNETDEV_DEVICE_NONE;
+		return g_device_type;
 	}
 }
 
 static void handle_command(int command, void *p)
 {
 	int rc;
-	enum signetdev_device_type device_type;
 	struct signetdev_connection *conn = &g_connection;
 	switch (command) {
 	case SIGNETDEV_CMD_EMULATE_BEGIN:
@@ -197,8 +196,8 @@ static void handle_command(int command, void *p)
 		g_emulating = 0;
 		break;
 	case SIGNETDEV_CMD_OPEN:
-		device_type = attempt_open_connection();
-		command_response(device_type);
+		g_device_type = attempt_open_connection();
+		command_response(g_device_type);
 		break;
 	case SIGNETDEV_CMD_CLOSE:
 		g_opening_connection = 0;
@@ -206,7 +205,7 @@ static void handle_command(int command, void *p)
 			epoll_ctl(g_poll_fd, EPOLL_CTL_DEL, conn->fd, NULL);
 			close(conn->fd);
 			conn->fd = -1;
-			conn->device_type = SIGNETDEV_DEVICE_NONE;
+			g_device_type = SIGNETDEV_DEVICE_NONE;
 		}
 		break;
 	case SIGNETDEV_CMD_MESSAGE: {
@@ -317,9 +316,9 @@ static void inotify_fd_readable()
 				attempt_open = 1;
 			}
 			if (attempt_open) {
-				enum signetdev_device_type dev_type = attempt_open_connection();
-				if (dev_type != SIGNETDEV_DEVICE_NONE) {
-					g_device_opened_cb(g_connection.device_type, g_device_opened_cb_param);
+				g_device_type = attempt_open_connection();
+				if (g_device_type != SIGNETDEV_DEVICE_NONE) {
+					g_device_opened_cb(g_device_type, g_device_opened_cb_param);
 					break;
 				}
 			}
@@ -334,7 +333,7 @@ void *transaction_thread(void *arg)
 	struct signetdev_connection *conn = &g_connection;
 	g_opening_connection = 0;
 	conn->fd = -1;
-	conn->device_type = SIGNETDEV_DEVICE_NONE;
+	g_device_type = SIGNETDEV_DEVICE_NONE;
 	pthread_cleanup_push(handle_exit, NULL);
 
 	g_poll_fd = epoll_create1(0);
