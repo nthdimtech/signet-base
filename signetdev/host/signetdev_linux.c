@@ -148,7 +148,8 @@ static int attempt_open_connection()
 	struct signetdev_connection *conn = &g_connection;
 	if (conn->fd >= 0) {
 		g_opening_connection = 0;
-		return 0;
+		conn->device_type = SIGNETDEV_DEVICE_NONE;
+		return conn->device_type;
 	}
 	int is_hc = 0;
 	int fd = open("/dev/signet-hc", O_RDWR | O_NONBLOCK);
@@ -174,13 +175,14 @@ static int attempt_open_connection()
 		g_opening_connection = 1;
 		conn->fd = -1;
 		conn->device_type = SIGNETDEV_DEVICE_NONE;
-		return -1;
+		return conn->device_type;
 	}
 }
 
 static void handle_command(int command, void *p)
 {
 	int rc;
+	enum signetdev_device_type device_type;
 	struct signetdev_connection *conn = &g_connection;
 	switch (command) {
 	case SIGNETDEV_CMD_EMULATE_BEGIN:
@@ -195,8 +197,8 @@ static void handle_command(int command, void *p)
 		g_emulating = 0;
 		break;
 	case SIGNETDEV_CMD_OPEN:
-		rc = attempt_open_connection();
-		command_response(conn->device_type);
+		device_type = attempt_open_connection();
+		command_response(device_type);
 		break;
 	case SIGNETDEV_CMD_CLOSE:
 		g_opening_connection = 0;
@@ -315,8 +317,8 @@ static void inotify_fd_readable()
 				attempt_open = 1;
 			}
 			if (attempt_open) {
-				rc = attempt_open_connection();
-				if (rc == 0) {
+				enum signetdev_device_type dev_type = attempt_open_connection();
+				if (dev_type != SIGNETDEV_DEVICE_NONE) {
 					g_device_opened_cb(g_connection.device_type, g_device_opened_cb_param);
 					break;
 				}
