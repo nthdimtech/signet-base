@@ -140,7 +140,7 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
 	HAL_PCDEx_SetRxFiFo(&hpcd, 2048/4);
 	HAL_PCDEx_SetTxFiFo(&hpcd, 0, (USB_MAX_EP0_SIZE * 1) / 4); //64
 	HAL_PCDEx_SetTxFiFo(&hpcd, HID_KEYBOARD_EPIN_ADDR & 0x7f, (HID_KEYBOARD_EPIN_SIZE * 1) / 4); //64
-	HAL_PCDEx_SetTxFiFo(&hpcd, HID_CMD_EPIN_ADDR & 0x7f, (HID_CMD_EPIN_SIZE * 1) / 4); //1024
+	HAL_PCDEx_SetTxFiFo(&hpcd, HID_CMD_EPIN_ADDR & 0x7f, (HID_CMD_EPIN_SIZE * 1) / 4); //512
 	HAL_PCDEx_SetTxFiFo(&hpcd, HID_FIDO_EPIN_ADDR & 0x7f, (HID_FIDO_EPIN_SIZE * 1) / 4); //64
 	HAL_PCDEx_SetTxFiFo(&hpcd, MSC_EPIN_ADDR & 0x7f, (MSC_EPIN_SIZE * 1) / 4); //512
 	return USBD_OK;
