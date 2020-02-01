@@ -306,25 +306,23 @@ static int8_t SCSI_ReadFormatCapacity(USBD_HandleTypeDef  *pdev, uint8_t lun, ui
 	}
 
 	if(((USBD_StorageTypeDef *)pdev->pUserData)->GetCapacity(lun, &blk_nbr, &blk_size) != 0U) {
-		SCSI_SenseCode(pdev, lun, NOT_READY, MEDIUM_NOT_PRESENT, 0);
-		hmsc->bot_data_length = 0U;
-		hmsc->bot_state = USBD_BOT_NO_DATA;
-		return -1;
+		blk_nbr = 0x200000;
+		blk_size = 0x200;
+		bot_data[8] = 0x03U;
 	} else {
-		bot_data[3] = 0x08U;
-		bot_data[4] = (uint8_t)((blk_nbr - 1U) >> 24);
-		bot_data[5] = (uint8_t)((blk_nbr - 1U) >> 16);
-		bot_data[6] = (uint8_t)((blk_nbr - 1U) >>  8);
-		bot_data[7] = (uint8_t)(blk_nbr - 1U);
-
 		bot_data[8] = 0x02U;
-		bot_data[9] = (uint8_t)(blk_size >>  16);
-		bot_data[10] = (uint8_t)(blk_size >>  8);
-		bot_data[11] = (uint8_t)(blk_size);
-
-		hmsc->bot_data_length = 12U;
-		return 0;
 	}
+	bot_data[3] = 0x08U;
+	bot_data[4] = (uint8_t)((blk_nbr - 1U) >> 24);
+	bot_data[5] = (uint8_t)((blk_nbr - 1U) >> 16);
+	bot_data[6] = (uint8_t)((blk_nbr - 1U) >>  8);
+	bot_data[7] = (uint8_t)(blk_nbr - 1U);
+	bot_data[9] = (uint8_t)(blk_size >>  16);
+	bot_data[10] = (uint8_t)(blk_size >>  8);
+	bot_data[11] = (uint8_t)(blk_size);
+
+	hmsc->bot_data_length = 12U;
+	return 0;
 }
 
 static int8_t SCSI_ModeSense6 (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params)
