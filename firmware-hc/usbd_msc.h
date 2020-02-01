@@ -65,9 +65,9 @@ typedef struct _USBD_STORAGE {
 
 } USBD_StorageTypeDef;
 
-typedef struct __attribute__((packed)) {
+typedef struct {
 	uint32_t                 max_lun;
-	uint8_t                  bot_data[MSC_MEDIA_PACKET * 16];
+	uint8_t                  bot_data[MSC_MEDIA_PACKET * 16] __attribute__((aligned(4)));
 	uint32_t                 interface;
 	uint16_t                 bot_data_length;
 	uint8_t                  bot_state;
@@ -78,8 +78,8 @@ typedef struct __attribute__((packed)) {
 	uint8_t *writeBuffer;
 	int writeLen;
 
-	USBD_MSC_BOT_CBWTypeDef  cbw;
-	USBD_MSC_BOT_CSWTypeDef  csw;
+	USBD_MSC_BOT_CBWTypeDef  cbw __attribute__((aligned(4)));
+	USBD_MSC_BOT_CSWTypeDef  csw __attribute__((aligned(4)));
 
 	USBD_SCSI_SenseTypeDef   scsi_sense [SENSE_LIST_DEEPTH];
 	uint8_t                  scsi_sense_head;
