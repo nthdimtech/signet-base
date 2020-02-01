@@ -6,11 +6,11 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-#define USBD_VID                      0x5E2A
-#define USBD_PID                      0x1
+#define USBD_VID                      0x1209
+#define USBD_PID                      0xDF11
 #define USBD_LANGID_STRING            0x409
 #define USBD_MANUFACTURER_STRING      "Nth Dimension LLC"
-#define USBD_PRODUCT_HS_STRING        "Signet HC prototype"
+#define USBD_PRODUCT_HS_STRING        "Signet HC"
 #define USBD_CONFIGURATION_HS_STRING  "Regular config"
 #define USBD_INTERFACE_HS_STRING      "Regular Interface"
 
