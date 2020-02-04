@@ -235,10 +235,11 @@ typedef struct _USBD_HandleTypeDef {
 	uint32_t                dev_default_config;
 	uint32_t                dev_config_status;
 	USBD_SpeedTypeDef       dev_speed;
-	USBD_EndpointTypeDef    ep_in[15];
-	USBD_EndpointTypeDef    ep_out[15];
+	USBD_EndpointTypeDef    ep_in[15] __attribute__((aligned(4)));
+	USBD_EndpointTypeDef    ep_out[15] __attribute__((aligned(4)));
 	uint32_t                ep0_state;
 	uint32_t                ep0_data_len;
+	uint32_t		temp;
 	uint8_t                 dev_state;
 	uint8_t                 dev_old_state;
 	uint8_t                 dev_address;
@@ -246,7 +247,7 @@ typedef struct _USBD_HandleTypeDef {
 	uint8_t                 dev_test_mode;
 	uint32_t                dev_remote_wakeup;
 
-	USBD_SetupReqTypedef    request;
+	USBD_SetupReqTypedef    request __attribute__((aligned(4)));
 	USBD_DescriptorsTypeDef *pDesc;
 	USBD_ClassTypeDef       *pClass;
 	void                    *pClassData[5];
