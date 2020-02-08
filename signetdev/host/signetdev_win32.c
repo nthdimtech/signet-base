@@ -25,7 +25,7 @@ static OVERLAPPED g_write_overlapped;
 
 static int g_quitting = 0;
 
-static u8 g_rx_packet[RAW_HID_PACKET_SIZE + 1];
+static u8 g_rx_packet[MAX_HID_PACKET_SIZE + 1];
 
 struct tx_message_state g_tx_state;
 struct rx_message_state g_rx_state;
@@ -66,7 +66,7 @@ static int send_next_packet()
 	signetdev_priv_advance_message_state(&g_tx_state);
 	memset(&g_write_overlapped, 0, sizeof(OVERLAPPED));
 	g_write_overlapped.hEvent = g_msg_write_event;
-	if (!WriteFile(g_device_handle, &g_tx_state.packet_buf, RAW_HID_PACKET_SIZE + 1, NULL, &g_write_overlapped)) {
+	if (!WriteFile(g_device_handle, &g_tx_state.packet_buf, signetdev_priv_hid_packet_size() + 1, NULL, &g_write_overlapped)) {
 		if (GetLastError() != ERROR_IO_PENDING)	{
 			return -1;
 		}
@@ -78,7 +78,7 @@ static int request_next_packet()
 {
 	memset(&g_read_overlapped, 0, sizeof(OVERLAPPED));
 	g_read_overlapped.hEvent = g_msg_read_event;
-	if (!ReadFile(g_device_handle, g_rx_packet, RAW_HID_PACKET_SIZE + 1, NULL, &g_read_overlapped)) {
+	if (!ReadFile(g_device_handle, g_rx_packet, signetdev_priv_hid_packet_size() + 1, NULL, &g_read_overlapped)) {
 		if (GetLastError() != ERROR_IO_PENDING)	{
 			return -1;
 		}
@@ -233,7 +233,7 @@ static DWORD WINAPI transaction_thread(LPVOID lpParameter)
 				signetdev_priv_handle_error();
 				break;
 			}
-			if (n != (RAW_HID_PACKET_SIZE + 1)) {
+			if (n != (signetdev_priv_hid_packet_size() + 1)) {
 				signetdev_priv_handle_error();
 				break;
 			}
@@ -250,7 +250,7 @@ static DWORD WINAPI transaction_thread(LPVOID lpParameter)
 				signetdev_priv_handle_error();
 				break;
 			}
-			if (n != (RAW_HID_PACKET_SIZE + 1)) {
+			if (n != (signetdev_priv_hid_packet_size() + 1)) {
 				signetdev_priv_handle_error();
 				break;
 			}
@@ -321,7 +321,7 @@ enum signetdev_device_type signetdev_open_connection()
 		ct = rawhid_open(1, USB_SIGNET_VENDOR_ID, USB_SIGNET_PRODUCT_ID, USB_RAW_HID_USAGE_PAGE, USB_RAW_HID_USAGE);
 		if (ct != 1) {
 			g_open_request_pending = 1;
-			return -1;
+			return g_device_type;
 		} else {
 			g_device_type = SIGNETDEV_DEVICE_ORIGINAL;
 		}
@@ -372,11 +372,11 @@ int signetdev_filter_window_messasage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 		case DBT_DEVNODES_CHANGED:
 			if (g_open_request_pending) {
 				enum signetdev_device_type dev_type = signetdev_open_connection();
-				if (rc != SIGNETDEV_DEVICE_NONE) {
+				if (dev_type != SIGNETDEV_DEVICE_NONE) {
 					g_open_request_pending = 0;
-				}
-				if (!rc && g_device_opened_cb) {
-					g_device_opened_cb(dev_type, g_device_opened_cb_param);
+					if (g_device_opened_cb) {
+						g_device_opened_cb(dev_type, g_device_opened_cb_param);
+					}
 				}
 			}
 			break;
