@@ -89,6 +89,7 @@ void MSC_BOT_DataIn (USBD_HandleTypeDef  *pdev,
 		if(SCSI_ProcessCmd(pdev,
 		                   hmsc->cbw.bLUN,
 		                   &hmsc->cbw.CB[0]) < 0) {
+			USBD_LL_StallEP(pdev, MSC_EPIN_ADDR);
 			MSC_BOT_SendCSW (pdev, USBD_CSW_CMD_FAILED);
 		}
 		break;
@@ -127,6 +128,7 @@ void MSC_BOT_DataOut (USBD_HandleTypeDef  *pdev,
 		if(SCSI_ProcessCmd(pdev,
 		                   hmsc->cbw.bLUN,
 		                   &hmsc->cbw.CB[0]) < 0) {
+			USBD_LL_StallEP(pdev, MSC_EPIN_ADDR);
 			MSC_BOT_SendCSW (pdev, USBD_CSW_CMD_FAILED);
 		}
 		break;
@@ -161,6 +163,7 @@ static void  MSC_BOT_CBW_Decode (USBD_HandleTypeDef  *pdev)
 	} else {
 		if(SCSI_ProcessCmd(pdev, hmsc->cbw.bLUN, &hmsc->cbw.CB[0]) < 0) {
 			if (hmsc->bot_state == USBD_BOT_NO_DATA) {
+				USBD_LL_StallEP(pdev, MSC_EPIN_ADDR);
 				MSC_BOT_SendCSW (pdev, USBD_CSW_CMD_FAILED);
 			} else {
 				MSC_BOT_Abort(pdev);
