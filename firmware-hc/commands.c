@@ -1497,9 +1497,9 @@ void startup_cmd_iter()
 {
 	u8 *resp = cmd_data.startup.resp;
 	memset(cmd_data.startup.resp, 0, sizeof(cmd_data.startup.resp));
-	resp[0] = SIGNET_MAJOR_VERSION;
-	resp[1] = SIGNET_MINOR_VERSION;
-	resp[2] = SIGNET_STEP_VERSION;
+	resp[0] = SIGNET_HC_MAJOR_VERSION;
+	resp[1] = SIGNET_HC_MINOR_VERSION;
+	resp[2] = SIGNET_HC_STEP_VERSION;
 	resp[3] = g_device_state;
 	resp[4] = 0;
 	resp[5] = 0;
