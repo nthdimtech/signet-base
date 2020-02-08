@@ -65,7 +65,7 @@ static int send_hid_command(int cmd, int messages_remaining, u8 *payload, int pa
 	signetdev_priv_prepare_message_state(&msg, cmd, messages_remaining, payload, payload_size);
 	for (int i = 0; i < msg.msg_packet_count; i++) {
 		signetdev_priv_advance_message_state(&msg);
-		IOHIDDeviceSetReport(hid_dev, kIOHIDReportTypeOutput, 0, msg.packet_buf + 1, RAW_HID_PACKET_SIZE);
+		IOHIDDeviceSetReport(hid_dev, kIOHIDReportTypeOutput, 0, msg.packet_buf + 1, signetdev_priv_hid_packet_size());
 		//TODO: validate return
 	}
 	return 0;
@@ -198,7 +198,7 @@ static void detach_callback(void *context, IOReturn r, void *hid_mgr, IOHIDDevic
 }
 
 struct hid_packet {
-	u8 data[RAW_HID_PACKET_SIZE];
+	u8 data[MAX_HID_PACKET_SIZE];
 	struct hid_packet *next;
 };
 
@@ -212,11 +212,11 @@ static void input_callback(void *context, IOReturn ret, void *sender, IOHIDRepor
 	(void)sender;
 	(void)ret;
 	(void)context;
-	static u8 recv_packet[RAW_HID_PACKET_SIZE];
+	static u8 recv_packet[MAX_HID_PACKET_SIZE];
 	static int recv_byte = 0;
 	int i = 0;
 	while (i <= len) {
-	int rem = RAW_HID_PACKET_SIZE - recv_byte;
+	int rem = signetdev_priv_hid_packet_size() - recv_byte;
 	int to_copy;
 	if (len <= rem) {
 		to_copy = len;
@@ -227,10 +227,10 @@ static void input_callback(void *context, IOReturn ret, void *sender, IOHIDRepor
 	recv_byte += to_copy;
 	i += to_copy;
 	len -= to_copy;
-	if (recv_byte == RAW_HID_PACKET_SIZE) {
+	if (recv_byte == signetdev_priv_hid_packet_size()) {
 		recv_byte = 0;
 		struct hid_packet *p = (struct hid_packet *)malloc(sizeof(struct hid_packet));
-		memcpy(p->data, recv_packet, RAW_HID_PACKET_SIZE);
+		memcpy(p->data, recv_packet, signetdev_priv_hid_packet_size());
 		p->next = NULL;
 		if (hid_packet_first == NULL) {
 		hid_packet_first = p;
