@@ -1,6 +1,6 @@
 #include "bootloader_state.h"
 #include "firmware_update_state.h"
-#include "signetdev_common.h"
+#include "signetdev_common_priv.h"
 
 int bootloader_state(int active_cmd, u8 *data, int data_len)
 {

@@ -11,7 +11,7 @@
 #define HC_BOOT_AREA_A_LEN (1024 * 96)
 #define HC_BOOT_AREA_B_LEN (1024 * 384)
 
-//#include "types.h"
+#include "signetdev_common.h"
 
 enum hc_boot_mode {
 	HC_BOOT_BOOTLOADER_MODE,

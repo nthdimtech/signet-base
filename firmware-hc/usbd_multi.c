@@ -2,7 +2,7 @@
 #include "usbd_msc.h"
 #include "usbd_hid.h"
 #include "usbd_ctlreq.h"
-#include "signetdev_common.h"
+#include "signetdev_common_priv.h"
 #include "usb_raw_hid.h"
 
 #define LSB(X) ((X) & 0xff)

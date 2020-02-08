@@ -240,9 +240,9 @@ static void startup_cmd(struct send_message_req *msg)
 	struct root_page *root_page = (struct root_page *)g_deviceState.device_data[0];
 	int rc = memcmp(root_page->signature + 1, root_signature, AES_BLK_SIZE - 1);
 	if (rc != 0) {
-		enter_state(UNINITIALIZED);
+		enter_state(DS_UNINITIALIZED);
 	} else {
-		enter_state(LOGGED_OUT);
+		enter_state(DS_LOGGED_OUT);
 	}
 	g_deviceState.header_version = root_page->signature[0];
 
@@ -252,7 +252,7 @@ static void startup_cmd(struct send_message_req *msg)
 	msg->resp[3] = (u8)g_deviceState.state;
 	msg->resp[4] = (u8)g_deviceState.header_version;
 	msg->resp[5] = 0;
-	if (g_deviceState.state == UNINITIALIZED) {
+	if (g_deviceState.state == DS_UNINITIALIZED) {
 		signetdev_priv_message_send_resp(msg, OKAY, 0);
 	} else {
 		g_deviceState.db_version = root_page->header.v2.db_version;
@@ -277,7 +277,7 @@ static void startup_cmd(struct send_message_req *msg)
 static void login_cmd(struct send_message_req *msg)
 {
 	switch(g_deviceState.state) {
-	case LOGGED_OUT:
+	case DS_LOGGED_OUT:
 		break;
 	default:
 		resp_code(msg, INVALID_STATE);
@@ -299,7 +299,7 @@ static void login_cmd(struct send_message_req *msg)
 		gcry_cipher_decrypt(g_deviceState.aes256_cbc, g_deviceState.encrypt_key, AES_256_KEY_SIZE, root_page->header.v2.encrypt_key_ct, AES_256_KEY_SIZE);
 		gcry_cipher_setkey(g_deviceState.aes256_cbc, g_deviceState.encrypt_key, AES_256_KEY_SIZE);
 		resp_code(msg, OKAY);
-		enter_state(LOGGED_IN);
+		enter_state(DS_LOGGED_IN);
 	} else {
 		resp_code(msg, BAD_PASSWORD);
 	}
@@ -308,13 +308,13 @@ static void login_cmd(struct send_message_req *msg)
 static void logout_cmd(struct send_message_req *msg)
 {
 	switch(g_deviceState.state) {
-	case LOGGED_IN:
+	case DS_LOGGED_IN:
 		break;
 	default:
 		resp_code(msg, INVALID_STATE);
 		return;
 	}
-	enter_state(LOGGED_OUT);
+	enter_state(DS_LOGGED_OUT);
 	resp_code(msg, OKAY);
 }
 
@@ -343,7 +343,7 @@ static void get_progress_cmd(struct send_message_req *msg)
 static void update_uid_cmd(struct send_message_req *msg)
 {
 	switch(g_deviceState.state) {
-	case LOGGED_IN:
+	case DS_LOGGED_IN:
 		break;
 	default:
 		resp_code(msg, INVALID_STATE);
@@ -363,7 +363,7 @@ static void update_uid_cmd(struct send_message_req *msg)
 static void read_uid_cmd(struct send_message_req *msg)
 {
 	switch(g_deviceState.state) {
-	case LOGGED_IN:
+	case DS_LOGGED_IN:
 		break;
 	default:
 		resp_code(msg, INVALID_STATE);
@@ -423,7 +423,7 @@ static int read_all_uids_cmd_iter(struct send_message_req *msg)
 static void read_all_uids_cmd(struct send_message_req *msg)
 {
 	switch(g_deviceState.state) {
-	case LOGGED_IN:
+	case DS_LOGGED_IN:
 		break;
 	default:
 		resp_code(msg, INVALID_STATE);
@@ -445,7 +445,7 @@ static void read_all_uids_cmd(struct send_message_req *msg)
 
 static void disconnect_cmd(struct send_message_req *msg)
 {
-	enter_state(DISCONNECTED);
+	enter_state(DS_DISCONNECTED);
 	resp_code(msg, OKAY);
 }
 
@@ -543,7 +543,7 @@ int signetdev_emulate_handle_message_priv(struct send_message_req *msg)
 
 int signetdev_emulate_init(const char *filename)
 {
-	g_deviceState.state = DISCONNECTED;
+	g_deviceState.state = DS_DISCONNECTED;
 	g_deviceState.db_file = fopen(filename, "r+b");
 	g_deviceState.aes256_ecb = NULL;
 	g_deviceState.aes256_ecb = NULL;
@@ -577,7 +577,7 @@ void signetdev_emulate_end()
 
 void signetdev_emulate_deinit()
 {
-	g_deviceState.state = DISCONNECTED;
+	g_deviceState.state = DS_DISCONNECTED;
 	if (g_deviceState.db_file)
 		fclose(g_deviceState.db_file);
 	if (g_deviceState.aes256_ecb)

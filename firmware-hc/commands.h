@@ -1,7 +1,7 @@
 #ifndef COMMANDS_H
 #define COMMANDS_H
 #include "types.h"
-#include "signetdev_common.h"
+#include "signetdev_common_priv.h"
 #include "db.h"
 
 void get_progress_cmd(u8 *data, int data_len);

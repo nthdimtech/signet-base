@@ -2,18 +2,18 @@
 #define SIGNETDEV_COMMON_H
 
 enum device_state {
-	DISCONNECTED,
-	RESET, //Defunct
-	UNINITIALIZED,
-	INITIALIZING,
-	WIPING,
-	ERASING_PAGES,
-	FIRMWARE_UPDATE,
-	LOGGED_OUT,
-	LOGGED_IN,
-	BACKING_UP_DEVICE,
-        RESTORING_DEVICE,
-        BOOTLOADER
+	DS_DISCONNECTED,
+	DS_RESET, //Defunct
+	DS_UNINITIALIZED,
+	DS_INITIALIZING,
+	DS_WIPING,
+	DS_ERASING_PAGES,
+	DS_FIRMWARE_UPDATE,
+	DS_LOGGED_OUT,
+	DS_LOGGED_IN,
+	DS_BACKING_UP_DEVICE,
+	DS_RESTORING_DEVICE,
+	DS_BOOTLOADER
 };
 
 enum command_responses {
@@ -58,6 +58,9 @@ enum command_responses {
 #define MAX_UID ((1<<12)-1)
 #define MIN_UID (1)
 
+#ifdef FIRMWARE
+#include "types.h"
+#else
 #include <stdint.h>
 typedef unsigned long long u64;
 typedef uint32_t u32;
@@ -66,6 +69,7 @@ typedef uint8_t u8;
 typedef int32_t s32;
 typedef int16_t s16;
 typedef int8_t s8;
+#endif
 
 #define NUM_CLEARTEXT_PASS 4
 #define CLEARTEXT_PASS_SIZE 256

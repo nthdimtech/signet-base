@@ -1,9 +1,10 @@
 #include "flash.h"
-#include "signetdev_common.h"
+#include "signetdev_common_priv.h"
 #include "stm32f7xx_hal.h"
 
 #include "memory_layout.h"
 #include "main.h"
+#include "config.h"
 
 enum flash_state {
 	FLASH_IDLE,

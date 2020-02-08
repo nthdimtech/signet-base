@@ -20,7 +20,7 @@ LDFLAGS=-Wl,"--gc-sections"
 LDFLAGS+=-Wl,"-Map=$(TARGET_MAP)"
 
 CFLAGS+= -DFIRMWARE -DUSE_RAW_HID -DSTM32F733xx -DUSE_HAL_DRIVER -Wall
-CFLAGS+= -Istm32f7xx -I.
+CFLAGS+= -Istm32f7xx -I. -I../signetdev/common
 
 ifeq ($(BT_MODE), A)
 LDFLAGS+= -Wl,"-Tstm32f733iekx_a.ld"

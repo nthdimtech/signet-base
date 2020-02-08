@@ -2,7 +2,7 @@
 #include <stddef.h>
 
 #include "commands.h"
-#include "signetdev_common.h"
+#include "signetdev_common_priv.h"
 #include "firmware_update_state.h"
 #include "bootloader_state.h"
 #include "types.h"

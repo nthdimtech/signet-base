@@ -1,6 +1,6 @@
 #include "usbd_hid.h"
 #include "usbd_multi.h"
-#include "signetdev_common.h"
+#include "signetdev_common_priv.h"
 #ifdef ENABLE_FIDO2
 #include "fido2/ctaphid.h"
 #endif
