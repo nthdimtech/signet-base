@@ -268,6 +268,7 @@ static int8_t SCSI_ReadCapacity10(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_
 
 	if(((USBD_StorageTypeDef *)pdev->pUserData)->GetCapacity(lun, &hmsc->scsi_blk_nbr, &hmsc->scsi_blk_size) != 0) {
 		SCSI_SenseCode(pdev, lun, NOT_READY, MEDIUM_NOT_PRESENT, 0);
+		USBD_LL_StallEP(pdev, MSC_EPIN_ADDR);
 		hmsc->bot_data_length = 0U;
 		hmsc->bot_state = USBD_BOT_NO_DATA;
 		return -1;
@@ -306,9 +307,11 @@ static int8_t SCSI_ReadFormatCapacity(USBD_HandleTypeDef  *pdev, uint8_t lun, ui
 	}
 
 	if(((USBD_StorageTypeDef *)pdev->pUserData)->GetCapacity(lun, &blk_nbr, &blk_size) != 0U) {
-		blk_nbr = 0x200000;
-		blk_size = 0x200;
-		bot_data[8] = 0x03U;
+		SCSI_SenseCode(pdev, lun, NOT_READY, MEDIUM_NOT_PRESENT, 0);
+		USBD_LL_StallEP(pdev, MSC_EPIN_ADDR);
+		hmsc->bot_data_length = 0U;
+		hmsc->bot_state = USBD_BOT_NO_DATA;
+		return -1;
 	} else {
 		bot_data[8] = 0x02U;
 	}
