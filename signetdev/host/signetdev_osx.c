@@ -14,7 +14,7 @@ extern void *g_error_handler_param;
 static int g_opening_connection = 0;
 static int g_emulating = 0;
 static IOHIDManagerRef hid_manager = NULL;
-static IOHIDDeviceRef hid_dev = NULL;
+static IOHIDDeviceRef g_hid_dev = NULL;
 
 static struct send_message_req *g_tail_message = NULL;
 static struct send_message_req *g_head_message = NULL;
@@ -29,7 +29,7 @@ static struct rx_message_state g_rx_message_state;
 static void handle_error()
 {
 	if (g_error_handler) {
-	g_error_handler(g_error_handler_param);
+		g_error_handler(g_error_handler_param);
 	}
 }
 
@@ -65,7 +65,7 @@ static int send_hid_command(int cmd, int messages_remaining, u8 *payload, int pa
 	signetdev_priv_prepare_message_state(&msg, cmd, messages_remaining, payload, payload_size);
 	for (int i = 0; i < msg.msg_packet_count; i++) {
 		signetdev_priv_advance_message_state(&msg);
-		IOHIDDeviceSetReport(hid_dev, kIOHIDReportTypeOutput, 0, msg.packet_buf + 1, signetdev_priv_hid_packet_size());
+		IOHIDDeviceSetReport(g_hid_dev, kIOHIDReportTypeOutput, 0, msg.packet_buf + 1, signetdev_priv_hid_packet_size());
 		//TODO: validate return
 	}
 	return 0;
@@ -77,7 +77,7 @@ static void handle_command(int command, void *p)
 {
 	switch (command) {
 	case SIGNETDEV_CMD_EMULATE_BEGIN:
-		if (!g_opening_connection && hid_dev == NULL) {
+		if (!g_opening_connection && g_hid_dev == NULL) {
 			g_emulating = 1;
 			command_response(1);
 		} else {
@@ -88,14 +88,16 @@ static void handle_command(int command, void *p)
 		g_emulating = 0;
 		break;
 	case SIGNETDEV_CMD_OPEN:
-		if (hid_dev == NULL) {
+		if (g_hid_dev == NULL) {
 			CFSetRef refs = IOHIDManagerCopyDevices(hid_manager);
 			if (refs) {
 				int ref_count = CFSetGetCount(refs);
 				if (ref_count > 0) {
 					const void **values = (const void **)malloc(sizeof(void *) * ref_count);
 					CFSetGetValues(refs, values);
-					int rc = open_device((IOHIDDeviceRef)values[0]);
+					g_hid_dev = (IOHIDDeviceRef)values[0];
+					g_device_type = SIGNETDEV_DEVICE_ORIGINAL; //TODO
+					int rc = open_device(g_hid_dev);
 					int i;
 					if (!rc) {
 						CFRelease((CFTypeRef)values[0]);
@@ -107,20 +109,20 @@ static void handle_command(int command, void *p)
 				}
 			}
 		}
-		if (hid_dev == NULL) {
+		if (g_hid_dev == NULL) {
 			g_opening_connection = 1;
-			command_response(-1);
+			command_response(SIGNETDEV_DEVICE_NONE);
 		} else {
 			g_opening_connection = 0;
-			command_response(0);
+			command_response(g_device_type);
 		}
 	break;
 	case SIGNETDEV_CMD_CLOSE:
 		g_opening_connection = 0;
-		if (hid_dev != NULL) {
-			IOHIDDeviceClose(hid_dev, kIOHIDOptionsTypeNone);
-			CFRelease((CFTypeRef)hid_dev);
-			hid_dev = NULL;
+		if (g_hid_dev != NULL) {
+			IOHIDDeviceClose(g_hid_dev, kIOHIDOptionsTypeNone);
+			CFRelease((CFTypeRef)g_hid_dev);
+			g_hid_dev = NULL;
 		}
 	break;
 	case SIGNETDEV_CMD_QUIT:
@@ -183,9 +185,9 @@ static void detach_callback(void *context, IOReturn r, void *hid_mgr, IOHIDDevic
 	(void)context;
 	(void)r;
 	(void)hid_mgr;
-	if (dev == hid_dev && hid_dev != NULL) {
-		CFRelease((CFTypeRef)hid_dev);
-		hid_dev = NULL;
+	if (dev == g_hid_dev && g_hid_dev != NULL) {
+		CFRelease((CFTypeRef)g_hid_dev);
+		g_hid_dev = NULL;
 		g_device_type = SIGNETDEV_DEVICE_NONE;
 	}
 	//TODO: Shouldn't this code be in the if block above?
@@ -253,7 +255,6 @@ static int open_device(IOHIDDeviceRef dev)
 	IOHIDDeviceScheduleWithRunLoop(dev, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
 	IOHIDDeviceRegisterInputReportCallback(dev, g_input_buffer, sizeof(g_input_buffer),
 		input_callback, NULL);
-	hid_dev = dev;
 	if (g_opening_connection) {
 		g_opening_connection = 0;
 		if (g_device_opened_cb) {
@@ -263,32 +264,41 @@ static int open_device(IOHIDDeviceRef dev)
 	return 1;
 }
 
-static CFMutableDictionaryRef signet_dict;
-static CFMutableDictionaryRef signet_hc_dict;
-
 static void attach_callback(void *context, IOReturn r, void *hid_mgr, IOHIDDeviceRef dev)
 {
 	(void)context;
 	(void)r;
 	(void)hid_mgr;
 
-	CFArrayRef signet_matches = IOHIDDeviceCopyMatchingElements(dev, signet_dict, NULL);
-	CFArrayRef signet_hc_matches = IOHIDDeviceCopyMatchingElements(dev, signet_hc_dict, NULL);
+	int vid;
+	int pid;
 
-	if (CFArrayGetCount(signet_hc_matches) > CFArrayGetCount(signet_matches)) {
+	CFNumberRef num;
+	num = IOHIDDeviceGetProperty(dev, CFSTR(kIOHIDVendorIDKey));
+	CFNumberGetValue(num, kCFNumberIntType, &vid);
+	CFRelease(num);
+
+	num = IOHIDDeviceGetProperty(dev, CFSTR(kIOHIDProductIDKey));
+	CFNumberGetValue(num, kCFNumberIntType, &pid);
+	CFRelease(num);
+
+	int match_found = 0;
+
+	if (vid == USB_SIGNET_HC_VENDOR_ID && pid == USB_SIGNET_HC_PRODUCT_ID) {
 		g_device_type = SIGNETDEV_DEVICE_HC;
-	} else {
+		match_found = 1;
+	} else if (vid == USB_SIGNET_VENDOR_ID && pid == USB_SIGNET_PRODUCT_ID) {
 		g_device_type = SIGNETDEV_DEVICE_ORIGINAL;
+		match_found = 1;
 	}
 
-	if (hid_dev == NULL) {
-		if (open_device(dev)) {
-			CFRetain((CFTypeRef)hid_dev);
+	if (match_found && g_hid_dev == NULL) {
+		g_hid_dev = dev;
+		if (open_device(g_hid_dev)) {
+			CFRetain((CFTypeRef)g_hid_dev);
 		} else {
 			g_device_type = SIGNETDEV_DEVICE_NONE;
 		}
-	} else {
-		g_device_type = SIGNETDEV_DEVICE_NONE;
 	}
 }
 
@@ -310,6 +320,8 @@ void *transaction_thread(void *arg)
 	CFNumberRef num;
 	IOReturn ret;
 	CFArrayRef all_dict;
+	CFMutableDictionaryRef signet_dict;
+	CFMutableDictionaryRef signet_hc_dict;
 	int signet_vid = USB_SIGNET_VENDOR_ID;
 	int signet_pid = USB_SIGNET_PRODUCT_ID;
 	int signet_hc_vid = USB_SIGNET_HC_VENDOR_ID;
@@ -365,10 +377,9 @@ void *transaction_thread(void *arg)
 	//
 	CFMutableDictionaryRef devices[2] = {signet_dict, signet_hc_dict};
 	all_dict = CFArrayCreate(NULL, (const void **)devices, 2, &kCFTypeArrayCallBacks);
-
 	IOHIDManagerSetDeviceMatchingMultiple(hid_manager, all_dict);
-	//IOHIDManagerSetDeviceMatching(hid_manager, dict);
 	CFRelease(signet_dict);
+	CFRelease(signet_hc_dict);
 
 	IOHIDManagerScheduleWithRunLoop(hid_manager, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
 	IOHIDManagerRegisterDeviceMatchingCallback(hid_manager, attach_callback, NULL);
