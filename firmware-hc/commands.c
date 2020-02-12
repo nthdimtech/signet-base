@@ -33,7 +33,7 @@ static int cmd_iter_count = 0;
 static int cmd_messages_remaining = 0;
 static int g_write_db_tx_complete = 0;
 static int g_read_db_tx_complete = 0;
-
+static int g_uninitialized_wiped = 0;
 static int g_mmc_tx_cplt = 0;
 static int g_mmc_tx_dma_cplt = 0;
 static int g_mmc_rx_cplt = 0;
@@ -594,6 +594,7 @@ static void write_block_complete()
 		g_progress_level[0] = cmd_data.wipe_data.block_idx;
 		get_progress_check();
 		if (cmd_data.wipe_data.block_idx == NUM_STORAGE_BLOCKS) {
+			g_uninitialized_wiped = 1;
 			enter_state(DS_UNINITIALIZED);
 		} else {
 			write_data_block(cmd_data.wipe_data.block_idx,
@@ -1218,6 +1219,9 @@ int uninitialized_state(int cmd, u8 *data, int data_len)
 	case INITIALIZE:
 		initialize_cmd(data, data_len);
 		break;
+	case WIPE:
+		wipe_cmd();
+		break;
 	case GET_DEVICE_CAPACITY:
 		get_device_capacity_cmd(data, data_len);
 		break;
@@ -1233,7 +1237,7 @@ int uninitialized_state(int cmd, u8 *data, int data_len)
 		break;
 #else
 	case UPDATE_FIRMWARE:
-		if (is_device_wiped()) {
+		if (g_uninitialized_wiped) {
 			update_firmware_cmd(data, data_len);
 			begin_long_button_press_wait();
 		} else {
@@ -1512,6 +1516,7 @@ void startup_cmd_iter()
 	resp[7] = 0;
 #ifdef BOOT_MODE_B
 	if (!g_root_page_valid) {
+		g_uninitialized_wiped = 0;
 		enter_state(DS_UNINITIALIZED);
 		resp[3] = g_device_state;
 		finish_command(OKAY, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
@@ -1528,6 +1533,7 @@ void startup_cmd_iter()
 		resp[7] = root_page.upgrade_state;
 		break;
 	default:
+		g_uninitialized_wiped = 0;
 		enter_state(DS_UNINITIALIZED);
 		resp[3] = g_device_state;
 		finish_command(UNKNOWN_DB_FORMAT, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
@@ -1539,6 +1545,7 @@ void startup_cmd_iter()
 		db3_startup_scan(cmd_data.startup.block, &cmd_data.startup.blk_info);
 		break;
 	default:
+		g_uninitialized_wiped = 0;
 		enter_state(DS_UNINITIALIZED);
 		resp[3] = g_device_state;
 		finish_command(UNKNOWN_DB_FORMAT, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
