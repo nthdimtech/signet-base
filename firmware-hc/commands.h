@@ -169,5 +169,6 @@ void emmc_user_done();
 extern int g_progress_level[];
 extern u8 g_encrypt_key[];
 void command_idle();
+int command_idle_ready();
 
 #endif

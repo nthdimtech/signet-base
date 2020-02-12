@@ -154,6 +154,11 @@ void emmc_user_db_start()
 	}
 }
 
+int command_idle_ready()
+{
+	return g_read_db_tx_complete | g_write_db_tx_complete | g_mmc_tx_cplt | g_mmc_tx_dma_cplt | g_mmc_rx_cplt;
+}
+
 void command_idle()
 {
 	if (g_read_db_tx_complete) {

@@ -107,6 +107,11 @@ enum hc_boot_mode flash_get_boot_mode()
 	return HC_BOOT_UNKNOWN_MODE;
 }
 
+int flash_idle_ready()
+{
+	return (flash_state != FLASH_IDLE) ? 1 : 0;
+}
+
 void flash_idle()
 {
 	uint32_t bs;

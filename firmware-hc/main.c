@@ -357,6 +357,20 @@ int main (void)
 	USBD_Start(&USBD_Device);
 
 	while (1) {
+		int work_to_do = 0;
+		__asm__("cpsid i");
+		work_to_do |= usb_keyboard_idle_ready();
+		work_to_do |= command_idle_ready();
+		work_to_do |= flash_idle_ready();
+		work_to_do |= usbd_scsi_idle_ready();
+		work_to_do |= (g_timer_target != 0) ? 1 : 0;
+		work_to_do |= (g_blink_period > 0) ? 1 : 0;
+		work_to_do |= g_press_pending;
+		work_to_do |= g_button_state;
+		if (!work_to_do) {
+			__asm__("wfi");
+		}
+		__asm__("cpsie i");
 		int ms_count = HAL_GetTick();
 		if (ms_count > g_timer_target && g_timer_target != 0) {
 			timer_timeout();

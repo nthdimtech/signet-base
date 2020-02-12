@@ -695,6 +695,15 @@ void HAL_CRYP_OutCpltCallback(CRYP_HandleTypeDef *hcryp)
 
 #endif
 
+int usbd_scsi_idle_ready()
+{
+#ifdef BOOT_MODE_B
+	return g_cryptOutInt;
+#else
+	return 0;
+#endif
+}
+
 void usbd_scsi_idle()
 {
 #ifdef BOOT_MODE_B
