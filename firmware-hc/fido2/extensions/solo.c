@@ -19,7 +19,7 @@
  * This code is available under licenses for commercial use.
  * Please contact SoloKeys for more information.
  */
-#ifdef NEN_TODO
+#ifdef ENABLE_U2F_EXTENSIONS
 
 #include <stdint.h>
 #include "extensions.h"

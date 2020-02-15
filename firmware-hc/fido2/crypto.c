@@ -12,18 +12,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-
-
 #include "util.h"
 #include "crypto.h"
 
-#ifdef USE_SOFTWARE_IMPLEMENTATION
-
-#ifdef ORIGINAL_VER
-#include "sha256.h"
-#include "uECC.h"
-#include "aes.h"
-#else
 #include "types.h"
 #define AES_BLK_SIZE (16)
 #include <nettle/sha2.h>
@@ -31,49 +22,18 @@
 #include <nettle/ecc.h>
 #include <nettle/ecc-curve.h>
 #include <nettle/ecdsa.h>
-#endif
 
 #include "ctap.h"
 #include "device.h"
 #include "log.h"
-
-#ifdef NEN_TODO
-#include APP_CONFIG
-#endif
-
-#ifdef USING_PC
-typedef enum
-{
-    MBEDTLS_ECP_DP_NONE = 0,
-    MBEDTLS_ECP_DP_SECP192R1,      /*!< 192-bits NIST curve  */
-    MBEDTLS_ECP_DP_SECP224R1,      /*!< 224-bits NIST curve  */
-    MBEDTLS_ECP_DP_SECP256R1,      /*!< 256-bits NIST curve  */
-    MBEDTLS_ECP_DP_SECP384R1,      /*!< 384-bits NIST curve  */
-    MBEDTLS_ECP_DP_SECP521R1,      /*!< 521-bits NIST curve  */
-    MBEDTLS_ECP_DP_BP256R1,        /*!< 256-bits Brainpool curve */
-    MBEDTLS_ECP_DP_BP384R1,        /*!< 384-bits Brainpool curve */
-    MBEDTLS_ECP_DP_BP512R1,        /*!< 512-bits Brainpool curve */
-    MBEDTLS_ECP_DP_CURVE25519,           /*!< Curve25519               */
-    MBEDTLS_ECP_DP_SECP192K1,      /*!< 192-bits "Koblitz" curve */
-    MBEDTLS_ECP_DP_SECP224K1,      /*!< 224-bits "Koblitz" curve */
-    MBEDTLS_ECP_DP_SECP256K1,      /*!< 256-bits "Koblitz" curve */
-} mbedtls_ecp_group_id;
-#endif
-
 
 const uint8_t attestation_cert_der[];
 const uint16_t attestation_cert_der_size;
 const uint8_t attestation_key[];
 const uint16_t attestation_key_size;
 
-
-#ifdef ORIGINAL_VER
-static SHA256_CTX sha256_ctx;
-static const struct uECC_Curve_t * _es256_curve = NULL;
-#else
 struct sha256_ctx sha256_ctx;
 static const struct ecc_curve * _es256_curve = NULL;
-#endif
 static const uint8_t * _signing_key = NULL;
 static int _key_len = 0;
 
@@ -104,29 +64,17 @@ void crypto_load_master_secret(uint8_t * key)
 
 void crypto_sha256_update(uint8_t * data, size_t len)
 {
-#ifdef ORIGINAL_VER
-    sha256_update(&sha256_ctx, data, len);
-#else
     sha256_update(&sha256_ctx, len, data);
-#endif
 }
 
 void crypto_sha256_update_secret()
 {
-#ifdef ORIGINAL_VER
-    sha256_update(&sha256_ctx, master_secret, 32);
-#else
     sha256_update(&sha256_ctx, SHA256_BLOCK_SIZE, master_secret);
-#endif
 }
 
 void crypto_sha256_final(uint8_t * hash)
 {
-#ifdef ORIGINAL_VER
-    sha256_final(&sha256_ctx, hash);
-#else
     sha256_digest(&sha256_ctx, SHA256_DIGEST_SIZE, hash);
-#endif
 }
 
 void crypto_sha256_hmac_init(uint8_t * key, uint32_t klen, uint8_t * hmac)
@@ -197,12 +145,7 @@ void crypto_sha256_hmac_final(uint8_t * key, uint32_t klen, uint8_t * hmac)
 
 void crypto_ecc256_init()
 {
-#ifdef ORIGINAL_VER
-    uECC_set_rng((uECC_RNG_Function)ctap_generate_rng);
-    _es256_curve = uECC_secp256r1();
-#else
     _es256_curve = nettle_get_secp_256r1();
-#endif
 }
 
 
@@ -214,25 +157,16 @@ void crypto_ecc256_load_attestation_key()
 
 static void crypto_random_func(void *ctx, size_t length, uint8_t *dst)
 {
-	//NEN_TODO
+	//HC_TODO
 }
 
 static void crypto_sign(const struct ecc_curve *curve, const uint8_t * data, int len, uint8_t * sig);
 
 void crypto_ecc256_sign(uint8_t * data, int len, uint8_t * sig)
 {
-#ifdef ORIGINAL_VER
-    if ( uECC_sign(_signing_key, data, len, sig, _es256_curve) == 0)
-    {
-        printf2(TAG_ERR,"error, uECC failed\n");
-        exit(1);
-    }
-#else
     crypto_sign(_es256_curve, data, len, sig);
-#endif
 }
 
-#ifndef ORIGINAL_VER
 static void crypto_sign(const struct ecc_curve *curve, const uint8_t * data, int len, uint8_t * sig)
 {
     struct dsa_signature signature_pt;
@@ -251,10 +185,9 @@ static void crypto_sign(const struct ecc_curve *curve, const uint8_t * data, int
     ecc_point_init(&temp, _es256_curve);
     ecc_point_set(&temp, signature_pt.r, signature_pt.s);
     memcpy(sig, temp.p, ecc_size(_es256_curve)*2);
-    //NEN_TODO: feed GMP's allocator/deallocator
-    //NEN_TODO: cleanup gmp memory
+    //HC_TODO: feed GMP's allocator/deallocator
+    //HC_TODO: cleanup gmp memory
 }
-#endif
 
 void crypto_ecc256_load_key(uint8_t * data, int len, uint8_t * data2, int len2)
 {
@@ -264,8 +197,6 @@ void crypto_ecc256_load_key(uint8_t * data, int len, uint8_t * data2, int len2)
     _key_len = 32;
 }
 
-#ifndef NEN_TODO
-//NEN_TODO: Why do we need this here?
 typedef enum
 {
     MBEDTLS_ECP_DP_NONE = 0,
@@ -282,47 +213,9 @@ typedef enum
     MBEDTLS_ECP_DP_SECP224K1,      /*!< 224-bits "Koblitz" curve */
     MBEDTLS_ECP_DP_SECP256K1,      /*!< 256-bits "Koblitz" curve */
 } mbedtls_ecp_group_id;
-#endif
 
 void crypto_ecdsa_sign(uint8_t * data, int len, uint8_t * sig, int MBEDTLS_ECP_ID)
 {
-#if ORIGINAL_VER
-    const struct uECC_Curve_t * curve = NULL;
-
-    switch(MBEDTLS_ECP_ID)
-    {
-        case MBEDTLS_ECP_DP_SECP192R1:
-            curve = uECC_secp192r1();
-            if (_key_len != 24)  goto fail;
-            break;
-        case MBEDTLS_ECP_DP_SECP224R1:
-            curve = uECC_secp224r1();
-            if (_key_len != 28)  goto fail;
-            break;
-        case MBEDTLS_ECP_DP_SECP256R1:
-            curve = uECC_secp256r1();
-            if (_key_len != 32)  goto fail;
-            break;
-        case MBEDTLS_ECP_DP_SECP256K1:
-            curve = uECC_secp256k1();
-            if (_key_len != 32)  goto fail;
-            break;
-        default:
-            printf2(TAG_ERR,"error, invalid ECDSA alg specifier\n");
-            exit(1);
-    }
-
-    if ( uECC_sign(_signing_key, data, len, sig, curve) == 0)
-    {
-        printf2(TAG_ERR,"error, uECC failed\n");
-        exit(1);
-    }
-    return;
-
-fail:
-    printf2(TAG_ERR,"error, invalid key length\n");
-    exit(1);
-#else
     const struct ecc_curve *curve = NULL;
 
     switch(MBEDTLS_ECP_ID)
@@ -339,7 +232,7 @@ fail:
             curve = nettle_get_secp_256r1();
             if (_key_len != 32)  goto fail;
             break;
-        //NEN_TODO: Nettle doesn't have this curve
+        //HC_TODO: Nettle doesn't have this curve
         /*
         case MBEDTLS_ECP_DP_SECP256K1:
             curve = uECC_secp256k1();
@@ -355,7 +248,6 @@ fail:
 fail:
 	printf2(TAG_ERR,"error, invalid key length\n");
 	exit(1);
-#endif
 }
 
 void generate_private_key(uint8_t * data, int len, uint8_t * data2, int len2, uint8_t * privkey)
@@ -366,8 +258,6 @@ void generate_private_key(uint8_t * data, int len, uint8_t * data2, int len2, ui
     crypto_sha256_update(master_secret, 32);
     crypto_sha256_hmac_final(CRYPTO_MASTER_KEY, 0, privkey);
 }
-
-#ifndef ORIGINAL_VER
 
 static void mpz_from_buffer(mpz_t *val, const struct ecc_curve *curve, const uint8_t *buffer)
 {
@@ -382,7 +272,7 @@ static void scalar_from_key_buffer(const struct ecc_curve *curve, struct ecc_sca
     mpz_from_buffer(&val, curve, key_buffer);
     ecc_scalar_init(key, curve);
     ecc_scalar_set(key, val);
-    //NEN_TODO: cleanup gmp memory
+    //HC_TODO: cleanup gmp memory
 }
 
 static void crypto_compute_public_key(const struct ecc_curve *curve, uint8_t *pubkey, const uint8_t *privkey)
@@ -394,7 +284,6 @@ static void crypto_compute_public_key(const struct ecc_curve *curve, uint8_t *pu
 	ecdsa_generate_pub_from_priv(&pub_pt, &priv_scalar);
     memmove(pubkey, pub_pt.p, 64);
 }
-#endif
 
 void crypto_ecc256_derive_public_key(uint8_t * data, int len, uint8_t * x, uint8_t * y)
 {
@@ -404,22 +293,14 @@ void crypto_ecc256_derive_public_key(uint8_t * data, int len, uint8_t * x, uint8
     generate_private_key(data,len,NULL,0,privkey);
 
     memset(pubkey,0,sizeof(pubkey));
-#ifdef ORIGINAL_VER
-    uECC_compute_public_key(privkey, pubkey, _es256_curve);
-#else
     crypto_compute_public_key(_es256_curve, pubkey, privkey);
-#endif
     memmove(x,pubkey,32);
     memmove(y,pubkey+32,32);
 }
 
 void crypto_ecc256_compute_public_key(uint8_t * privkey, uint8_t * pubkey)
 {
-#ifdef ORIGINAL_VER
-    uECC_compute_public_key(privkey, pubkey, _es256_curve);
-#else
     crypto_compute_public_key(_es256_curve, pubkey, privkey);
-#endif
 }
 
 void crypto_load_external_key(uint8_t * key, int len)
@@ -430,13 +311,6 @@ void crypto_load_external_key(uint8_t * key, int len)
 
 void crypto_ecc256_make_key_pair(uint8_t * pubkey, uint8_t * privkey)
 {
-#ifdef ORIGINAL_VER
-    if (uECC_make_key(pubkey, privkey, _es256_curve) != 1)
-    {
-        printf2(TAG_ERR,"Error, uECC_make_key failed\n");
-        exit(1);
-    }
-#else
     struct ecc_point pub_pt;
     struct ecc_scalar key_scalar;
     ecc_scalar_init(&key_scalar, _es256_curve);
@@ -446,18 +320,10 @@ void crypto_ecc256_make_key_pair(uint8_t * pubkey, uint8_t * privkey)
     		NULL, crypto_random_func);
     memmove(pubkey, pub_pt.p, 64);
     memmove(privkey, key_scalar.p, 32);
-#endif
 }
 
 void crypto_ecc256_shared_secret(const uint8_t * pubkey, const uint8_t * privkey, uint8_t * shared_secret)
 {
-#ifdef NEN_TODO
-    if (uECC_shared_secret(pubkey, privkey, shared_secret, _es256_curve) != 1)
-    {
-        printf2(TAG_ERR,"Error, uECC_shared_secret failed\n");
-        exit(1);
-    }
-#else
     struct ecc_point pubkey_point;
     mpz_t x, y;
     mpz_from_buffer(&x, _es256_curve, pubkey);
@@ -473,43 +339,20 @@ void crypto_ecc256_shared_secret(const uint8_t * pubkey, const uint8_t * privkey
     ecc_point_mul(&result, &privkey_scalar, &pubkey_point);
 
     memcpy(shared_secret, result.p, ecc_size(_es256_curve));
-#endif
 }
 
-#ifdef ORIGINAL_VER
-struct AES_ctx aes_ctx;
-#else
 struct aes256_ctx aes_ctx;
 uint8_t aes_ctxIv[16];
-#endif
 void crypto_aes256_init(uint8_t * key, uint8_t * nonce)
 {
     if (key == CRYPTO_TRANSPORT_KEY)
     {
-#ifdef ORIGINAL_VER
-        AES_init_ctx(&aes_ctx, transport_secret);
-#else
         aes256_set_encrypt_key(&aes_ctx, key);
-#endif
     }
     else
     {
-#ifdef ORIGINAL_VER
-        AES_init_ctx(&aes_ctx, key);
-#else
         aes256_set_encrypt_key(&aes_ctx, key);
-#endif
     }
-#ifdef ORIGINAL_VER
-    if (nonce == NULL)
-    {
-        memset(aes_ctx.Iv, 0, 16);
-    }
-    else
-    {
-        memmove(aes_ctx.Iv, nonce, 16);
-    }
-#else
     if (nonce == NULL)
     {
         memset(aes_ctxIv, 0, 16);
@@ -518,22 +361,11 @@ void crypto_aes256_init(uint8_t * key, uint8_t * nonce)
     {
         memmove(aes_ctxIv, nonce, 16);
     }
-#endif
 }
 
 // prevent round key recomputation
 void crypto_aes256_reset_iv(uint8_t * nonce)
 {
-#ifdef ORIGINAL_VER
-    if (nonce == NULL)
-    {
-        memset(aes_ctx.Iv, 0, 16);
-    }
-    else
-    {
-        memmove(aes_ctx.Iv, nonce, 16);
-    }
-#else
     if (nonce == NULL)
     {
         memset(aes_ctxIv, 0, 16);
@@ -542,20 +374,17 @@ void crypto_aes256_reset_iv(uint8_t * nonce)
     {
         memmove(aes_ctxIv, nonce, 16);
     }
-#endif
 }
 
-//NEN_TODO: this is poorly named and poorly placed
+//HC_TODO: this is poorly named and poorly placed
 void xor_block(const u8 *src_block, const u8 *mask, u8 *dst_block);
 
+//HC_TODO: Don't we already have this in the DB code?
 void crypto_aes256_decrypt(uint8_t * buf, int length)
 {
-#ifdef ORIGINAL_VER
-    AES_CBC_decrypt_buffer(&aes_ctx, buf, length);
-#else
-    //NEN_TODO: can we be sure this a block size multiple?
-    int n_blocks = length / AES_BLK_SIZE;
-    uint8_t *iv = aes_ctxIv;
+	//HC_TODO: can we be sure this a block size multiple?
+	int n_blocks = length / AES_BLK_SIZE;
+	uint8_t *iv = aes_ctxIv;
 	for (int i = 0; i < n_blocks; i++) {
 		u8 temp[AES_BLK_SIZE];
 		xor_block(buf + AES_BLK_SIZE * i, iv, temp);
@@ -565,15 +394,12 @@ void crypto_aes256_decrypt(uint8_t * buf, int length)
 			memcpy(aes_ctxIv, iv, AES_BLK_SIZE);
 		}
 	}
-#endif
 }
 
+//HC_TODO: Don't we already have this in the DB code?
 void crypto_aes256_encrypt(uint8_t * buf, int length)
 {
-#ifdef ORIGINAL_VER
-    AES_CBC_encrypt_buffer(&aes_ctx, buf, length);
-#else
-    //NEN_TODO: can we be sure this a block size multiple?
+    //HC_TODO: can we be sure this a block size multiple?
     int n_blocks = length / AES_BLK_SIZE;
     uint8_t *iv = aes_ctxIv;
 	for (int i = 0; i < n_blocks; i++) {
@@ -585,7 +411,6 @@ void crypto_aes256_encrypt(uint8_t * buf, int length)
 			memcpy(aes_ctxIv, iv, AES_BLK_SIZE);
 		}
 	}
-#endif
 }
 
 
@@ -623,8 +448,3 @@ const uint16_t attestation_cert_der_size = sizeof(attestation_cert_der)-1;
 
 const uint8_t attestation_key[] = "\xcd\x67\xaa\x31\x0d\x09\x1e\xd1\x6e\x7e\x98\x92\xaa\x07\x0e\x19\x94\xfc\xd7\x14\xae\x7c\x40\x8f\xb9\x46\xb7\x2e\x5f\xe7\x5d\x30";
 const uint16_t attestation_key_size = sizeof(attestation_key)-1;
-
-
-#else
-#error "No crypto implementation defined"
-#endif

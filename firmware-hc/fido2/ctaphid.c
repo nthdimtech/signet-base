@@ -20,16 +20,8 @@
 
 // move custom SHA512 command out,
 // and the following headers too
-#ifdef NEN_TODO
-#include "sha2.h"
-#else
 #include "nettle/sha2.h"
-#endif
 #include "crypto.h"
-
-#ifdef NEN_TODO
-#include APP_CONFIG
-#endif
 
 typedef enum
 {

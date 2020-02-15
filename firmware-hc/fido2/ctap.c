@@ -21,10 +21,6 @@
 #include "log.h"
 #include "device.h"
 
-#ifdef NEN_TODO
-#include APP_CONFIG
-#endif
-
 #include "wallet.h"
 #include "extensions.h"
 
@@ -37,94 +33,6 @@ static uint8_t KEY_AGREEMENT_PRIV[32];
 static int8_t PIN_BOOT_ATTEMPTS_LEFT = PIN_BOOT_ATTEMPTS;
 
 AuthenticatorState STATE;
-
-#ifndef NEN_TODO
-
-#include "stm32f7xx_hal.h"
-
-int device_is_nfc()
-{
-	return 0;
-}
-
-void authenticator_write_state(AuthenticatorState *state, int backup)
-{
-	//NEN_TODO
-}
-
-uint32_t ctap_atomic_count(int sel)
-{
-	//NEN_TODO: what is sel?
-	static uint32_t count = 1;
-	return count++;
-}
-
-void device_set_status(uint32_t status)
-{
-	//NEN_TODO
-}
-
-int ctap_user_presence_test(uint32_t delay)
-{
-	//NEN_TODO
-	return 1;
-}
-
-int ctap_generate_rng(uint8_t * dst, size_t num)
-{
-	//NEN_TODO
-	return 1;
-}
-
-uint32_t millis()
-{
-	return HAL_GetTick();
-}
-
-void ctap_reset_rk()
-{
-
-}
-
-uint32_t ctap_rk_size()
-{
-		return 128; //NEN_TODO
-}
-
-void ctap_store_rk(int index,CTAP_residentKey * rk)
-{
-	//NEN_TODO
-}
-
-void ctap_load_rk(int index,CTAP_residentKey * rk)
-{
-	//NEN_TODO
-}
-
-void ctap_overwrite_rk(int index, CTAP_residentKey * rk)
-{
-	//NEN_TODO
-}
-
-void device_disable_up(bool request_active)
-{
-	//NEN_TODO
-}
-
-void device_wink()
-{
-	//NEN_TODO
-}
-
-#include "usbd_multi.h"
-#include "usbd_hid.h"
-
-void ctaphid_write_block(uint8_t * data)
-{
-	usb_send_bytes(HID_FIDO_EPIN_ADDR, data, 64); //NEN_TODO
-}
-
-#endif
 
 static void ctap_reset_key_agreement();
 
@@ -346,13 +254,12 @@ static int ctap_generate_cose_key(CborEncoder * cose_key, uint8_t * hmac_input, 
     switch(algtype)
     {
         case COSE_ALG_ES256:
-#ifdef NEN_TODO
-            if (device_is_nfc() == NFC_IS_ACTIVE) device_set_clock_rate(DEVICE_LOW_POWER_FAST);
-#endif
+	    //HC_TODO: We don't use NFC
+	    //if (device_is_nfc() == NFC_IS_ACTIVE) device_set_clock_rate(DEVICE_LOW_POWER_FAST);
             crypto_ecc256_derive_public_key(hmac_input, len, x, y);
-#ifdef NEN_TODO
-            if (device_is_nfc() == NFC_IS_ACTIVE) device_set_clock_rate(DEVICE_LOW_POWER_IDLE);
-#endif
+
+	    //HC_TODO: We don't use NFC
+            //if (device_is_nfc() == NFC_IS_ACTIVE) device_set_clock_rate(DEVICE_LOW_POWER_IDLE);
             break;
         default:
             printf2(TAG_ERR,"Error, COSE alg %d not supported\n", algtype);
@@ -530,28 +437,20 @@ static unsigned int get_credential_id_size(CTAP_credentialDescriptor * cred)
 
 static int ctap2_user_presence_test()
 {
-#ifndef NEN_TODO
+	//
+	// HC_TODO: We return success every time here because we need to operate
+	// asynchrounously so in the end we need to change some of the other code
+	// to get the desired result. We need to provide the same results
+	//
+	// ret = ctap_user_presence_test(CTAP2_UP_DELAY_MS)
+	//
+	// asynchronously according to the following rules
+	// CTAP1_ERR_SUCCESS: ret == 1
+	// CTAP2_ERR_PROCESSING: ret > 1
+	// CTAP2_ERR_KEEPALIVE_CANCEL: ret < 1
+	// CTAP2_ERR_ACTION_TIMEOUT: ret == 0
+	//
 	return CTAP1_ERR_SUCCESS;
-#else
-    device_set_status(CTAPHID_STATUS_UPNEEDED);
-    int ret = ctap_user_presence_test(CTAP2_UP_DELAY_MS);
-    if ( ret > 1 )
-    {
-        return CTAP2_ERR_PROCESSING;
-    }
-    else if ( ret > 0 )
-    {
-        return CTAP1_ERR_SUCCESS;
-    }
-    else if (ret < 0)
-    {
-        return CTAP2_ERR_KEEPALIVE_CANCEL;
-    }
-    else
-    {
-        return CTAP2_ERR_ACTION_TIMEOUT;
-    }
-#endif
 }
 
 static int ctap_make_auth_data(struct rpId * rp, CborEncoder * map, uint8_t * auth_data_buf, uint32_t * len, CTAP_credInfo * credInfo)
@@ -593,8 +492,8 @@ static int ctap_make_auth_data(struct rpId * rp, CborEncoder * map, uint8_t * au
         check_retr(but);
         authData->head.flags = (1 << 0);        // User presence
     }
-    
-    
+
+
     device_set_status(CTAPHID_STATUS_PROCESSING);
 
     authData->head.flags |= (ctap_is_pin_set() << 2);
@@ -1620,15 +1519,11 @@ uint8_t ctap_client_pin(CborEncoder * encoder, uint8_t * request, int length)
             ret = cbor_encode_int(&map, RESP_keyAgreement);
             check_ret(ret);
 
-#ifdef NEN_TODO
-            if (device_is_nfc() == NFC_IS_ACTIVE) device_set_clock_rate(DEVICE_LOW_POWER_FAST);
-#endif
-#ifndef NEN_TODO
+	    //HC_TODO: We don't need the line below because we don't use NFC
+            //if (device_is_nfc() == NFC_IS_ACTIVE) device_set_clock_rate(DEVICE_LOW_POWER_FAST);
             crypto_ecc256_compute_public_key(KEY_AGREEMENT_PRIV, KEY_AGREEMENT_PUB);
-#endif
-#ifdef NEN_TODO
-            if (device_is_nfc() == NFC_IS_ACTIVE) device_set_clock_rate(DEVICE_LOW_POWER_IDLE);
-#endif
+	    //HC_TODO: We don't need the line below because we don't use NFC
+            //if (device_is_nfc() == NFC_IS_ACTIVE) device_set_clock_rate(DEVICE_LOW_POWER_IDLE);
             ret = ctap_add_cose_key(&map, KEY_AGREEMENT_PUB, KEY_AGREEMENT_PUB+32, PUB_KEY_CRED_PUB_KEY, COSE_ALG_ECDH_ES_HKDF_256);
             check_retr(ret);
 
@@ -1994,7 +1889,10 @@ uint8_t ctap_decrement_pin_attempts()
 
 int8_t ctap_device_locked()
 {
-    return /* STATE.remaining_tries <= 0*/ 0; //NEN_TODO
+	//HC_TODO: Always say device is unlocked until we understand the
+	//locking process
+	return 0;
+	//return STATE.remaining_tries;
 }
 
 int8_t ctap_device_boot_locked()
@@ -2004,7 +1902,9 @@ int8_t ctap_device_boot_locked()
 
 int8_t ctap_leftover_pin_attempts()
 {
-    return /* STATE.remaining_tries */1; //NEN_TODO
+	//HC_TODO: Hardcoding to 1 until we can track unlock attempts
+	return 1;
+	//return STATE.remaining_tries 1;
 }
 
 void ctap_reset_pin_attempts()
@@ -2120,11 +2020,7 @@ int8_t ctap_load_key(uint8_t index, uint8_t * key)
 
 static void ctap_reset_key_agreement()
 {
-#ifdef NEN_TODO
-    ctap_generate_rng(KEY_AGREEMENT_PRIV, sizeof(KEY_AGREEMENT_PRIV));
-#else
     crypto_ecc256_make_key_pair(KEY_AGREEMENT_PUB, KEY_AGREEMENT_PRIV);
-#endif
 }
 
 void ctap_reset()

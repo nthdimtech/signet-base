@@ -6,10 +6,6 @@
 // copied, modified, or distributed except according to those terms.
 #include "wallet.h"
 
-#ifdef NEN_TODO
-#include APP_CONFIG
-#endif
-
 #include "ctap.h"
 #include "ctap_errors.h"
 #include "crypto.h"

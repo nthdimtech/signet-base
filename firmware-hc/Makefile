@@ -129,7 +129,8 @@ SOURCES+= fido2/crypto.c \
 	  fido2/data_migration.c \
 	  fido2/u2f.c \
 	  fido2/util.c \
-	  fido2/extensions/extensions.c
+	  fido2/extensions/extensions.c \
+	  fido_device.c
 else
 CFLAGS += -DVECT_TAB_OFFSET=0x8000
 endif

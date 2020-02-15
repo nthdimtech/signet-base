@@ -17,10 +17,6 @@
 #include "extensions.h"
 #endif
 
-#ifdef NEN_TODO
-#include APP_CONFIG
-#endif
-
 // void u2f_response_writeback(uint8_t * buf, uint8_t len);
 #ifdef ENABLE_U2F
 static int16_t u2f_register(struct u2f_register_request * req);

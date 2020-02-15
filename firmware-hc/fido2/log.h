@@ -7,11 +7,7 @@
 #ifndef _LOG_H
 #define _LOG_H
 
-#ifdef NEN_TODO
-#include APP_CONFIG
-#else
 #define DEBUG_LEVEL 0
-#endif
 
 #include <stdint.h>
 
