@@ -35,7 +35,7 @@
 #define MAX_TAGS (16)
 #define MAX_VOLUME_NAME_LEN (32)
 #define MAX_VOLUMES (10) //Includes "free space volume" and "primary volume" which can't be deleted
-#define MAX_SCSI_VOLUMES (8)
+#define MAX_SCSI_VOLUMES (2)
 
 enum hc_volumes {
 	VOL_FREE_SPACE,
