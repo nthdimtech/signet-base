@@ -176,30 +176,30 @@ void crypto_ecc256_sign(uint8_t * data, int len, uint8_t * sig)
 
 static void crypto_sign(const struct ecc_curve *curve, const uint8_t * data, int len, uint8_t * sig)
 {
-    struct dsa_signature signature_pt;
-    struct ecc_scalar signing_key_pt;
-    mpz_t val;
-    mpz_init(val);
-    mp_limb_t *l = mpz_limbs_write(val, 32/4);
-    memcpy(l, _signing_key, ecc_size(_es256_curve));
-    ecc_scalar_init(&signing_key_pt, _es256_curve);
-    ecc_scalar_set(&signing_key_pt, val);
-    ecdsa_sign(&signing_key_pt,
-    		NULL, crypto_random_func,
-    		len, data,
-    		&signature_pt);
-    struct ecc_point temp;
-    ecc_point_init(&temp, _es256_curve);
-    ecc_point_set(&temp, signature_pt.r, signature_pt.s);
-    memcpy(sig, temp.p, ecc_size(_es256_curve)*2);
-    //HC_TODO: feed GMP's allocator/deallocator
-    //HC_TODO: cleanup gmp memory
+	struct dsa_signature signature_pt;
+	struct ecc_scalar signing_key_pt;
+	mpz_t val;
+	mpz_init(val);
+	mp_limb_t *l = mpz_limbs_write(val, ecc_size(_es256_curve)/sizeof(mp_limb_t));
+	memcpy(l, _signing_key, ecc_size(_es256_curve));
+	ecc_scalar_init(&signing_key_pt, _es256_curve);
+	ecc_scalar_set(&signing_key_pt, val);
+	ecdsa_sign(&signing_key_pt,
+		NULL, crypto_random_func,
+		len, data,
+		&signature_pt);
+	struct ecc_point temp;
+	ecc_point_init(&temp, _es256_curve);
+	ecc_point_set(&temp, signature_pt.r, signature_pt.s);
+	memcpy(sig, temp.p, ecc_size(_es256_curve)*2);
+	ecc_point_clear(&temp);
+	ecc_scalar_clear(&signing_key_pt);
 }
 
 void crypto_ecc256_load_key(uint8_t * data, int len, uint8_t * data2, int len2)
 {
     static uint8_t privkey[32];
-    generate_private_key(data,len,data2,len2,privkey);
+    generate_private_key(data, len, data2, len2, privkey);
     _signing_key = privkey;
     _key_len = 32;
 }
@@ -259,27 +259,26 @@ fail:
 
 void generate_private_key(uint8_t * data, int len, uint8_t * data2, int len2, uint8_t * privkey)
 {
-    crypto_sha256_hmac_init(CRYPTO_MASTER_KEY, 0, privkey);
-    crypto_sha256_update(data, len);
-    crypto_sha256_update(data2, len2);
-    crypto_sha256_update(master_secret, 32);
-    crypto_sha256_hmac_final(CRYPTO_MASTER_KEY, 0, privkey);
+	crypto_sha256_hmac_init(CRYPTO_MASTER_KEY, 0, privkey);
+	crypto_sha256_update(data, len);
+	crypto_sha256_update(data2, len2);
+	crypto_sha256_update(master_secret, 32);
+	crypto_sha256_hmac_final(CRYPTO_MASTER_KEY, 0, privkey);
 }
 
 static void mpz_from_buffer(mpz_t *val, const struct ecc_curve *curve, const uint8_t *buffer)
 {
-    mpz_init(*val);
-    mp_limb_t *l = mpz_limbs_write(*val, ecc_size(curve)/4);
-    memcpy(l, buffer, ecc_size(curve));
+	mpz_init(*val);
+	mp_limb_t *l = mpz_limbs_write(*val, ecc_size(curve)/4);
+	memcpy(l, buffer, ecc_size(curve));
 }
 
 static void scalar_from_key_buffer(const struct ecc_curve *curve, struct ecc_scalar *key, const uint8_t *key_buffer)
 {
-    mpz_t val;
-    mpz_from_buffer(&val, curve, key_buffer);
-    ecc_scalar_init(key, curve);
-    ecc_scalar_set(key, val);
-    //HC_TODO: cleanup gmp memory
+	mpz_t val;
+	mpz_from_buffer(&val, curve, key_buffer);
+	ecc_scalar_init(key, curve);
+	ecc_scalar_set(key, val);
 }
 
 static void crypto_compute_public_key(const struct ecc_curve *curve, uint8_t *pubkey, const uint8_t *privkey)
@@ -289,7 +288,9 @@ static void crypto_compute_public_key(const struct ecc_curve *curve, uint8_t *pu
 	scalar_from_key_buffer(curve, &priv_scalar, privkey);
 	ecc_point_init(&pub_pt, curve);
 	ecdsa_generate_pub_from_priv(&pub_pt, &priv_scalar);
-    memmove(pubkey, pub_pt.p, 64);
+	memmove(pubkey, pub_pt.p, 64);
+	ecc_scalar_clear(&priv_scalar);
+	ecc_point_clear(&pub_pt);
 }
 
 void crypto_ecc256_derive_public_key(uint8_t * data, int len, uint8_t * x, uint8_t * y)
@@ -297,12 +298,12 @@ void crypto_ecc256_derive_public_key(uint8_t * data, int len, uint8_t * x, uint8
     uint8_t privkey[32];
     uint8_t pubkey[64];
 
-    generate_private_key(data,len,NULL,0,privkey);
+    generate_private_key(data, len, NULL, 0, privkey);
 
     memset(pubkey,0,sizeof(pubkey));
     crypto_compute_public_key(_es256_curve, pubkey, privkey);
-    memmove(x,pubkey,32);
-    memmove(y,pubkey+32,32);
+    memmove(x, pubkey, 32);
+    memmove(y, pubkey+32, 32);
 }
 
 void crypto_ecc256_compute_public_key(uint8_t * privkey, uint8_t * pubkey)
@@ -318,38 +319,43 @@ void crypto_load_external_key(uint8_t * key, int len)
 
 void crypto_ecc256_make_key_pair(uint8_t * pubkey, uint8_t * privkey)
 {
-    struct ecc_point pub_pt;
-    struct ecc_scalar key_scalar;
-    ecc_scalar_init(&key_scalar, _es256_curve);
-    ecc_point_init(&pub_pt, _es256_curve);
-    ecdsa_generate_keypair(&pub_pt,
-    		&key_scalar,
-    		NULL, crypto_random_func);
-    memmove(pubkey, pub_pt.p, 64);
-    memmove(privkey, key_scalar.p, 32);
+	struct ecc_point pub_pt;
+	struct ecc_scalar key_scalar;
+	ecc_scalar_init(&key_scalar, _es256_curve);
+	ecc_point_init(&pub_pt, _es256_curve);
+	ecdsa_generate_keypair(&pub_pt,
+		&key_scalar,
+		NULL, crypto_random_func);
+	memmove(pubkey, pub_pt.p, 64);
+	memmove(privkey, key_scalar.p, 32);
+	ecc_scalar_clear(&key_scalar);
+	ecc_point_clear(&pub_pt);
 }
 
 void crypto_ecc256_shared_secret(const uint8_t * pubkey, const uint8_t * privkey, uint8_t * shared_secret)
 {
-    struct ecc_point pubkey_point;
-    mpz_t x, y;
-    mpz_from_buffer(&x, _es256_curve, pubkey);
-    mpz_from_buffer(&y, _es256_curve, pubkey + ecc_size(_es256_curve));
-    ecc_point_init(&pubkey_point, _es256_curve);
-    ecc_point_set(&pubkey_point, x, y);
+	struct ecc_point pubkey_point;
+	mpz_t x, y;
+	mpz_from_buffer(&x, _es256_curve, pubkey);
+	mpz_from_buffer(&y, _es256_curve, pubkey + ecc_size(_es256_curve));
+	ecc_point_init(&pubkey_point, _es256_curve);
+	ecc_point_set(&pubkey_point, x, y);
 
-    struct ecc_scalar privkey_scalar;
-    scalar_from_key_buffer(_es256_curve, &privkey_scalar, privkey);
+	struct ecc_scalar privkey_scalar;
+	scalar_from_key_buffer(_es256_curve, &privkey_scalar, privkey);
 
-    struct ecc_point result;
-    ecc_point_init(&result, _es256_curve);
-    ecc_point_mul(&result, &privkey_scalar, &pubkey_point);
+	struct ecc_point result;
+	ecc_point_init(&result, _es256_curve);
+	ecc_point_mul(&result, &privkey_scalar, &pubkey_point);
 
-    memcpy(shared_secret, result.p, ecc_size(_es256_curve));
+	memcpy(shared_secret, result.p, ecc_size(_es256_curve));
+	ecc_point_clear(&result);
+	ecc_scalar_clear(&privkey_scalar);
+	ecc_point_clear(&pubkey_point);
 }
 
-struct aes256_ctx aes_ctx;
-uint8_t aes_ctxIv[16];
+static struct aes256_ctx aes_ctx;
+static uint8_t aes_ctxIv[16];
 void crypto_aes256_init(uint8_t * key, uint8_t * nonce)
 {
     if (key == CRYPTO_TRANSPORT_KEY)
