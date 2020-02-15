@@ -157,7 +157,14 @@ void crypto_ecc256_load_attestation_key()
 
 static void crypto_random_func(void *ctx, size_t length, uint8_t *dst)
 {
-	//HC_TODO
+	//
+	// HC_TODO
+	//
+	// We are memsetting to zero for now to get deterministic
+	// results. In the end we will need to somehow need to asynchronously
+	// call functions that need random data when enough of it is available
+	//
+	memset(dst, 0, length);
 }
 
 static void crypto_sign(const struct ecc_curve *curve, const uint8_t * data, int len, uint8_t * sig);
