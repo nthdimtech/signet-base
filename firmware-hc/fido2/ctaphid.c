@@ -548,7 +548,7 @@ uint8_t ctaphid_handle_packet(uint8_t * pkt_raw)
 
     static uint8_t is_busy = 0;
     static CTAPHID_WRITE_BUFFER wb;
-    CTAP_RESPONSE ctap_resp;
+    static CTAP_RESPONSE ctap_resp;
 
     int bufstatus = ctaphid_buffer_packet(pkt_raw, &cmd, &cid, &len);
 

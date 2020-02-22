@@ -12,7 +12,7 @@
 #define MSB(X) ((X) >> 8)
 #define WTB(X) LSB(X), MSB(X)
 
-extern USBD_HandleTypeDef *s_pdev;
+extern USBD_HandleTypeDef *g_pdev;
 
 //
 // Warning: If you change this structure you must also change it in usbd_multi.c
@@ -248,6 +248,8 @@ void USBD_HID_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
 	}
 }
 
+void ctaphid_write_packet_sent();
+
 void USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 {
 	int interfaceNum = endpointToInterface(epnum);
@@ -255,10 +257,10 @@ void USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 	case INTERFACE_CMD:
 	case INTERFACE_KEYBOARD:
 	case INTERFACE_FIDO: {
-		USBD_HID_HandleTypeDef *hhid = ((USBD_HID_HandleTypeDef *)s_pdev->pClassData[interfaceNum]);
+		USBD_HID_HandleTypeDef *hhid = ((USBD_HID_HandleTypeDef *)g_pdev->pClassData[interfaceNum]);
 		hhid->state = HID_IDLE;
 		if (hhid->tx_report) {
-			USBD_HID_SendReport(s_pdev, interfaceNum, hhid->tx_report, HID_CMD_EPIN_SIZE);
+			USBD_HID_SendReport(g_pdev, interfaceNum, hhid->tx_report, HID_CMD_EPIN_SIZE);
 			hhid->tx_report = NULL;
 		}
 		switch (interfaceNum) {
@@ -268,6 +270,11 @@ void USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 		case INTERFACE_KEYBOARD:
 			usb_tx_keyboard();
 			break;
+#ifdef ENABLE_FIDO2
+		case INTERFACE_FIDO:
+			ctaphid_write_packet_sent();
+			break;
+#endif
 		default:
 			//NEN_TODO: Fido transmit
 			break;
@@ -331,7 +338,7 @@ int usb_tx_pending(int ep)
 	case INTERFACE_CMD:
 	case INTERFACE_KEYBOARD:
 	case INTERFACE_FIDO: {
-		USBD_HID_HandleTypeDef *hhid = ((USBD_HID_HandleTypeDef *)s_pdev->pClassData[interfaceNum]);
+		USBD_HID_HandleTypeDef *hhid = ((USBD_HID_HandleTypeDef *)g_pdev->pClassData[interfaceNum]);
 		return hhid->state != HID_IDLE;
 	}
 	break;
@@ -348,13 +355,13 @@ void usb_send_bytes(int ep, const u8 *data, int length)
 	case INTERFACE_CMD:
 	case INTERFACE_KEYBOARD:
 	case INTERFACE_FIDO: {
-		USBD_HID_HandleTypeDef *hhid = ((USBD_HID_HandleTypeDef *)s_pdev->pClassData[interfaceNum]);
+		USBD_HID_HandleTypeDef *hhid = ((USBD_HID_HandleTypeDef *)g_pdev->pClassData[interfaceNum]);
 		if (usb_tx_pending(ep)) {
 			assert(!hhid->tx_report);
 			hhid->tx_report = data;
 		} else {
 			int interfaceNum = endpointToInterface(ep);
-			USBD_HID_SendReport(s_pdev, interfaceNum, data, length);
+			USBD_HID_SendReport(g_pdev, interfaceNum, data, length);
 		}
 	}
 	break;

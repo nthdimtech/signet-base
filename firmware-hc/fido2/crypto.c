@@ -164,7 +164,7 @@ static void crypto_random_func(void *ctx, size_t length, uint8_t *dst)
 	// results. In the end we will need to somehow need to asynchronously
 	// call functions that need random data when enough of it is available
 	//
-	memset(dst, 0, length);
+	memset(dst, 0x80, length);
 }
 
 static void crypto_sign(const struct ecc_curve *curve, const uint8_t * data, int len, uint8_t * sig);
@@ -178,22 +178,25 @@ static void crypto_sign(const struct ecc_curve *curve, const uint8_t * data, int
 {
 	struct dsa_signature signature_pt;
 	struct ecc_scalar signing_key_pt;
+	dsa_signature_init(&signature_pt);
 	mpz_t val;
 	mpz_init(val);
-	mp_limb_t *l = mpz_limbs_write(val, ecc_size(_es256_curve)/sizeof(mp_limb_t));
-	memcpy(l, _signing_key, ecc_size(_es256_curve));
+	mp_limb_t *l = mpz_limbs_write(val, ecc_size(_es256_curve));
+	memcpy(l, _signing_key, ecc_size(_es256_curve) * sizeof(mp_limb_t));
 	ecc_scalar_init(&signing_key_pt, _es256_curve);
 	ecc_scalar_set(&signing_key_pt, val);
 	ecdsa_sign(&signing_key_pt,
 		NULL, crypto_random_func,
 		len, data,
 		&signature_pt);
-	struct ecc_point temp;
-	ecc_point_init(&temp, _es256_curve);
-	ecc_point_set(&temp, signature_pt.r, signature_pt.s);
-	memcpy(sig, temp.p, ecc_size(_es256_curve)*2);
-	ecc_point_clear(&temp);
+
+	const mp_limb_t *rp = mpz_limbs_read(signature_pt.r);
+	const mp_limb_t *sp = mpz_limbs_read(signature_pt.s);
+
+	memcpy(sig, rp, ecc_size(_es256_curve) * sizeof(mp_limb_t));
+	memcpy(sig + ecc_size(_es256_curve) * sizeof(mp_limb_t), sp, ecc_size(_es256_curve) * sizeof(mp_limb_t));
 	ecc_scalar_clear(&signing_key_pt);
+	dsa_signature_clear(&signature_pt);
 }
 
 void crypto_ecc256_load_key(uint8_t * data, int len, uint8_t * data2, int len2)
@@ -269,8 +272,8 @@ void generate_private_key(uint8_t * data, int len, uint8_t * data2, int len2, ui
 static void mpz_from_buffer(mpz_t *val, const struct ecc_curve *curve, const uint8_t *buffer)
 {
 	mpz_init(*val);
-	mp_limb_t *l = mpz_limbs_write(*val, ecc_size(curve)/4);
-	memcpy(l, buffer, ecc_size(curve));
+	mp_limb_t *l = mpz_limbs_write(*val, ecc_size(curve));
+	memcpy(l, buffer, ecc_size(curve) * sizeof(mp_limb_t));
 }
 
 static void scalar_from_key_buffer(const struct ecc_curve *curve, struct ecc_scalar *key, const uint8_t *key_buffer)
@@ -337,7 +340,7 @@ void crypto_ecc256_shared_secret(const uint8_t * pubkey, const uint8_t * privkey
 	struct ecc_point pubkey_point;
 	mpz_t x, y;
 	mpz_from_buffer(&x, _es256_curve, pubkey);
-	mpz_from_buffer(&y, _es256_curve, pubkey + ecc_size(_es256_curve));
+	mpz_from_buffer(&y, _es256_curve, pubkey + ecc_size(_es256_curve) * sizeof(mp_limb_t));
 	ecc_point_init(&pubkey_point, _es256_curve);
 	ecc_point_set(&pubkey_point, x, y);
 
@@ -348,7 +351,7 @@ void crypto_ecc256_shared_secret(const uint8_t * pubkey, const uint8_t * privkey
 	ecc_point_init(&result, _es256_curve);
 	ecc_point_mul(&result, &privkey_scalar, &pubkey_point);
 
-	memcpy(shared_secret, result.p, ecc_size(_es256_curve));
+	memcpy(shared_secret, result.p, ecc_size(_es256_curve) * sizeof(mp_limb_t));
 	ecc_point_clear(&result);
 	ecc_scalar_clear(&privkey_scalar);
 	ecc_point_clear(&pubkey_point);

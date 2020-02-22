@@ -83,7 +83,7 @@ static void MX_DMA_Init(void);
 #include "buffer_manager.h"
 
 #define USB_BULK_BUFFER_SIZE (16384)
-#define USB_BULK_BUFFER_COUNT (6)
+#define USB_BULK_BUFFER_COUNT (4)
 
 static uint8_t g_usbBulkBuffer[USB_BULK_BUFFER_SIZE * USB_BULK_BUFFER_COUNT] __attribute__((aligned(16)));
 struct bufferFIFO usbBulkBufferFIFO;
@@ -240,7 +240,7 @@ int is_blinking()
 #include "fido2/crypto.h"
 #include "fido2/ctaphid.h"
 
-__attribute__ ((aligned (8))) uint8_t heap[8192];
+__attribute__ ((aligned (8))) uint8_t heap[4096];
 int heap_idx = 0;
 
 void *mp_alloc(size_t sz)
@@ -282,6 +282,8 @@ void BUTTON_HANDLER()
 	g_press_pending = 1;
 	EXTI->PR = (1 << BUTTON_PIN_NUM);
 }
+
+void authenticator_initialize();
 
 int main (void)
 {
@@ -329,7 +331,6 @@ int main (void)
 #endif
 #ifdef ENABLE_FIDO2
 	mp_set_memory_functions(mp_alloc, mp_realloc, mp_dealloc);
-	crypto_ecc256_init();
 #endif
 
 	SYSCFG->EXTICR[BUTTON_PIN_NUM / 4] = (BUTTON_PORT_NUM << (4 * (BUTTON_PIN_NUM % 4)));
@@ -346,7 +347,9 @@ int main (void)
 
 	cmd_init();
 #ifdef ENABLE_FIDO2
+	authenticator_initialize();
 	ctaphid_init();
+	ctap_init();
 #endif
 
 	usbd_scsi_init();

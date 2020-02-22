@@ -9,6 +9,8 @@
 #define MSB(X) ((X) >> 8)
 #define WTB(X) LSB(X), MSB(X)
 
+USBD_HandleTypeDef *g_pdev = NULL;
+
 int endpointToInterface(uint8_t epNum)
 {
 	return ((int)(epNum & ~(0x80))) - 1;
@@ -331,6 +333,7 @@ static USBD_MSC_BOT_HandleTypeDef s_SCSIMSCClassData __attribute__((aligned(16))
 static uint8_t  USBD_Multi_Init (USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 {
 	/* Open EP IN */
+	g_pdev = pdev;
 	pdev->pClassData[INTERFACE_MSC] = &s_SCSIMSCClassData;
 	USBD_LL_OpenEP(pdev, MSC_EPOUT_ADDR, USBD_EP_TYPE_BULK, MSC_MAX_HS_PACKET);
 	pdev->ep_out[MSC_EPOUT_ADDR & 0xFU].is_used = 1U;
@@ -480,8 +483,6 @@ static uint8_t  *USBD_Multi_GetOtherSpeedCfgDesc (uint16_t *length)
 	return USBD_Multi_CfgHSDesc;
 }
 
-USBD_HandleTypeDef *s_pdev = NULL;
-
 static uint8_t  USBD_Multi_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 {
 	/* Ensure that the FIFO is empty before a new transfer, this condition could
@@ -506,7 +507,7 @@ static uint8_t  USBD_Multi_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 
 static uint8_t  USBD_Multi_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
 {
-	s_pdev = pdev;
+	g_pdev = pdev;
 	int interfaceNum = endpointToInterface(epnum);
 	switch (interfaceNum) {
 	case INTERFACE_MSC: {
