@@ -27,7 +27,7 @@ LDFLAGS+= -Wl,"-Tstm32f733iekx_a.ld"
 CFLAGS+= -DBOOT_MODE_A
 else
 LDFLAGS+= -Wl,"-Tstm32f733iekx_b.ld"
-CFLAGS+= -DBOOT_MODE_B -DENABLE_FIDO2
+CFLAGS+= -DBOOT_MODE_B -DENABLE_FIDO2 -DENABLE_U2F
 endif
 
 clean:
@@ -111,7 +111,7 @@ SOURCES = commands.c \
 ifeq ($(BT_MODE), B)
 
 CFLAGS += -Itinycbor -Ifido2 -Ifido2/extensions
-CFLAGS += -DENABLE_U2F -DVECT_TAB_OFFSET=0x20000
+CFLAGS += -DVECT_TAB_OFFSET=0x20000
 
 SOURCES+= tinycbor/cborencoder.c \
 	  tinycbor/cborencoder_close_container_checked.c \
