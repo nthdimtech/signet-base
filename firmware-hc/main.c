@@ -358,7 +358,7 @@ int main (void)
 
 	while (1) {
 		int work_to_do = 0;
-		__asm__("cpsid i");
+		__disable_irq();
 		work_to_do |= usb_keyboard_idle_ready();
 		work_to_do |= command_idle_ready();
 		work_to_do |= flash_idle_ready();
@@ -370,7 +370,7 @@ int main (void)
 		if (!work_to_do) {
 			__asm__("wfi");
 		}
-		__asm__("cpsie i");
+		__enable_irq();
 		int ms_count = HAL_GetTick();
 		if (ms_count > g_timer_target && g_timer_target != 0) {
 			timer_timeout();
