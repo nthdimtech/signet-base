@@ -240,39 +240,21 @@ int is_blinking()
 #include "fido2/crypto.h"
 #include "fido2/ctaphid.h"
 
-__attribute__ ((aligned (8))) uint8_t heap[4096];
-int heap_idx = 0;
-
 void *mp_alloc(size_t sz)
 {
-	while(1) {
-		uint32_t sz = *((uint32_t *)(heap + heap_idx - 4));
-		if (sz | 0x80000000) {
-			break;
-		} else {
-			heap_idx -= (sz + 4);
-		}
-	}
-	void *ret = (void *)(heap + heap_idx);
-	heap_idx += sz;
-	*((uint32_t *)(heap + heap_idx)) = sz | 0x80000000;
-	heap_idx += 4;
-	return ret;
+	return malloc(sz);
 }
 
 void mp_dealloc(void *p, size_t sz)
 {
-	*((uint32_t *)((uint8_t *)p + sz)) = sz;
+	free(p);
 }
 
 void *mp_realloc(void *p, size_t before, size_t after)
 {
-	void *ret = mp_alloc(after);
-	memset(p, 0, after);
-	memcpy(ret, p, before);
-	mp_dealloc(p, before);
-	return ret;
+	return realloc(p, after);
 }
+
 #endif
 
 void BUTTON_HANDLER()

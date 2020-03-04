@@ -43,7 +43,7 @@ uint8_t verify_pin_auth(uint8_t * pinAuth, uint8_t * clientDataHash)
     uint8_t hmac[32];
 
     crypto_sha256_hmac_init(PIN_TOKEN, PIN_TOKEN_SIZE, hmac);
-    crypto_sha256_update(clientDataHash, CLIENT_DATA_HASH_SIZE);
+    crypto_sha256_hmac_update(clientDataHash, CLIENT_DATA_HASH_SIZE);
     crypto_sha256_hmac_final(PIN_TOKEN, PIN_TOKEN_SIZE, hmac);
 
     if (memcmp(pinAuth, hmac, 16) == 0)
@@ -275,9 +275,9 @@ void make_auth_tag(uint8_t * rpIdHash, uint8_t * nonce, uint32_t count, uint8_t 
     uint8_t hashbuf[32];
     memset(hashbuf,0,sizeof(hashbuf));
     crypto_sha256_hmac_init(CRYPTO_TRANSPORT_KEY, 0, hashbuf);
-    crypto_sha256_update(rpIdHash, 32);
-    crypto_sha256_update(nonce, CREDENTIAL_NONCE_SIZE);
-    crypto_sha256_update((uint8_t*)&count, 4);
+    crypto_sha256_hmac_update(rpIdHash, 32);
+    crypto_sha256_hmac_update(nonce, CREDENTIAL_NONCE_SIZE);
+    crypto_sha256_hmac_update((uint8_t*)&count, 4);
     crypto_sha256_hmac_final(CRYPTO_TRANSPORT_KEY,0,hashbuf);
 
     memmove(tag, hashbuf, CREDENTIAL_TAG_SIZE);
@@ -344,7 +344,7 @@ static int ctap_make_extensions(CTAP_extensions * ext, uint8_t * ext_encoder_buf
         crypto_sha256_final(shared_secret);
 
         crypto_sha256_hmac_init(shared_secret, 32, hmac);
-        crypto_sha256_update(ext->hmac_secret.saltEnc, ext->hmac_secret.saltLen);
+        crypto_sha256_hmac_update(ext->hmac_secret.saltEnc, ext->hmac_secret.saltLen);
         crypto_sha256_hmac_final(shared_secret, 32, hmac);
 
         if (memcmp(ext->hmac_secret.saltAuth, hmac, 16) == 0)
@@ -359,7 +359,7 @@ static int ctap_make_extensions(CTAP_extensions * ext, uint8_t * ext_encoder_buf
 
         // Generate credRandom
         crypto_sha256_hmac_init(CRYPTO_TRANSPORT_KEY2, 0, credRandom);
-        crypto_sha256_update((uint8_t*)&ext->hmac_secret.credential->id, sizeof(CredentialId));
+        crypto_sha256_hmac_update((uint8_t*)&ext->hmac_secret.credential->id, sizeof(CredentialId));
         crypto_sha256_hmac_final(CRYPTO_TRANSPORT_KEY2, 0, credRandom);
 
         // Decrypt saltEnc
@@ -368,13 +368,13 @@ static int ctap_make_extensions(CTAP_extensions * ext, uint8_t * ext_encoder_buf
 
         // Generate outputs
         crypto_sha256_hmac_init(credRandom, 32, output);
-        crypto_sha256_update(ext->hmac_secret.saltEnc, 32);
+        crypto_sha256_hmac_update(ext->hmac_secret.saltEnc, 32);
         crypto_sha256_hmac_final(credRandom, 32, output);
 
         if (ext->hmac_secret.saltLen == 64)
         {
             crypto_sha256_hmac_init(credRandom, 32, output + 32);
-            crypto_sha256_update(ext->hmac_secret.saltEnc + 32, 32);
+            crypto_sha256_hmac_update(ext->hmac_secret.saltEnc + 32, 32);
             crypto_sha256_hmac_final(credRandom, 32, output + 32);
         }
 
@@ -1334,10 +1334,10 @@ uint8_t ctap_update_pin_if_verified(uint8_t * pinEnc, int len, uint8_t * platfor
     crypto_sha256_final(shared_secret);
 
     crypto_sha256_hmac_init(shared_secret, 32, hmac);
-    crypto_sha256_update(pinEnc, len);
+    crypto_sha256_hmac_update(pinEnc, len);
     if (pinHashEnc != NULL)
     {
-        crypto_sha256_update(pinHashEnc, 16);
+        crypto_sha256_hmac_update(pinHashEnc, 16);
     }
     crypto_sha256_hmac_final(shared_secret, 32, hmac);
 
@@ -1471,7 +1471,6 @@ uint8_t ctap_client_pin(CborEncoder * encoder, uint8_t * request, int length)
     uint8_t pinTokenEnc[PIN_TOKEN_SIZE];
     int ret = ctap_parse_client_pin(&CP,request,length);
 
-
     switch(CP.subCommand)
     {
         case CP_cmdSetPin:
@@ -1521,7 +1520,9 @@ uint8_t ctap_client_pin(CborEncoder * encoder, uint8_t * request, int length)
 
 	    //HC_TODO: We don't need the line below because we don't use NFC
             //if (device_is_nfc() == NFC_IS_ACTIVE) device_set_clock_rate(DEVICE_LOW_POWER_FAST);
-            crypto_ecc256_compute_public_key(KEY_AGREEMENT_PRIV, KEY_AGREEMENT_PUB);
+
+	    crypto_ecc256_compute_public_key(KEY_AGREEMENT_PRIV, KEY_AGREEMENT_PUB);
+
 	    //HC_TODO: We don't need the line below because we don't use NFC
             //if (device_is_nfc() == NFC_IS_ACTIVE) device_set_clock_rate(DEVICE_LOW_POWER_IDLE);
             ret = ctap_add_cose_key(&map, KEY_AGREEMENT_PUB, KEY_AGREEMENT_PUB+32, PUB_KEY_CRED_PUB_KEY, COSE_ALG_ECDH_ES_HKDF_256);
@@ -1745,7 +1746,6 @@ static void ctap_state_init()
 
     STATE.is_initialized = INITIALIZED_MARKER;
     STATE.remaining_tries = PIN_LOCKOUT_ATTEMPTS;
-    STATE.is_pin_set = 0;
     STATE.rk_stored = 0;
     STATE.data_version = STATE_VERSION;
 
@@ -1755,6 +1755,9 @@ static void ctap_state_init()
         printf2(TAG_ERR, "Error, rng failed\n");
         exit(1);
     }
+
+    u8 pin[4] = {'1','2','3','4'};
+    ctap_update_pin(pin, 4);
 
     printf1(TAG_STOR, "Generated PIN SALT: ");
     dump_hex1(TAG_STOR, STATE.PIN_SALT, sizeof STATE.PIN_SALT);

@@ -22,6 +22,7 @@
 #include <nettle/ecc.h>
 #include <nettle/ecc-curve.h>
 #include <nettle/ecdsa.h>
+#include <nettle/hmac.h>
 
 #include "ctap.h"
 #include "device.h"
@@ -33,6 +34,7 @@ const uint8_t attestation_key[];
 const uint16_t attestation_key_size;
 
 struct sha256_ctx sha256_ctx;
+struct hmac_sha256_ctx hmac_sha256_ctx;
 static const struct ecc_curve * _es256_curve = NULL;
 static const uint8_t * _signing_key = NULL;
 static int _key_len = 0;
@@ -41,6 +43,33 @@ static int _key_len = 0;
 static uint8_t master_secret[64];
 
 static uint8_t transport_secret[32];
+
+static void buffer_from_limbs(u8 *buffer, const mp_limb_t *l, int n)
+{
+	const int s = sizeof(mp_limb_t);
+	for (int i = 0; i < n; i++) {
+		for (int j = 0; j < s; j++) {
+			buffer[i*s + (s - j - 1)] = (l[n - i - 1]>>((j)*8)) & 0xff;
+		}
+	}
+}
+
+static void mpz_from_buffer(mpz_t *val, const struct ecc_curve *curve, const uint8_t *buffer)
+{
+	mpz_init(*val);
+	mp_limb_t *l = mpz_limbs_write(*val, ecc_size(curve));
+
+	const int s = sizeof(mp_limb_t);
+	const int n = ecc_size(curve);
+	for (int i = 0; i < n; i++) {
+		mp_limb_t v = 0;
+		for (int j = 0; j < s; j++) {
+			v |= ((mp_limb_t)buffer[(n-i)*s - 1 - j]) << (j*8);
+		}
+		l[i] = v;
+	}
+	mpz_limbs_finish(*val, ecc_size(curve));
+}
 
 void crypto_sha256_init()
 {
@@ -77,12 +106,13 @@ void crypto_sha256_final(uint8_t * hash)
     sha256_digest(&sha256_ctx, SHA256_DIGEST_SIZE, hash);
 }
 
+void crypto_sha256_hmac_update(const uint8_t *data, size_t length)
+{
+	hmac_sha256_update(&hmac_sha256_ctx, length, data);
+}
+
 void crypto_sha256_hmac_init(uint8_t * key, uint32_t klen, uint8_t * hmac)
 {
-    uint8_t buf[64];
-    int i;
-    memset(buf, 0, sizeof(buf));
-
     if (key == CRYPTO_MASTER_KEY)
     {
         key = master_secret;
@@ -93,53 +123,13 @@ void crypto_sha256_hmac_init(uint8_t * key, uint32_t klen, uint8_t * hmac)
         key = transport_secret;
         klen = 32;
     }
-    
-    if(klen > 64)
-    {
-        printf2(TAG_ERR,"Error, key size must be <= 64\n");
-        exit(1);
-    }
-
-    memmove(buf, key, klen);
-
-    for (i = 0; i < sizeof(buf); i++)
-    {
-        buf[i] = buf[i] ^ 0x36;
-    }
-
-    crypto_sha256_init();
-    crypto_sha256_update(buf, 64);
+    assert(klen <= 64);
+    hmac_sha256_set_key(&hmac_sha256_ctx, klen, key);
 }
 
 void crypto_sha256_hmac_final(uint8_t * key, uint32_t klen, uint8_t * hmac)
 {
-    uint8_t buf[64];
-    int i;
-    crypto_sha256_final(hmac);
-    memset(buf, 0, sizeof(buf));
-    if (key == CRYPTO_MASTER_KEY)
-    {
-        key = master_secret;
-        klen = sizeof(master_secret);
-    }
-
-
-    if(klen > 64)
-    {
-        printf2(TAG_ERR,"Error, key size must be <= 64\n");
-        exit(1);
-    }
-    memmove(buf, key, klen);
-
-    for (i = 0; i < sizeof(buf); i++)
-    {
-        buf[i] = buf[i] ^ 0x5c;
-    }
-
-    crypto_sha256_init();
-    crypto_sha256_update(buf, 64);
-    crypto_sha256_update(hmac, 32);
-    crypto_sha256_final(hmac);
+    hmac_sha256_digest(&hmac_sha256_ctx, 32, hmac);
 }
 
 
@@ -179,10 +169,9 @@ static void crypto_sign(const struct ecc_curve *curve, const uint8_t * data, int
 	struct dsa_signature signature_pt;
 	struct ecc_scalar signing_key_pt;
 	dsa_signature_init(&signature_pt);
+
 	mpz_t val;
-	mpz_init(val);
-	mp_limb_t *l = mpz_limbs_write(val, ecc_size(_es256_curve));
-	memcpy(l, _signing_key, ecc_size(_es256_curve) * sizeof(mp_limb_t));
+	mpz_from_buffer(&val, _es256_curve, _signing_key);
 	ecc_scalar_init(&signing_key_pt, _es256_curve);
 	ecc_scalar_set(&signing_key_pt, val);
 	ecdsa_sign(&signing_key_pt,
@@ -193,8 +182,8 @@ static void crypto_sign(const struct ecc_curve *curve, const uint8_t * data, int
 	const mp_limb_t *rp = mpz_limbs_read(signature_pt.r);
 	const mp_limb_t *sp = mpz_limbs_read(signature_pt.s);
 
-	memcpy(sig, rp, ecc_size(_es256_curve) * sizeof(mp_limb_t));
-	memcpy(sig + ecc_size(_es256_curve) * sizeof(mp_limb_t), sp, ecc_size(_es256_curve) * sizeof(mp_limb_t));
+	buffer_from_limbs(sig, rp, 8);
+	buffer_from_limbs(sig + 32, sp, 8);
 	ecc_scalar_clear(&signing_key_pt);
 	dsa_signature_clear(&signature_pt);
 }
@@ -263,17 +252,10 @@ fail:
 void generate_private_key(uint8_t * data, int len, uint8_t * data2, int len2, uint8_t * privkey)
 {
 	crypto_sha256_hmac_init(CRYPTO_MASTER_KEY, 0, privkey);
-	crypto_sha256_update(data, len);
-	crypto_sha256_update(data2, len2);
-	crypto_sha256_update(master_secret, 32);
+	crypto_sha256_hmac_update(data, len);
+	crypto_sha256_hmac_update(data2, len2);
+	crypto_sha256_hmac_update(master_secret, 32);
 	crypto_sha256_hmac_final(CRYPTO_MASTER_KEY, 0, privkey);
-}
-
-static void mpz_from_buffer(mpz_t *val, const struct ecc_curve *curve, const uint8_t *buffer)
-{
-	mpz_init(*val);
-	mp_limb_t *l = mpz_limbs_write(*val, ecc_size(curve));
-	memcpy(l, buffer, ecc_size(curve) * sizeof(mp_limb_t));
 }
 
 static void scalar_from_key_buffer(const struct ecc_curve *curve, struct ecc_scalar *key, const uint8_t *key_buffer)
@@ -284,34 +266,42 @@ static void scalar_from_key_buffer(const struct ecc_curve *curve, struct ecc_sca
 	ecc_scalar_set(key, val);
 }
 
-static void crypto_compute_public_key(const struct ecc_curve *curve, uint8_t *pubkey, const uint8_t *privkey)
+static void crypto_compute_public_key(const struct ecc_curve *curve, const uint8_t *privkey, uint8_t *pubkey)
 {
 	struct ecc_point pub_pt;
 	struct ecc_scalar priv_scalar;
 	scalar_from_key_buffer(curve, &priv_scalar, privkey);
 	ecc_point_init(&pub_pt, curve);
 	ecdsa_generate_pub_from_priv(&pub_pt, &priv_scalar);
-	memmove(pubkey, pub_pt.p, 64);
+	mpz_t x;
+	mpz_t y;
+	mpz_init(x);
+	mpz_init(y);
+	ecc_point_get(&pub_pt, x, y);
+	const mp_limb_t *xp = mpz_limbs_read(x);
+	const mp_limb_t *yp = mpz_limbs_read(y);
+	int i;
+	buffer_from_limbs(pubkey, xp, 8);
+	buffer_from_limbs(pubkey + 32, yp, 8);
+	mpz_clear(x);
+	mpz_clear(y);
 	ecc_scalar_clear(&priv_scalar);
 	ecc_point_clear(&pub_pt);
 }
 
 void crypto_ecc256_derive_public_key(uint8_t * data, int len, uint8_t * x, uint8_t * y)
 {
-    uint8_t privkey[32];
-    uint8_t pubkey[64];
-
-    generate_private_key(data, len, NULL, 0, privkey);
-
-    memset(pubkey,0,sizeof(pubkey));
-    crypto_compute_public_key(_es256_curve, pubkey, privkey);
-    memmove(x, pubkey, 32);
-    memmove(y, pubkey+32, 32);
+	uint8_t privkey[32];
+	uint8_t pubkey[64];
+	generate_private_key(data,len, NULL, 0, privkey);
+	crypto_ecc256_compute_public_key(privkey, pubkey);
+	memmove(x, pubkey, 32);
+	memmove(y, pubkey + 32, 32);
 }
 
-void crypto_ecc256_compute_public_key(uint8_t * privkey, uint8_t * pubkey)
+void crypto_ecc256_compute_public_key(const uint8_t * privkey, uint8_t * pubkey)
 {
-    crypto_compute_public_key(_es256_curve, pubkey, privkey);
+    crypto_compute_public_key(_es256_curve, privkey, pubkey);
 }
 
 void crypto_load_external_key(uint8_t * key, int len)
@@ -329,8 +319,20 @@ void crypto_ecc256_make_key_pair(uint8_t * pubkey, uint8_t * privkey)
 	ecdsa_generate_keypair(&pub_pt,
 		&key_scalar,
 		NULL, crypto_random_func);
-	memmove(pubkey, pub_pt.p, 64);
-	memmove(privkey, key_scalar.p, 32);
+	mpz_t x;
+	mpz_t y;
+	mpz_init(x);
+	mpz_init(y);
+	ecc_point_get(&pub_pt, x, y);
+	const mp_limb_t *xp = mpz_limbs_read(x);
+	const mp_limb_t *yp = mpz_limbs_read(y);
+	int i;
+	buffer_from_limbs(pubkey, xp, 8);
+	buffer_from_limbs(pubkey + 32, yp, 8);
+	mpz_clear(x);
+	mpz_clear(y);
+
+	buffer_from_limbs(privkey, key_scalar.p, 8);
 	ecc_scalar_clear(&key_scalar);
 	ecc_point_clear(&pub_pt);
 }
@@ -340,7 +342,7 @@ void crypto_ecc256_shared_secret(const uint8_t * pubkey, const uint8_t * privkey
 	struct ecc_point pubkey_point;
 	mpz_t x, y;
 	mpz_from_buffer(&x, _es256_curve, pubkey);
-	mpz_from_buffer(&y, _es256_curve, pubkey + ecc_size(_es256_curve) * sizeof(mp_limb_t));
+	mpz_from_buffer(&y, _es256_curve, pubkey + 32);
 	ecc_point_init(&pubkey_point, _es256_curve);
 	ecc_point_set(&pubkey_point, x, y);
 
@@ -351,7 +353,17 @@ void crypto_ecc256_shared_secret(const uint8_t * pubkey, const uint8_t * privkey
 	ecc_point_init(&result, _es256_curve);
 	ecc_point_mul(&result, &privkey_scalar, &pubkey_point);
 
-	memcpy(shared_secret, result.p, ecc_size(_es256_curve) * sizeof(mp_limb_t));
+	mpz_t sx;
+	mpz_t sy;
+	mpz_init(sx);
+	mpz_init(sy);
+	ecc_point_get(&result, sx, sy);
+	const mp_limb_t *sxp = mpz_limbs_read(sx);
+	int i;
+	buffer_from_limbs(shared_secret, sxp, 8);
+	mpz_clear(sx);
+	mpz_clear(sy);
+
 	ecc_point_clear(&result);
 	ecc_scalar_clear(&privkey_scalar);
 	ecc_point_clear(&pubkey_point);
@@ -359,47 +371,49 @@ void crypto_ecc256_shared_secret(const uint8_t * pubkey, const uint8_t * privkey
 
 static struct aes256_ctx aes_ctx;
 static uint8_t aes_ctxIv[16];
-void crypto_aes256_init(uint8_t * key, uint8_t * nonce)
+static uint8_t aes_key[32];
+static uint8_t aes_decrypt_mode;
+static uint8_t aes_encrypt_mode;
+
+void crypto_aes256_init(uint8_t *key, uint8_t *nonce)
 {
-    if (key == CRYPTO_TRANSPORT_KEY)
-    {
-        aes256_set_encrypt_key(&aes_ctx, key);
-    }
-    else
-    {
-        aes256_set_encrypt_key(&aes_ctx, key);
-    }
-    if (nonce == NULL)
-    {
-        memset(aes_ctxIv, 0, 16);
-    }
-    else
-    {
-        memmove(aes_ctxIv, nonce, 16);
-    }
+	aes_decrypt_mode = 0;
+	aes_encrypt_mode = 0;
+	if (key == CRYPTO_TRANSPORT_KEY) {
+		memcpy(aes_key, transport_secret, 32);
+	} else {
+		memcpy(aes_key, key, 32);
+	}
+	if (nonce == NULL) {
+		memset(aes_ctxIv, 0, 16);
+	} else {
+		memmove(aes_ctxIv, nonce, 16);
+	}
 }
 
 // prevent round key recomputation
 void crypto_aes256_reset_iv(uint8_t * nonce)
 {
-    if (nonce == NULL)
-    {
-        memset(aes_ctxIv, 0, 16);
-    }
-    else
-    {
-        memmove(aes_ctxIv, nonce, 16);
-    }
+	if (nonce == NULL) {
+		memset(aes_ctxIv, 0, 16);
+	} else {
+		memmove(aes_ctxIv, nonce, 16);
+	}
 }
 
 //HC_TODO: this is poorly named and poorly placed
 void xor_block(const u8 *src_block, const u8 *mask, u8 *dst_block);
 
 //HC_TODO: Don't we already have this in the DB code?
-void crypto_aes256_decrypt(uint8_t * buf, int length)
+void crypto_aes256_encrypt(uint8_t * buf, int length)
 {
-	//HC_TODO: can we be sure this a block size multiple?
+	if (!aes_encrypt_mode) {
+		aes_encrypt_mode = 1;
+		aes_decrypt_mode = 0;
+		aes256_set_encrypt_key(&aes_ctx, aes_key);
+	}
 	int n_blocks = length / AES_BLK_SIZE;
+	assert((n_blocks * AES_BLK_SIZE) == length);
 	uint8_t *iv = aes_ctxIv;
 	for (int i = 0; i < n_blocks; i++) {
 		u8 temp[AES_BLK_SIZE];
@@ -413,19 +427,23 @@ void crypto_aes256_decrypt(uint8_t * buf, int length)
 }
 
 //HC_TODO: Don't we already have this in the DB code?
-void crypto_aes256_encrypt(uint8_t * buf, int length)
+void crypto_aes256_decrypt(uint8_t * buf, int length)
 {
-    //HC_TODO: can we be sure this a block size multiple?
-    int n_blocks = length / AES_BLK_SIZE;
-    uint8_t *iv = aes_ctxIv;
+	if (!aes_decrypt_mode) {
+		aes_decrypt_mode = 1;
+		aes_encrypt_mode = 0;
+		aes256_set_decrypt_key(&aes_ctx, aes_key);
+	}
+	int n_blocks = length / AES_BLK_SIZE;
+	uint8_t *iv = aes_ctxIv;
+	assert((n_blocks * AES_BLK_SIZE) == length);
 	for (int i = 0; i < n_blocks; i++) {
 		u8 temp[AES_BLK_SIZE];
+		u8 src_temp[AES_BLK_SIZE];
+		memcpy(src_temp, buf + AES_BLK_SIZE * i, 16);
 		aes256_decrypt(&aes_ctx, AES_BLK_SIZE, temp, buf + AES_BLK_SIZE * i);
-		xor_block(temp, iv, buf + AES_BLK_SIZE * i);
-		iv = buf + AES_BLK_SIZE * i;
-		if (i == (n_blocks - 1)) {
-			memcpy(aes_ctxIv, iv, AES_BLK_SIZE);
-		}
+		xor_block(temp, aes_ctxIv, buf + AES_BLK_SIZE * i);
+		memcpy(aes_ctxIv, src_temp, 16);
 	}
 }
 
