@@ -435,22 +435,31 @@ static unsigned int get_credential_id_size(CTAP_credentialDescriptor * cred)
     return sizeof(CredentialId);
 }
 
+int ctap_needs_press = 0;
+int ctap_pressed = 0;
+
+void start_blinking(int, int);
+void stop_blinking();
+
 static int ctap2_user_presence_test()
 {
-	//
-	// HC_TODO: We return success every time here because we need to operate
-	// asynchrounously so in the end we need to change some of the other code
-	// to get the desired result. We need to provide the same results
-	//
-	// ret = ctap_user_presence_test(CTAP2_UP_DELAY_MS)
-	//
-	// asynchronously according to the following rules
-	// CTAP1_ERR_SUCCESS: ret == 1
-	// CTAP2_ERR_PROCESSING: ret > 1
-	// CTAP2_ERR_KEEPALIVE_CANCEL: ret < 1
-	// CTAP2_ERR_ACTION_TIMEOUT: ret == 0
-	//
-	return CTAP1_ERR_SUCCESS;
+	if (ctap_pressed) {
+		ctap_pressed = 0;
+		ctap_needs_press = 0;
+		stop_blinking();
+		return CTAP1_ERR_SUCCESS;
+	} else {
+		if (ctap_needs_press) {
+			ctap_needs_press = 0;
+			//HC_TODO: Chrome doesn't respond to this error with a timeout message
+			// is it really the right code
+			return CTAP2_ERR_ACTION_TIMEOUT;
+		} else {
+			ctap_needs_press = 1;
+			start_blinking(500, 5000);
+			return CTAP2_ERR_PROCESSING;
+		}
+	}
 }
 
 static int ctap_make_auth_data(struct rpId * rp, CborEncoder * map, uint8_t * auth_data_buf, uint32_t * len, CTAP_credInfo * credInfo)

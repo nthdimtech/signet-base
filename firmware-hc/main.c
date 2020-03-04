@@ -14,6 +14,10 @@
 
 #include "memory_layout.h"
 
+void ctaphid_press();
+void ctaphid_idle();
+void ctaphid_blink_timeout();
+
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
@@ -183,6 +187,9 @@ void blink_idle()
 		if ((timeout_event_msecs <= 0) && (g_blink_duration > 0)) {
 			g_blink_period = 0;
 			led_off();
+#ifdef ENABLE_FIDO2
+			ctaphid_blink_timeout();
+#endif
 			blink_timeout();
 		}
 		if (next_timeout_event_secs != g_timeout_event_secs) {
@@ -371,6 +378,9 @@ int main (void)
 		if (g_press_pending) {
 			g_press_pending = 0;
 			if (!g_button_state) {
+#ifdef ENABLE_FIDO2
+				ctaphid_press();
+#endif
 				button_press();
 				g_button_state = 1;
 			}

@@ -97,6 +97,9 @@ void ctaphid_check_timeouts();
 
 void ctaphid_update_status(int8_t status);
 
+void ctaphid_press();
+void ctaphid_idle();
+
 
 #define ctaphid_packet_len(pkt)     ((uint16_t)((pkt)->pkt.init.bcnth << 8) | ((pkt)->pkt.init.bcntl))
 

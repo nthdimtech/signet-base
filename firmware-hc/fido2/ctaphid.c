@@ -537,18 +537,15 @@ extern void _check_ret(CborError ret, int line, const char * filename);
 #define check_hardcore(r)   _check_ret(r,__LINE__, __FILE__);\
                             if ((r) != CborNoError) exit(1);
 
+int ctaphid_processing_packet = 0;
+
+static int process_ctaphid_packet();
+
 uint8_t ctaphid_handle_packet(uint8_t * pkt_raw)
 {
     uint8_t cmd;
     uint32_t cid;
     int len;
-#ifndef DISABLE_CTAPHID_CBOR
-    int status;
-#endif
-
-    static uint8_t is_busy = 0;
-    static CTAPHID_WRITE_BUFFER wb;
-    static CTAP_RESPONSE ctap_resp;
 
     int bufstatus = ctaphid_buffer_packet(pkt_raw, &cmd, &cid, &len);
 
@@ -573,11 +570,52 @@ uint8_t ctaphid_handle_packet(uint8_t * pkt_raw)
         active_cid_timestamp = millis();
         return 0;
     }
+    if (process_ctaphid_packet()) {
+        ctaphid_processing_packet = 1;
+    }
+    return ctaphid_processing_packet;
+}
 
+void ctaphid_blink_timeout()
+{
+	if (ctap_needs_press) {
+		ctap_pressed = 0;
+		ctaphid_idle();
+	}
+}
+
+void ctaphid_press()
+{
+	if (ctap_needs_press) {
+		ctap_pressed = 1;
+		ctaphid_idle();
+	}
+}
+
+void ctaphid_idle()
+{
+	if (ctaphid_processing_packet) {
+		if (!process_ctaphid_packet()) {
+			ctaphid_processing_packet = 0;
+		}
+	}
+}
+
+static int process_ctaphid_packet()
+{
+    uint8_t cmd = buffer_cmd();
+    uint32_t cid = buffer_cid();
+    int len = buffer_len();
+#ifndef DISABLE_CTAPHID_CBOR
+    int status;
+#endif
+    static CTAPHID_WRITE_BUFFER wb;
+    static CTAP_RESPONSE ctap_resp;
+    static uint8_t is_busy = 0;
+    assert(buffer_status() == BUFFERED);
 
     switch(cmd)
     {
-
         case CTAPHID_INIT:
             printf2(TAG_ERR,"CTAPHID_INIT, error this should already be handled\n");
             exit(1);
@@ -631,6 +669,10 @@ uint8_t ctaphid_handle_packet(uint8_t * pkt_raw)
             is_busy = 1;
             ctap_response_init(&ctap_resp);
             status = ctap_request(ctap_buffer, len, &ctap_resp);
+            if (status == CTAP2_ERR_PROCESSING) {
+                is_busy = 0;
+                return cmd;
+            }
 
             ctaphid_write_buffer_init(&wb);
             wb.cid = cid;

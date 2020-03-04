@@ -363,4 +363,7 @@ extern uint8_t KEY_AGREEMENT_PUB[64];
 
 void lock_device_permanently();
 
+extern int ctap_needs_press;
+extern int ctap_pressed;
+
 #endif
