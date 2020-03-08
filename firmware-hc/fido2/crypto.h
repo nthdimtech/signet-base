@@ -54,6 +54,9 @@ void crypto_aes256_encrypt(uint8_t * buf, int lenth);
 void crypto_reset_master_secret();
 void crypto_load_master_secret(uint8_t * key);
 
+void crypto_random_init();
+int crypto_random_get_requested();
+int crypto_random_get_served();
 
 extern const uint8_t attestation_cert_der[];
 extern const uint16_t attestation_cert_der_size;

@@ -312,7 +312,7 @@ int main (void)
 	EXTI->RTSR |= (1<<RTC_EXTI_LINE);
 	__HAL_RCC_RTC_CLK_ENABLE();
 	__HAL_RCC_RTC_ENABLE();
-	rtc_rand_init(0x7f);
+	rtc_rand_init(4);
 #endif
 
 #ifdef USE_UART

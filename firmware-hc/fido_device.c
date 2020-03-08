@@ -25,7 +25,7 @@ struct ResidentKeyStore {
     CTAP_residentKey rks[RK_NUM];
 } RK_STORE;
 
-static bool _up_disabled = false;
+bool _up_disabled = false;
 
 int device_is_nfc()
 {
@@ -95,23 +95,6 @@ void device_set_status(uint32_t status)
         ctaphid_update_status(status);
     }
     __device_status = status;
-}
-
-int ctap_user_presence_test(uint32_t delay)
-{
-	if (_up_disabled) {
-		return 2;
-	} else {
-		//HC_TODO: Actually check for user presence
-		return 1;
-	}
-}
-
-int ctap_generate_rng(uint8_t * dst, size_t num)
-{
-	//HC_TODO: Get real random numbers
-	memset(dst, 0x80, num);
-	return 1;
 }
 
 uint32_t millis()

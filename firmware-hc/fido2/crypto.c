@@ -27,6 +27,7 @@
 #include "ctap.h"
 #include "device.h"
 #include "log.h"
+#include "rand.h"
 
 const uint8_t attestation_cert_der[];
 const uint16_t attestation_cert_der_size;
@@ -145,16 +146,44 @@ void crypto_ecc256_load_attestation_key()
     _key_len = 32;
 }
 
+static int s_random_requested = 0;
+static int s_random_served = 0;
+
+void crypto_random_init()
+{
+	s_random_requested = 0;
+	s_random_served = 0;
+}
+
+int crypto_random_get_requested()
+{
+	return s_random_requested;
+}
+
+int crypto_random_get_served()
+{
+	return s_random_served;
+}
+
 static void crypto_random_func(void *ctx, size_t length, uint8_t *dst)
 {
-	//
-	// HC_TODO
-	//
-	// We are memsetting to zero for now to get deterministic
-	// results. In the end we will need to somehow need to asynchronously
-	// call functions that need random data when enough of it is available
-	//
-	memset(dst, 0x80, length);
+	int avail = rand_avail();
+	int i;
+	uint32_t *dstw = (uint32_t *)dst;
+	s_random_requested += length;
+	for (i = 0; i < (length/4) && i < avail; i++) {
+		dstw[i] = rand_get();
+		s_random_served += 4;
+	}
+	for (; i < (length/4); i++) {
+		dstw[i] = 0x80808080;
+	}
+}
+
+int ctap_generate_rng(uint8_t * dst, size_t num)
+{
+	crypto_random_func(NULL, num, dst);
+	return 1;
 }
 
 static void crypto_sign(const struct ecc_curve *curve, const uint8_t * data, int len, uint8_t * sig);

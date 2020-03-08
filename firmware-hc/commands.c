@@ -18,9 +18,8 @@
 #include "firmware_update_state.h"
 #include "bootloader_state.h"
 
-#include "rtc_rand.h"
+#include "rand.h"
 #include "main.h"
-#include "rng.h"
 #include "memory_layout.h"
 
 //
@@ -298,20 +297,6 @@ void HAL_MMC_TxCpltCallback(MMC_HandleTypeDef *hmmc1)
 //
 // Misc functions
 //
-
-int rand_avail()
-{
-	int rtc_level = rtc_rand_avail();
-	int rng_level = rng_rand_avail();
-	return (rtc_level > rng_level) ? rng_level : rtc_level;
-}
-
-u32 rand_get()
-{
-	u32 rtc_val = rtc_rand_get();
-	u32 rng_val = rng_rand_get();
-	return rtc_val ^ rng_val;
-}
 
 void write_root_block(const u8 *data, int sz)
 {
@@ -726,7 +711,8 @@ void button_release()
 	if (waiting_for_long_button_press) {
 		resume_blinking();
 	} else if (g_device_state == DS_DISCONNECTED) {
-		button_release_disconnected();
+		//HC_TODO: Not supported yet
+		//button_release_disconnected();
 	}
 }
 
@@ -913,7 +899,8 @@ void button_press()
 	} else if (!waiting_for_button_press && !waiting_for_long_button_press) {
 		switch (g_device_state) {
 		case DS_DISCONNECTED:
-			button_press_disconnected();
+			//HC_TODO: Not supported yet
+			//button_press_disconnected();
 			break;
 		default:
 			cmd_event_send(1, NULL, 0);

@@ -17,6 +17,8 @@
 #include "extensions.h"
 #endif
 
+#include "stm32f733xx.h"
+
 // void u2f_response_writeback(uint8_t * buf, uint8_t len);
 #ifdef ENABLE_U2F
 static int16_t u2f_register(struct u2f_register_request * req);
@@ -28,7 +30,7 @@ void u2f_reset_response();
 
 static CTAP_RESPONSE * _u2f_resp = NULL;
 
-void u2f_request_ex(APDU_HEADER *req, uint8_t *payload, uint32_t len, CTAP_RESPONSE * resp)
+int u2f_request_ex(APDU_HEADER *req, uint8_t *payload, uint32_t len, CTAP_RESPONSE * resp)
 {
     uint16_t rcode = 0;
     uint8_t byte;
@@ -69,7 +71,7 @@ void u2f_request_ex(APDU_HEADER *req, uint8_t *payload, uint32_t len, CTAP_RESPO
                 printf1(TAG_U2F, "U2F_AUTHENTICATE\n");
                 timestamp();
                 rcode = u2f_authenticate((struct u2f_authenticate_request*)payload, req->p1);
-                printf1(TAG_TIME,"u2f_authenticate time: %d ms\n", timestamp());
+		printf1(TAG_TIME,"u2f_authenticate time: %d ms\n", timestamp());
                 break;
             case U2F_VERSION:
                 printf1(TAG_U2F, "U2F_VERSION\n");
@@ -98,7 +100,9 @@ void u2f_request_ex(APDU_HEADER *req, uint8_t *payload, uint32_t len, CTAP_RESPO
     device_set_status(CTAPHID_STATUS_IDLE);
 
 end:
-    if (rcode != U2F_SW_NO_ERROR)
+    if (rcode == U2F_SW_PROCESSING) {
+        return rcode;
+    } else if (rcode != U2F_SW_NO_ERROR)
     {
         printf1(TAG_U2F,"U2F Error code %04x\n", rcode);
         ctap_response_init(_u2f_resp);
@@ -110,23 +114,26 @@ end:
     u2f_response_writeback(&byte,1);
 
     printf1(TAG_U2F,"u2f resp: "); dump_hex1(TAG_U2F, _u2f_resp->data, _u2f_resp->length);
+    return rcode;
 }
 
-void u2f_request_nfc(uint8_t * header, uint8_t * data, int datalen, CTAP_RESPONSE * resp)
+int u2f_request_nfc(uint8_t * header, uint8_t * data, int datalen, CTAP_RESPONSE * resp)
 {
 	if (!header)
-		return;
+		return 1;
 
     device_disable_up(true);  // disable presence test
-	u2f_request_ex((APDU_HEADER *)header, data, datalen, resp);
+    int ret = u2f_request_ex((APDU_HEADER *)header, data, datalen, resp);
     device_disable_up(false); // enable presence test
+    return ret;
 }
 
-void u2f_request(struct u2f_request_apdu* req, CTAP_RESPONSE * resp)
+int u2f_request(struct u2f_request_apdu* req, CTAP_RESPONSE * resp)
 {
     uint32_t len = ((req->LC3) | ((uint32_t)req->LC2 << 8) | ((uint32_t)req->LC1 << 16));
 
-	u2f_request_ex((APDU_HEADER *)req, req->payload, len, resp);
+    int ret =u2f_request_ex((APDU_HEADER *)req, req->payload, len, resp);
+    return ret;
 }
 
 int8_t u2f_response_writeback(const uint8_t * buf, uint16_t len)
@@ -175,13 +182,23 @@ static void u2f_make_auth_tag(struct u2f_key_handle * kh, uint8_t * appid, uint8
     memmove(tag, hashbuf, CREDENTIAL_TAG_SIZE);
 }
 
+//HC_TODO: Probably shouldn't expose this API here
+#include "rand.h"
+
 int8_t u2f_new_keypair(struct u2f_key_handle * kh, uint8_t * appid, uint8_t * pubkey)
 {
-    ctap_generate_rng(kh->key, U2F_KEY_HANDLE_KEY_SIZE);
-    u2f_make_auth_tag(kh, appid, kh->tag);
-
-    crypto_ecc256_derive_public_key((uint8_t*)kh, U2F_KEY_HANDLE_SIZE, pubkey, pubkey+32);
-    return 0;
+    __disable_irq();
+    int avail = rand_avail();
+    if (avail < U2F_KEY_HANDLE_KEY_SIZE) {
+	ctap_rand_needed = U2F_KEY_HANDLE_KEY_SIZE; 
+    	__enable_irq();
+    	return 1;
+    }
+    __enable_irq();
+   ctap_generate_rng(kh->key, U2F_KEY_HANDLE_KEY_SIZE);
+   u2f_make_auth_tag(kh, appid, kh->tag);
+   crypto_ecc256_derive_public_key((uint8_t*)kh, U2F_KEY_HANDLE_SIZE, pubkey, pubkey+32);
+   return 0;
 }
 
 
@@ -241,10 +258,12 @@ static int16_t u2f_authenticate(struct u2f_authenticate_request * req, uint8_t c
 
 	if(up)
 	{
-		if (ctap_user_presence_test(750) == 0)
-		{
+		int ret = ctap_user_presence_test(750);
+		if (ret == 0) {
 			return U2F_SW_CONDITIONS_NOT_SATISFIED;
-		}
+		} if (ret == -1) {
+			return U2F_SW_PROCESSING;	
+		}	
 	}
 
     count = ctap_atomic_count(0);
@@ -287,14 +306,17 @@ static int16_t u2f_register(struct u2f_register_request * req)
 
     const uint16_t attest_size = attestation_cert_der_size;
 
-	if ( ! ctap_user_presence_test(750))
-	{
+	int ret = ctap_user_presence_test(750);
+	if (ret == 0) {
 		return U2F_SW_CONDITIONS_NOT_SATISFIED;
-	}
-
-    if ( u2f_new_keypair(&key_handle, req->app, pubkey) == -1)
-    {
+	} else if (ret == -1) {
+		return U2F_SW_PROCESSING;	
+	}	
+    ret = u2f_new_keypair(&key_handle, req->app, pubkey);
+    if (ret == -1) {
         return U2F_SW_INSUFFICIENT_MEMORY;
+    } else if (ret == 1) {
+        return U2F_SW_PROCESSING;
     }
 
     crypto_sha256_init();

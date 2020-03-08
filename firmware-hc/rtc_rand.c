@@ -7,15 +7,43 @@
 
 #ifdef BOOT_MODE_B
 
-static int rtc_rand_level = 0;
+#ifdef ENABLE_FIDO2
+#include "fido2/ctap.h"
+#endif
+
+#include "rand.h"
 
 static u32 rtc_rand_buf[1024];
 static int rtc_rand_head = 0;
+
+static int rtc_rand_level = 0;
 static int rtc_rand_tail = 0;
+
+static int rtc_rand_rewind_level = 0;
+static int rtc_rand_rewind_tail = -1;
 
 int rtc_rand_avail(void)
 {
 	return rtc_rand_level;
+}
+
+void rtc_rand_set_rewind_point(void)
+{
+	rtc_rand_rewind_tail = rtc_rand_tail;
+	rtc_rand_rewind_level = rtc_rand_level;
+}
+
+void rtc_rand_clear_rewind_point(void)
+{
+	rtc_rand_rewind_tail = -1;
+}
+
+void rtc_rand_rewind(void)
+{
+	if (rtc_rand_rewind_tail >= 0) {
+		rtc_rand_level = rtc_rand_rewind_level;
+		rtc_rand_tail = rtc_rand_rewind_tail;
+	}
 }
 
 u32 rtc_rand_get()
@@ -49,17 +77,24 @@ void RTC_WKUP_IRQHandler(void)
 	rndtemp_i++;
 	if (rndtemp_i >= 32) {
 		rndtemp_i = 0;
-		rtc_rand_buf[rtc_rand_head++] ^= rndtemp;
-		rtc_rand_head = (rtc_rand_head + 1) % 1024;
-		if (rtc_rand_head == rtc_rand_tail) {
-			rtc_rand_tail = (rtc_rand_tail + 1) % 1024;
-		} else {
+	
+		int next_head = (rtc_rand_head + 1) % 1024;
+		int tail = (rtc_rand_rewind_tail < 0) ?
+			rtc_rand_tail : rtc_rand_rewind_tail;
+		if (next_head != tail) {
+			rtc_rand_buf[rtc_rand_head] ^= rndtemp;
 			rtc_rand_level++;
+			rtc_rand_head = next_head;	
+			if (rtc_rand_rewind_tail >= 0) {
+				rtc_rand_rewind_level++;
+			}
+			rand_update(RAND_SRC_RTC);
+		} else {
+			//HC_TODO: Turn off interrupt
 		}
-		cmd_rand_update();
 	}
 	RTC->ISR &= ~(RTC_ISR_WUTF);
-	EXTI->PR = 1<<RTC_EXTI_LINE;
+	EXTI->PR = 1 << RTC_EXTI_LINE;
 }
 
 void rtc_rand_init(u16 rate)
@@ -69,6 +104,7 @@ void rtc_rand_init(u16 rate)
 
 	RTC->CR &= ~RTC_CR_WUTE;
 	while (!(RTC->ISR & RTC_ISR_WUTWF));
+	RTC->CR &= ~0x3; //WUT = RTC/16 == 2Khz
 	RTC->WUTR = rate;
 	RTC->ISR &= ~(RTC_ISR_WUTF);
 	RTC->CR |= RTC_CR_WUTE | RTC_CR_WUTIE;

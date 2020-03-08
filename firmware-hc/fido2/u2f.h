@@ -49,6 +49,7 @@
 #define U2F_SW_CLASS_NOT_SUPPORTED          0x6E00
 #define U2F_SW_WRONG_DATA                   0x6a80
 #define U2F_SW_INSUFFICIENT_MEMORY          0x9210
+#define U2F_SW_PROCESSING                   0xffff
 
 // Delay in milliseconds to wait for user input
 #define U2F_MS_USER_INPUT_WAIT              3000
@@ -96,12 +97,12 @@ struct u2f_authenticate_request
 
 // u2f_request send a U2F message to U2F protocol
 // @req U2F message
-void u2f_request(struct u2f_request_apdu* req, CTAP_RESPONSE * resp);
+int u2f_request(struct u2f_request_apdu* req, CTAP_RESPONSE * resp);
 
 // u2f_request send a U2F message to NFC protocol
 // @req data with iso7816 apdu message
 // @len data length
-void u2f_request_nfc(uint8_t * header, uint8_t * data, int datalen, CTAP_RESPONSE * resp);
+int u2f_request_nfc(uint8_t * header, uint8_t * data, int datalen, CTAP_RESPONSE * resp);
 
 int8_t u2f_authenticate_credential(struct u2f_key_handle * kh, uint8_t * appid);
 

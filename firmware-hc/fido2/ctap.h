@@ -365,5 +365,8 @@ void lock_device_permanently();
 
 extern int ctap_needs_press;
 extern int ctap_pressed;
+extern int ctap_rand_needed;
+extern int ctap_press_timeout;
+void ctap_rand_update();
 
 #endif

@@ -22,6 +22,9 @@
 // and the following headers too
 #include "nettle/sha2.h"
 #include "crypto.h"
+#include "rand.h"
+
+#include "stm32f733xx.h"
 
 typedef enum
 {
@@ -539,7 +542,12 @@ extern void _check_ret(CborError ret, int line, const char * filename);
 
 int ctaphid_processing_packet = 0;
 
+int ctap_rand_needed = 0;
+int ctap_rand_owner = 0;
+
 static int process_ctaphid_packet();
+
+static void restart_command();
 
 uint8_t ctaphid_handle_packet(uint8_t * pkt_raw)
 {
@@ -570,16 +578,51 @@ uint8_t ctaphid_handle_packet(uint8_t * pkt_raw)
         active_cid_timestamp = millis();
         return 0;
     }
-    if (process_ctaphid_packet()) {
-        ctaphid_processing_packet = 1;
+    ctap_pressed = 0;
+    ctap_press_timeout = 0;
+    ctap_needs_press = 0;
+    ctap_rand_needed = 0;
+    ctap_rand_owner = 0;
+    ctaphid_processing_packet = 1;
+
+    if (rand_begin_read(RAND_OWNER_CTAP)) {
+        ctap_rand_owner = 1;
+        restart_command();
     }
     return ctaphid_processing_packet;
+}
+
+static void restart_command()
+{
+	ctap_rand_needed = 0;
+	rand_rewind();
+	rand_set_rewind_point();
+	crypto_random_init();
+	if (!process_ctaphid_packet()) {
+		ctaphid_processing_packet = 0;
+		rand_clear_rewind_point();
+		rand_end_read(RAND_OWNER_CTAP);
+	} else {
+		int rand_req = crypto_random_get_requested();
+		int rand_serv = crypto_random_get_served();
+		if (rand_req != rand_serv) {
+			__disable_irq();
+			int avail = rand_avail();
+			if (avail >= rand_req) {
+				__enable_irq();
+				restart_command();
+			} else {
+				ctap_rand_needed = rand_req;
+				__enable_irq();
+			}
+		}
+	}
 }
 
 void ctaphid_blink_timeout()
 {
 	if (ctap_needs_press) {
-		ctap_pressed = 0;
+		ctap_press_timeout = 1;
 		ctaphid_idle();
 	}
 }
@@ -592,12 +635,19 @@ void ctaphid_press()
 	}
 }
 
+void ctap_rand_update()
+{
+	int avail = rand_avail() * 4;
+	if ((avail >= ctap_rand_needed && ctap_rand_needed > 0) || (ctap_rand_owner == 0)) {
+		ctap_rand_owner = 1;
+		ctaphid_idle();
+	}
+}
+
 void ctaphid_idle()
 {
 	if (ctaphid_processing_packet) {
-		if (!process_ctaphid_packet()) {
-			ctaphid_processing_packet = 0;
-		}
+		restart_command();
 	}
 }
 
@@ -612,7 +662,7 @@ static int process_ctaphid_packet()
     static CTAPHID_WRITE_BUFFER wb;
     static CTAP_RESPONSE ctap_resp;
     static uint8_t is_busy = 0;
-    assert(buffer_status() == BUFFERED);
+    assert(buffer_status() == BUFFERED || buffer_status() == EMPTY);
 
     switch(cmd)
     {
@@ -669,16 +719,32 @@ static int process_ctaphid_packet()
             is_busy = 1;
             ctap_response_init(&ctap_resp);
             status = ctap_request(ctap_buffer, len, &ctap_resp);
-            if (status == CTAP2_ERR_PROCESSING) {
-                is_busy = 0;
-                return cmd;
-            }
+
+	    if (crypto_random_get_requested()) {
+		    int rand_req = crypto_random_get_requested();
+		    int rand_serv = crypto_random_get_served();
+		    if (rand_req != rand_serv) {
+			if (status == CTAP1_ERR_SUCCESS) {
+				status = CTAP2_ERR_PROCESSING;
+			}
+		    }
+	    }
+
+	    switch (status) {
+            case CTAP2_ERR_PROCESSING:
+            case CTAP2_ERR_USER_ACTION_PENDING:
+		is_busy = 0;
+	    	return cmd;
+	    case CTAP2_ERR_ACTION_TIMEOUT:
+		is_busy = 0;
+		ctaphid_send_error(cid, status);
+	    	return 0;
+	    }
 
             ctaphid_write_buffer_init(&wb);
             wb.cid = cid;
             wb.cmd = CTAPHID_CBOR;
             wb.bcnt = (ctap_resp.length+1);
-
 
             timestamp();
             ctaphid_write(&wb, &status, 1);
@@ -705,7 +771,12 @@ static int process_ctaphid_packet()
             }
             is_busy = 1;
             ctap_response_init(&ctap_resp);
-            u2f_request((struct u2f_request_apdu*)ctap_buffer, &ctap_resp);
+            int ret = u2f_request((struct u2f_request_apdu*)ctap_buffer, &ctap_resp);
+
+	    if (ret == U2F_SW_PROCESSING) {
+		is_busy = 0;
+	    	return cmd;
+	    }
 
             ctaphid_write_buffer_init(&wb);
             wb.cid = cid;
@@ -718,7 +789,16 @@ static int process_ctaphid_packet()
             break;
         case CTAPHID_CANCEL:
             printf1(TAG_HID,"CTAPHID_CANCEL\n");
-            is_busy = 0;
+            __disable_irq(); 
+	    ctap_pressed = 0;
+	    ctap_press_timeout = 0;
+	    ctap_needs_press = 0;
+	    ctap_rand_needed = 0;
+	    ctap_rand_owner = 0;
+	    ctaphid_processing_packet = 0;
+	    rand_end_read(RAND_OWNER_CTAP);
+	    __enable_irq();
+	    is_busy = 0;
             break;
 #if defined(IS_BOOTLOADER)
         case CTAPHID_BOOT:
@@ -764,7 +844,8 @@ static int process_ctaphid_packet()
             if (!wb.bcnt)
                 wb.bcnt = 57;
             memset(ctap_buffer,0,wb.bcnt);
-            ctap_generate_rng(ctap_buffer, wb.bcnt);
+            //HC_TODO: Need to reissue if we don't have random data
+	    ctap_generate_rng(ctap_buffer, wb.bcnt);
             ctaphid_write(&wb, &ctap_buffer, wb.bcnt);
             ctaphid_write(&wb, NULL, 0);
             is_busy = 0;
@@ -778,7 +859,8 @@ static int process_ctaphid_packet()
             wb.cid = cid;
             wb.cmd = CTAPHID_GETVERSION;
             wb.bcnt = 3;
-            ctap_buffer[0] = SOLO_VERSION_MAJ;
+            //HC_TODO: Not SOLO
+ 	    ctap_buffer[0] = SOLO_VERSION_MAJ;
             ctap_buffer[1] = SOLO_VERSION_MIN;
             ctap_buffer[2] = SOLO_VERSION_PATCH;
             ctaphid_write(&wb, &ctap_buffer, 3);
@@ -795,7 +877,5 @@ static int process_ctaphid_packet()
     buffer_reset();
 
     printf1(TAG_HID,"\n");
-    if (!is_busy) return cmd;
-    else return 0;
-
+    return 0;
 }

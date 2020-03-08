@@ -437,6 +437,7 @@ static unsigned int get_credential_id_size(CTAP_credentialDescriptor * cred)
 
 int ctap_needs_press = 0;
 int ctap_pressed = 0;
+int ctap_press_timeout = 0;
 
 void start_blinking(int, int);
 void stop_blinking();
@@ -444,20 +445,37 @@ void stop_blinking();
 static int ctap2_user_presence_test()
 {
 	if (ctap_pressed) {
-		ctap_pressed = 0;
-		ctap_needs_press = 0;
 		stop_blinking();
 		return CTAP1_ERR_SUCCESS;
 	} else {
-		if (ctap_needs_press) {
-			ctap_needs_press = 0;
-			//HC_TODO: Chrome doesn't respond to this error with a timeout message
-			// is it really the right code
+		if (ctap_press_timeout) {
 			return CTAP2_ERR_ACTION_TIMEOUT;
-		} else {
+		} else if (!ctap_needs_press) {
 			ctap_needs_press = 1;
 			start_blinking(500, 5000);
-			return CTAP2_ERR_PROCESSING;
+		}
+		return CTAP2_ERR_USER_ACTION_PENDING;
+	}
+}
+
+extern bool _up_disabled;
+
+int ctap_user_presence_test(uint32_t delay)
+{
+	if (_up_disabled) {
+		return 2;
+	} else {
+		if (ctap_pressed) {
+			stop_blinking();
+			return 1;
+		} else {
+			if (ctap_press_timeout) {
+				return 0;
+			} else if (!ctap_needs_press) {
+				ctap_needs_press = 1;
+				start_blinking(500, 5000);
+			}
+			return -1;
 		}
 	}
 }
@@ -492,7 +510,7 @@ static int ctap_make_auth_data(struct rpId * rp, CborEncoder * map, uint8_t * au
     int but;
 
     but = ctap2_user_presence_test(CTAP2_UP_DELAY_MS);
-    if (CTAP2_ERR_PROCESSING == but)
+    if (CTAP1_ERR_SUCCESS != but)
     {
         authData->head.flags = (0 << 0);        // User presence disabled
     }
