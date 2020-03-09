@@ -584,6 +584,7 @@ uint8_t ctaphid_handle_packet(uint8_t * pkt_raw)
     ctap_rand_needed = 0;
     ctap_rand_owner = 0;
     ctaphid_processing_packet = 1;
+    rand_clear_rewind_point();
 
     if (rand_begin_read(RAND_OWNER_CTAP)) {
         ctap_rand_owner = 1;
@@ -789,15 +790,16 @@ static int process_ctaphid_packet()
             break;
         case CTAPHID_CANCEL:
             printf1(TAG_HID,"CTAPHID_CANCEL\n");
-            __disable_irq(); 
 	    ctap_pressed = 0;
 	    ctap_press_timeout = 0;
 	    ctap_needs_press = 0;
 	    ctap_rand_needed = 0;
 	    ctap_rand_owner = 0;
+	    if (rand_begin_read(RAND_OWNER_CTAP)) {
+		    rand_clear_rewind_point();
+		    rand_end_read(RAND_OWNER_CTAP);
+	    }
 	    ctaphid_processing_packet = 0;
-	    rand_end_read(RAND_OWNER_CTAP);
-	    __enable_irq();
 	    is_busy = 0;
             break;
 #if defined(IS_BOOTLOADER)

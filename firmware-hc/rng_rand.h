@@ -12,4 +12,6 @@ void rng_rand_set_rewind_point();
 void rng_rand_rewind();
 void rng_rand_clear_rewind_point();
 
+void rng_rand_irq_enable(int en);
+
 #endif

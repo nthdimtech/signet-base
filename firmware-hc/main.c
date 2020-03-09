@@ -7,6 +7,7 @@
 #include "flash.h"
 #include "rng_rand.h"
 #include "rtc_rand.h"
+#include "rand.h"
 #include "commands.h"
 #include "usb_keyboard.h"
 #include "crc.h"
@@ -301,6 +302,8 @@ int main (void)
 	crc_init();
 
 #ifdef BOOT_MODE_B
+	rand_init();
+
 	HAL_NVIC_SetPriority(RNG_IRQn, DEFAULT_INT_PRIORITY, 0);
 	HAL_NVIC_EnableIRQ(RNG_IRQn);
 	__HAL_RCC_RNG_CLK_ENABLE();

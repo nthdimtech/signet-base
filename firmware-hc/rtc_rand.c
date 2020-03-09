@@ -13,54 +13,19 @@
 
 #include "rand.h"
 
-static u32 rtc_rand_buf[1024];
-static int rtc_rand_head = 0;
-
-static int rtc_rand_level = 0;
-static int rtc_rand_tail = 0;
-
-static int rtc_rand_rewind_level = 0;
-static int rtc_rand_rewind_tail = -1;
-
-int rtc_rand_avail(void)
+void rtc_rand_irq_enable(int en)
 {
-	return rtc_rand_level;
-}
-
-void rtc_rand_set_rewind_point(void)
-{
-	rtc_rand_rewind_tail = rtc_rand_tail;
-	rtc_rand_rewind_level = rtc_rand_level;
-}
-
-void rtc_rand_clear_rewind_point(void)
-{
-	rtc_rand_rewind_tail = -1;
-}
-
-void rtc_rand_rewind(void)
-{
-	if (rtc_rand_rewind_tail >= 0) {
-		rtc_rand_level = rtc_rand_rewind_level;
-		rtc_rand_tail = rtc_rand_rewind_tail;
+	if (en) {
+		RTC->CR |= RTC_CR_WUTIE;
+	} else {
+		RTC->CR &= ~RTC_CR_WUTIE;
 	}
 }
 
-u32 rtc_rand_get()
-{
-	if (rtc_rand_head == rtc_rand_tail)
-		return 0;
-	u32 ret = rtc_rand_buf[rtc_rand_tail];
-	rtc_rand_tail = (rtc_rand_tail + 1) % 1024;
-	rtc_rand_level--;
-	return ret;
-}
-
-static u32 rndtemp = 0;
-static u32 rndtemp_i = 0;
-
 void RTC_WKUP_IRQHandler(void)
 {
+	static u32 rndtemp = 0;
+	static u32 rndtemp_i = 0;
 	u32 clk = DWT->CYCCNT;
 	u32 rnd = (clk & 1);
 	clk>>=1;
@@ -77,21 +42,7 @@ void RTC_WKUP_IRQHandler(void)
 	rndtemp_i++;
 	if (rndtemp_i >= 32) {
 		rndtemp_i = 0;
-	
-		int next_head = (rtc_rand_head + 1) % 1024;
-		int tail = (rtc_rand_rewind_tail < 0) ?
-			rtc_rand_tail : rtc_rand_rewind_tail;
-		if (next_head != tail) {
-			rtc_rand_buf[rtc_rand_head] ^= rndtemp;
-			rtc_rand_level++;
-			rtc_rand_head = next_head;	
-			if (rtc_rand_rewind_tail >= 0) {
-				rtc_rand_rewind_level++;
-			}
-			rand_update(RAND_SRC_RTC);
-		} else {
-			//HC_TODO: Turn off interrupt
-		}
+		rand_push(RAND_SRC_RTC, rndtemp);
 	}
 	RTC->ISR &= ~(RTC_ISR_WUTF);
 	EXTI->PR = 1 << RTC_EXTI_LINE;

@@ -3,6 +3,7 @@
 
 #include "types.h"
 
+void rand_init();
 int rand_avail();
 u32 rand_get();
 
@@ -24,5 +25,16 @@ enum rand_src {
 int rand_begin_read(enum rand_owner owner);
 void rand_end_read(enum rand_owner owner);
 void rand_update(enum rand_src src);
+
+struct rand_src_state {
+	u32 buf[1024];
+	int head;
+	int level;
+	int tail;
+	int rewind_level;
+	int rewind_tail;
+};
+
+void rand_push(enum rand_src src, u32 val);
 
 #endif

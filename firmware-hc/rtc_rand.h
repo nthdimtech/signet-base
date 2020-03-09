@@ -13,4 +13,6 @@ void rtc_rand_clear_rewind_point();
 
 #define RTC_EXTI_LINE (22)
 
+void rtc_rand_irq_enable(int en);
+
 #endif
