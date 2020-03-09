@@ -1,5 +1,5 @@
-#ifndef RNG_H
-#define RNG_H
+#ifndef RNG_RAND_H
+#define RNG_RAND_H
 
 #include "types.h"
 

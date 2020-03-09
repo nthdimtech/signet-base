@@ -87,7 +87,7 @@ SOURCES = commands.c \
 	db.c \
 	crc.c \
 	rtc_rand.c \
-	rng.c \
+	rng_rand.c \
 	signet_aes.c \
 	usb_raw_hid.c \
 	usb_keyboard.c \

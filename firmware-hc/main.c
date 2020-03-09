@@ -5,7 +5,7 @@
 #include "usbd_desc.h"
 #include "usbd_multi.h"
 #include "flash.h"
-#include "rng.h"
+#include "rng_rand.h"
 #include "rtc_rand.h"
 #include "commands.h"
 #include "usb_keyboard.h"

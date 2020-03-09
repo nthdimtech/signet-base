@@ -3,7 +3,7 @@
 #ifdef BOOT_MODE_B
 
 #include "rtc_rand.h"
-#include "rng.h"
+#include "rng_rand.h"
 #include "fido2/ctap.h"
 #include "commands.h"
 #include "stm32f733xx.h"
