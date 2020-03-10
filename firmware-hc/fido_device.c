@@ -18,13 +18,8 @@
 #include "usbd_multi.h"
 #include "usbd_hid.h"
 #include "main.h"
-
-#define RK_NUM 10
-
-struct ResidentKeyStore {
-    CTAP_residentKey rks[RK_NUM];
-} RK_STORE;
-
+#include "commands.h"
+#include "memory_layout.h"
 bool _up_disabled = false;
 
 int device_is_nfc()
@@ -32,51 +27,49 @@ int device_is_nfc()
 	return 0;
 }
 
-void sync_rk()
-{
-	//HC_TODO: Store resident keys
-}
-
 void authenticator_initialize()
 {
-	//
-	// HC_TODO: Make keys memory resident
-	//
-	// For now just put keys into a reset state
-	//
-	ctap_reset_rk();
 }
-
-AuthenticatorState _auth_state;
-AuthenticatorState _auth_state_backup;
-int _is_auth_backup_initialized = 0;
 
 void authenticator_write_state(AuthenticatorState *state, int backup)
 {
 	//HC_TODO: This needs to be backed by flash. What does 'backup' mean for us?
-	if (backup) {
-		_auth_state_backup = *state;
-		_is_auth_backup_initialized = 1;
-	} else {
-		_auth_state = *state;
+	if (g_root_page_valid) {
+		if (backup) {
+			root_page.fido2_auth_state_backup = *state;
+		} else {
+			root_page.fido2_auth_state = *state;
+		}
+		sync_root_block();
 	}
 }
 
+//initialize
+//wipe
+//change password
+//cleartext update
+
 void authenticator_read_state(AuthenticatorState * state)
 {
-	//HC_TODO: This needs to be backed by flash
-	*state = _auth_state;
+	if (g_root_page_valid) {
+		*state = root_page.fido2_auth_state;
+	} else {
+		memset(state, 0, sizeof(*state));
+	}
 }
 
 void authenticator_read_backup_state(AuthenticatorState * state)
 {
-	//HC_TODO: This needs to be backed by flash
-	*state = _auth_state_backup;
+	if (g_root_page_valid) {
+		*state = root_page.fido2_auth_state_backup;
+	} else {
+		memset(state, 0, sizeof(*state));
+	}
 }
 
 int authenticator_is_backup_initialized()
 {
-	return _is_auth_backup_initialized;
+	return root_page.fido2_auth_state_backup.is_initialized;
 }
 
 uint32_t ctap_atomic_count(int sel)
@@ -104,8 +97,10 @@ uint32_t millis()
 
 void ctap_reset_rk()
 {
-	memset(&RK_STORE, 0xff, sizeof(RK_STORE));
-	sync_rk();
+	if (g_root_page_valid) {
+		memset(&root_page.rk_store, 0xff, sizeof(root_page.rk_store));
+		sync_root_block();
+	}
 }
 
 uint32_t ctap_rk_size()
@@ -115,32 +110,37 @@ uint32_t ctap_rk_size()
 
 void ctap_store_rk(int index, CTAP_residentKey * rk)
 {
-	if (index < RK_NUM) {
-		memmove(RK_STORE.rks + index, rk, sizeof(CTAP_residentKey));
-		sync_rk();
-	} else {
-		assert(0);
+	if (g_root_page_valid) {
+		if (index < RK_NUM) {
+			memmove(root_page.rk_store.rks + index, rk, sizeof(CTAP_residentKey));
+			sync_root_block();
+		} else {
+			assert(0);
+		}
 	}
 }
 
 void ctap_load_rk(int index, CTAP_residentKey * rk)
 {
-	if (index < RK_NUM) {
-		memmove(rk, RK_STORE.rks + index, sizeof(CTAP_residentKey));
-	} else {
-		assert(0);
+	if (g_root_page_valid) {
+		if (index < RK_NUM) {
+			memmove(rk, root_page.rk_store.rks + index, sizeof(CTAP_residentKey));
+		} else {
+			assert(0);
+		}
 	}
 }
 
 void ctap_overwrite_rk(int index, CTAP_residentKey * rk)
 {
-	if (index < RK_NUM) {
-		memmove(RK_STORE.rks + index, rk, sizeof(CTAP_residentKey));
-		sync_rk();
-	} else {
-		assert(0);
+	if (g_root_page_valid) {
+		if (index < RK_NUM) {
+			memmove(root_page.rk_store.rks + index, rk, sizeof(*rk));
+			sync_root_block();
+		} else {
+			assert(0);
+		}
 	}
-
 }
 
 void device_disable_up(bool request_active)

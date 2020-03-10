@@ -127,10 +127,13 @@ static void fail(int l1, int l2)
 	while(1);
 }
 
+#ifdef assert
+#undef assert
 void assert(int cond)
 {
 	assert_lit(cond, 1, 1);
 }
+#endif
 
 void assert_lit(int cond, int l1, int l2)
 {

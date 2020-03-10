@@ -325,7 +325,7 @@ static uint8_t USBD_Multi_DeviceQualifierDesc[USB_LEN_DEV_QUALIFIER_DESC] __attr
 	0x00,
 };
 
-static USBD_HID_HandleTypeDef s_cmdHIDClassData __attribute__((aligned(16)));
+USBD_HID_HandleTypeDef s_cmdHIDClassData __attribute__((aligned(16)));
 static USBD_HID_HandleTypeDef s_fidoHIDClassData __attribute__((aligned(16)));
 static USBD_HID_HandleTypeDef s_keyboardHIDClassData __attribute__((aligned(16)));
 static USBD_MSC_BOT_HandleTypeDef s_SCSIMSCClassData __attribute__((aligned(16)));

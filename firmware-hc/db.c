@@ -20,9 +20,6 @@ enum update_uid_status {
 
 #define MAX_PART_SIZE ((BLK_SIZE - sizeof(struct block) - sizeof(struct uid_ent))/SUB_BLK_SIZE)
 
-extern struct root_page _crypt_data1;
-extern struct root_page _crypt_data2;
-
 static u8 block_read_cache[BLK_SIZE];
 static u8 block_read_cache_idx = -1;
 static int block_read_cache_updating = 0;

@@ -3,6 +3,8 @@
 
 #include "types.h"
 #include "signetdev_hc_common.h"
+#include "fido2/ctap.h"
+#include "fido2/storage.h"
 
 #define FLASH_BASE_ADDR (0x8000000)
 #define BOOT_AREA_A (0x8008000)
@@ -66,6 +68,7 @@ struct hcdb_profile_definition_block {
 } __attribute__((packed));
 
 struct hcdb_profile_auth_data {
+	u32 valid;
 	u8 salt[HC_HASH_FN_SALT_SZ];
 	u8 hash_function_params[HC_HASH_FUNCTION_PARAMS_LENGTH];
 	u8 auth_random_cyphertext[AUTH_RANDOM_DATA_LEN];
@@ -97,6 +100,12 @@ struct hc_volume {
 	u8 volume_name[MAX_VOLUME_NAME_LEN];
 } __attribute__ ((packed));
 
+#define RK_NUM 10
+
+struct ResidentKeyStore {
+    CTAP_residentKey rks[RK_NUM];
+};
+
 struct hc_device_data {
 	u32 crc; //This must be the first entry
 
@@ -122,7 +131,10 @@ struct hc_device_data {
 	struct hc_volume volumes[MAX_VOLUMES];
 	u16 storage_region_map[NUM_STORAGE_REGIONS];
 
-	struct hcdb_profile_definition_block profile_info; //Encrypted
+	struct hcdb_profile_definition_block profile_info;
+	AuthenticatorState fido2_auth_state;
+	AuthenticatorState fido2_auth_state_backup;
+	struct ResidentKeyStore rk_store;
 	u32 user_data_len;
 	u8 user_data[0];
 } __attribute__((packed));

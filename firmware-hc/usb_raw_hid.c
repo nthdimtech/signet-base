@@ -86,6 +86,16 @@ void cmd_event_send(int event_num, const u8 *data, int data_len)
 	maybe_send_raw_hid_event();
 }
 
+#include "usbd_hid.h"
+
+extern USBD_HID_HandleTypeDef s_cmdHIDClassData;
+extern USBD_HandleTypeDef *g_pdev;
+
+void usb_raw_hid_rx_resume()
+{
+	USBD_LL_PrepareReceive (g_pdev, HID_CMD_EPOUT_ADDR, s_cmdHIDClassData.rx_buffer, s_cmdHIDClassData.packetSize);
+}
+
 int usb_raw_hid_rx(volatile u8 *data, int count)
 {
 	u8 seq = data[0] & 0x7f;
@@ -100,6 +110,7 @@ int usb_raw_hid_rx(volatile u8 *data, int count)
 	}
 	if (last) {
 		cmd_packet_recv();
+		return 0;
 	}
 	return 1;
 }

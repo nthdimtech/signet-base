@@ -232,18 +232,19 @@ uint8_t  USBD_HID_Setup (USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req)
 
 void USBD_HID_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
 {
+	int rx = 1;
 	int interfaceNum = endpointToInterface(epnum);
 	USBD_HID_HandleTypeDef *hhid = ((USBD_HID_HandleTypeDef *)pdev->pClassData[interfaceNum]);
 	uint8_t *rx_buffer = hhid->rx_buffer;
 	if (interfaceNum == INTERFACE_CMD) {
-		usb_raw_hid_rx(rx_buffer, HID_CMD_EPIN_SIZE);
+		rx = usb_raw_hid_rx(rx_buffer, HID_CMD_EPIN_SIZE);
 	}
 #ifdef ENABLE_FIDO2
 	else {
 		ctaphid_handle_packet(rx_buffer);
 	}
 #endif
-	if (hhid->packetSize > 0) {
+	if (hhid->packetSize > 0 && rx) {
 		USBD_LL_PrepareReceive (pdev, epnum, rx_buffer, hhid->packetSize);
 	}
 }

@@ -21,13 +21,16 @@ LDFLAGS+=-Wl,"-Map=$(TARGET_MAP)"
 
 CFLAGS+= -DFIRMWARE -DUSE_RAW_HID -DSTM32F733xx -DUSE_HAL_DRIVER -Wall
 CFLAGS+= -Istm32f7xx -I. -I../signetdev/common
+CFLAGS += -Itinycbor -Ifido2 -Ifido2/extensions
 
 ifeq ($(BT_MODE), A)
 LDFLAGS+= -Wl,"-Tstm32f733iekx_a.ld"
 CFLAGS+= -DBOOT_MODE_A
+CFLAGS += -DVECT_TAB_OFFSET=0x8000
 else
 LDFLAGS+= -Wl,"-Tstm32f733iekx_b.ld"
 CFLAGS+= -DBOOT_MODE_B -DENABLE_FIDO2 -DENABLE_U2F
+CFLAGS += -DVECT_TAB_OFFSET=0x20000
 endif
 
 clean:
@@ -111,9 +114,6 @@ SOURCES = commands.c \
 
 ifeq ($(BT_MODE), B)
 
-CFLAGS += -Itinycbor -Ifido2 -Ifido2/extensions
-CFLAGS += -DVECT_TAB_OFFSET=0x20000
-
 SOURCES+= tinycbor/cborencoder.c \
 	  tinycbor/cborencoder_close_container_checked.c \
 	  tinycbor/cborparser.c \
@@ -132,8 +132,6 @@ SOURCES+= fido2/crypto.c \
 	  fido2/util.c \
 	  fido2/extensions/extensions.c \
 	  fido_device.c
-else
-CFLAGS += -DVECT_TAB_OFFSET=0x8000
 endif
 
 ASM_SOURCES = $(MCU_SOURCES_S)

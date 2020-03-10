@@ -5,5 +5,6 @@
 
 int usb_raw_hid_rx(volatile u8 *data, int count);
 void usb_raw_hid_tx();
+void usb_raw_hid_rx_resume();
 
 #endif

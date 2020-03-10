@@ -153,6 +153,20 @@ void enter_progressing_state(enum device_state state, int _n_progress_components
 void cmd_rand_update();
 void write_data_block(int pg, const u8 *src);
 void read_data_block(int pg, u8 *dest);
+void sync_root_block();
+
+enum command_subsystem {
+	SIGNET_SUBSYSTEM,
+	CTAP_SUBSYSTEM,
+	NO_SUBSYSTEM
+};
+
+int request_device(enum command_subsystem system);
+void release_device(enum command_subsystem system);
+
+struct hc_device_data;
+extern int g_root_page_valid;
+extern struct hc_device_data root_page;
 
 enum emmc_user {
 	EMMC_USER_NONE,

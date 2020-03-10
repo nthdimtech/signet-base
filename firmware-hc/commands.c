@@ -21,6 +21,10 @@
 #include "rand.h"
 #include "main.h"
 #include "memory_layout.h"
+#ifdef ENABLE_FIDO2
+#include "ctaphid.h"
+#endif
+#include "usb_raw_hid.h"
 
 //
 // Globals
@@ -117,6 +121,13 @@ void emmc_user_write_storage_tx_dma_complete(MMC_HandleTypeDef *hmmc);
 void emmc_user_write_db_tx_dma_complete(MMC_HandleTypeDef *hmmc);
 
 extern MMC_HandleTypeDef hmmc1;
+
+static void subsystem_idle_check()
+{
+	if (active_cmd == -1 && n_progress_components == 0) {
+		release_device(SIGNET_SUBSYSTEM);
+	}
+}
 
 void emmc_user_db_start()
 {
@@ -298,6 +309,11 @@ void HAL_MMC_TxCpltCallback(MMC_HandleTypeDef *hmmc1)
 // Misc functions
 //
 
+void sync_root_block()
+{
+	write_root_block((const u8 *)&root_page, sizeof(root_page));
+}
+
 void write_root_block(const u8 *data, int sz)
 {
 	struct hc_device_data *d = (struct hc_device_data *)data;
@@ -333,6 +349,7 @@ void enter_progressing_state (enum device_state state, int _n_progress_component
 		progress_maximum[i] = _progress_maximum[i];
 	}
 	get_progress_check();
+	subsystem_idle_check();
 }
 
 void enter_state (enum device_state state)
@@ -429,6 +446,7 @@ void finish_command_multi (enum command_responses resp, int messages_remaining, 
 		active_cmd = -1;
 	}
 	cmd_packet_send(cmd_resp, full_length);
+	subsystem_idle_check();
 }
 
 void finish_command (enum command_responses resp, const u8 *payload, int payload_len)
@@ -462,7 +480,6 @@ static void finalize_root_page_check()
 	if (rand_avail() >= (INIT_RAND_DATA_SZ/4) && !cmd_data.init_data.root_block_finalized && (cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS)) {
 		cmd_data.init_data.root_block_finalized = 1;
 		__enable_irq();
-		//NEN_TODO: compute CRC
 		for (int i = 0; i < (INIT_RAND_DATA_SZ/4); i++) {
 			((u32 *)cmd_data.init_data.rand)[i] ^= rand_get();
 		}
@@ -485,7 +502,7 @@ static void finalize_root_page_check()
 		                           keystore_key, root_page.profile_auth_data[0].keystore_key_cyphertext);
 		memcpy(root_page.profile_auth_data[0].salt, cmd_data.init_data.salt, HC_HASH_FN_SALT_SZ);
 		memcpy(root_page.profile_auth_data[0].hash_function_params, cmd_data.init_data.hashfn, HC_HASH_FUNCTION_PARAMS_LENGTH);
-		write_root_block((const u8 *)&root_page, sizeof(root_page));
+		sync_root_block();
 	} else {
 		__enable_irq();
 	}
@@ -582,8 +599,8 @@ static void write_block_complete()
 			g_uninitialized_wiped = 1;
 			enter_state(DS_UNINITIALIZED);
 		} else {
-			write_data_block(cmd_data.wipe_data.block_idx,
-					cmd_data.wipe_data.block);
+			memset(cmd_data.wipe_data.block, 0, BLK_SIZE);
+			write_data_block(cmd_data.wipe_data.block_idx, cmd_data.wipe_data.block);
 		}
 		break;
 	default:
@@ -697,7 +714,7 @@ void long_button_press()
 				finish_command_resp(UNKNOWN_DB_FORMAT);
 				return;
 			}
-			write_root_block((const u8 *)&root_page, sizeof(root_page));
+			sync_root_block();
 			break;
 #endif
 		}
@@ -1592,6 +1609,59 @@ void startup_cmd (u8 *data, int data_len)
 	startup_cmd_iter();
 }
 
+static enum command_subsystem s_device_system_owner = NO_SUBSYSTEM;
+static int s_ctap_subsystem_waiting = 0;
+static int s_signet_subsystem_waiting = 0;
+
+int request_device(enum command_subsystem system)
+{
+	__disable_irq();
+	if (s_device_system_owner == system) {
+		__enable_irq();
+		return 1;
+	}
+	if (s_device_system_owner == NO_SUBSYSTEM) {
+		s_device_system_owner = system;
+		__enable_irq();
+		return 1;
+	}
+	switch (system) {
+	case SIGNET_SUBSYSTEM:
+		s_signet_subsystem_waiting = 1;
+		break;
+	case CTAP_SUBSYSTEM:
+		s_ctap_subsystem_waiting = 1;
+		break;
+	default:
+		break;
+	}
+	__enable_irq();
+	return 0;
+}
+
+static int restart_signet_command();
+
+void release_device(enum command_subsystem system)
+{
+	__disable_irq();
+	if (system != s_device_system_owner) {
+		__enable_irq();
+		return;
+	}
+#ifdef ENABLE_FIDO2
+	if (s_ctap_subsystem_waiting && system != CTAP_SUBSYSTEM) {
+		__enable_irq();
+		ctaphid_idle();
+	} else
+#endif
+	if (s_signet_subsystem_waiting && system != SIGNET_SUBSYSTEM) {
+		__enable_irq();
+		if (!restart_signet_command()) {
+			usb_raw_hid_rx_resume();
+		}
+	}
+}
+
 int cmd_packet_recv()
 {
 	u8 *data = cmd_packet_buf;
@@ -1605,35 +1675,54 @@ int cmd_packet_recv()
 
 	if (next_active_cmd == DISCONNECT) {
 		cmd_disconnect();
-		return waiting_for_a_button_press;
+		usb_raw_hid_rx_resume();
+		return 0;
 	}
 
 	if (prev_active_cmd != -1 && next_active_cmd == CANCEL_BUTTON_PRESS && !waiting_for_a_button_press) {
 		//Ignore button cancel requests with no button press waiting
-		return waiting_for_a_button_press;
+		usb_raw_hid_rx_resume();
+		return 0;
 	}
 
 	if (prev_active_cmd != -1 && waiting_for_a_button_press && next_active_cmd == CANCEL_BUTTON_PRESS) {
 		end_button_press_wait();
 		finish_command_resp(BUTTON_PRESS_CANCELED);
-		return waiting_for_a_button_press;
+		usb_raw_hid_rx_resume();
+		return 0;
 	}
 	if (active_cmd != next_active_cmd) {
 		cmd_iter_count = 0;
 	}
 	active_cmd = next_active_cmd;
+	int ret = restart_signet_command();
+	if (ret == 0) {
+		usb_raw_hid_rx_resume();
+	}
+	return ret;
+}
+
+static int restart_signet_command()
+{
+	u8 *data = cmd_packet_buf;
+	int data_len = data[0] + (data[1] << 8) - CMD_PACKET_HEADER_SIZE;
+	int messages_remaining = data[3] + (data[4] << 8);
+	data += CMD_PACKET_HEADER_SIZE;
+	if (!request_device(SIGNET_SUBSYSTEM)) {
+		return 1;
+	}
 	cmd_messages_remaining = messages_remaining;
 
 	if (active_cmd == STARTUP) {
 		startup_cmd(data, data_len);
-		return waiting_for_a_button_press;
+		return 0;
 	}
 
 	//Always allow the GET_DEVICE_STATE command. It's easiest to handle it here
 	if (active_cmd == GET_DEVICE_STATE) {
 		u8 resp[] = {g_device_state};
 		finish_command(OKAY, resp, sizeof(resp));
-		return waiting_for_a_button_press;
+		return 0;
 	}
 	int ret = -1;
 
@@ -1641,14 +1730,14 @@ int cmd_packet_recv()
 		//If we didn't handle button cancelation press above, it could
 		//be a sign of a bug
 		active_cmd = -1;
-		return waiting_for_a_button_press;
+		return 0;
 	}
 
 	//Every command should be able to accept CMD_PACKET_PAYLOAD_SIZE bytes of
 	//data. If there is more, we reject it here.
 	if (data_len > CMD_PACKET_PAYLOAD_SIZE) {
 		finish_command_resp(INVALID_INPUT);
-		return waiting_for_a_button_press;
+		return 0;
 	}
 
 	switch (g_device_state) {
@@ -1705,5 +1794,5 @@ int cmd_packet_recv()
 		long_button_press();
 	}
 #endif
-	return waiting_for_a_button_press;
+	return 0;
 }
