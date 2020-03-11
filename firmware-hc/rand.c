@@ -77,10 +77,6 @@ void rand_clear_rewind_point()
 	rtc_rand_irq_enable(1);
 }
 
-static int s_rand_owner = RAND_OWNER_NONE;
-static int s_rand_command_waiting = 0;
-static int s_rand_ctap_waiting = 0;
-
 void rand_push(enum rand_src _src, u32 val)
 {
 	struct rand_src_state *src;
@@ -116,62 +112,18 @@ void rand_push(enum rand_src _src, u32 val)
 
 void rand_update(enum rand_src src)
 {
-	switch (s_rand_owner) {
-	case RAND_OWNER_COMMAND:
+
+	switch (device_subsystem_owner()) {
+	case SIGNET_SUBSYSTEM:
 		cmd_rand_update();
 		break;
 #ifdef ENABLE_FIDO2
-	case RAND_OWNER_CTAP:
+	case CTAP_SUBSYSTEM:
 		ctap_rand_update();
 		break;
 #endif
 	default:
 		break;
-	}
-}
-
-int rand_begin_read(enum rand_owner owner)
-{
-	__disable_irq();
-	if (s_rand_owner == RAND_OWNER_NONE) {
-		s_rand_owner = owner;
-	} else if (s_rand_owner != owner) {
-		switch (owner) {
-		case RAND_OWNER_COMMAND:
-			s_rand_command_waiting = 1;
-			break;
-		case RAND_OWNER_CTAP:
-			s_rand_ctap_waiting = 1;
-			break;
-		default:
-			break;
-		}
-	}
-	__enable_irq();
-	if (s_rand_owner == owner) {
-		return 1;
-	} else {
-		return 0;
-	}
-}
-
-void rand_end_read(enum rand_owner owner)
-{
-	__disable_irq();
-	if (owner == s_rand_owner) {
-		if (s_rand_command_waiting && s_rand_owner != RAND_OWNER_COMMAND) {
-			s_rand_command_waiting = 0;
-			s_rand_owner = RAND_OWNER_COMMAND;
-			__enable_irq();
-			cmd_rand_update();
-		} else if (s_rand_ctap_waiting && s_rand_owner != RAND_OWNER_CTAP) {
-			s_rand_ctap_waiting = 0;
-			s_rand_owner = RAND_OWNER_CTAP;
-			__enable_irq();
-			ctap_rand_update();
-		} else {
-			s_rand_owner = RAND_OWNER_NONE;
-		}
 	}
 }
 

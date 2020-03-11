@@ -24,7 +24,8 @@
 #ifdef ENABLE_FIDO2
 #include "ctaphid.h"
 #endif
-#include "usb_raw_hid.h"
+
+#include "usbd_hid.h"
 
 //
 // Globals
@@ -40,8 +41,13 @@ static int g_uninitialized_wiped = 0;
 static int g_mmc_tx_cplt = 0;
 static int g_mmc_tx_dma_cplt = 0;
 static int g_mmc_rx_cplt = 0;
+int g_sync_root_block = 0;
 
 enum device_state g_device_state = DS_DISCONNECTED;
+
+static enum command_subsystem s_device_system_owner = NO_SUBSYSTEM;
+static int s_ctap_subsystem_waiting = 0;
+static int s_signet_subsystem_waiting = 0;
 
 // Incoming buffer for next command request
 u8 cmd_packet_buf[CMD_PACKET_BUF_SIZE] __attribute__((aligned(16)));
@@ -310,6 +316,16 @@ void HAL_MMC_TxCpltCallback(MMC_HandleTypeDef *hmmc1)
 //
 
 void sync_root_block()
+{
+	g_sync_root_block = 1;
+}
+
+int sync_root_block_pending()
+{
+	return g_sync_root_block;
+}
+
+void sync_root_block_immediate()
 {
 	write_root_block((const u8 *)&root_page, sizeof(root_page));
 }
@@ -585,6 +601,10 @@ static void initializing_iter()
 static void write_block_complete()
 {
 #ifdef BOOT_MODE_B
+	if (g_sync_root_block) {
+		g_sync_root_block = 0;
+		release_device(s_device_system_owner);
+	}
 	if (db3_write_block_complete())
 		return;
 	switch (g_device_state) {
@@ -1609,10 +1629,6 @@ void startup_cmd (u8 *data, int data_len)
 	startup_cmd_iter();
 }
 
-static enum command_subsystem s_device_system_owner = NO_SUBSYSTEM;
-static int s_ctap_subsystem_waiting = 0;
-static int s_signet_subsystem_waiting = 0;
-
 int request_device(enum command_subsystem system)
 {
 	__disable_irq();
@@ -1641,10 +1657,19 @@ int request_device(enum command_subsystem system)
 
 static int restart_signet_command();
 
+enum command_subsystem device_subsystem_owner()
+{
+	return s_device_system_owner;
+}
+
 void release_device(enum command_subsystem system)
 {
 	__disable_irq();
-	if (system != s_device_system_owner) {
+	//
+	//Do nothing if we don't own the device or the root block
+	//needs updating
+	//
+	if (system != s_device_system_owner || g_sync_root_block) {
 		__enable_irq();
 		return;
 	}
@@ -1657,12 +1682,12 @@ void release_device(enum command_subsystem system)
 	if (s_signet_subsystem_waiting && system != SIGNET_SUBSYSTEM) {
 		__enable_irq();
 		if (!restart_signet_command()) {
-			usb_raw_hid_rx_resume();
+			USBD_HID_rx_resume(INTERFACE_CMD);
 		}
 	}
 }
 
-int cmd_packet_recv()
+void cmd_packet_recv()
 {
 	u8 *data = cmd_packet_buf;
 	int data_len = data[0] + (data[1] << 8) - CMD_PACKET_HEADER_SIZE;
@@ -1675,31 +1700,29 @@ int cmd_packet_recv()
 
 	if (next_active_cmd == DISCONNECT) {
 		cmd_disconnect();
-		usb_raw_hid_rx_resume();
-		return 0;
+		USBD_HID_rx_resume(INTERFACE_CMD);
+		return;
 	}
 
 	if (prev_active_cmd != -1 && next_active_cmd == CANCEL_BUTTON_PRESS && !waiting_for_a_button_press) {
 		//Ignore button cancel requests with no button press waiting
-		usb_raw_hid_rx_resume();
-		return 0;
+		USBD_HID_rx_resume(INTERFACE_CMD);
+		return;
 	}
 
 	if (prev_active_cmd != -1 && waiting_for_a_button_press && next_active_cmd == CANCEL_BUTTON_PRESS) {
 		end_button_press_wait();
 		finish_command_resp(BUTTON_PRESS_CANCELED);
-		usb_raw_hid_rx_resume();
-		return 0;
+		USBD_HID_rx_resume(INTERFACE_CMD);
+		return;
 	}
 	if (active_cmd != next_active_cmd) {
 		cmd_iter_count = 0;
 	}
 	active_cmd = next_active_cmd;
-	int ret = restart_signet_command();
-	if (ret == 0) {
-		usb_raw_hid_rx_resume();
+	if (restart_signet_command() == 0) {
+		USBD_HID_rx_resume(INTERFACE_CMD);
 	}
-	return ret;
 }
 
 static int restart_signet_command()

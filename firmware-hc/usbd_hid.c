@@ -237,15 +237,21 @@ void USBD_HID_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
 	USBD_HID_HandleTypeDef *hhid = ((USBD_HID_HandleTypeDef *)pdev->pClassData[interfaceNum]);
 	uint8_t *rx_buffer = hhid->rx_buffer;
 	if (interfaceNum == INTERFACE_CMD) {
-		rx = usb_raw_hid_rx(rx_buffer, HID_CMD_EPIN_SIZE);
+		usb_raw_hid_rx(rx_buffer, HID_CMD_EPIN_SIZE);
 	}
 #ifdef ENABLE_FIDO2
 	else {
 		ctaphid_handle_packet(rx_buffer);
 	}
 #endif
-	if (hhid->packetSize > 0 && rx) {
-		USBD_LL_PrepareReceive (pdev, epnum, rx_buffer, hhid->packetSize);
+}
+
+void USBD_HID_rx_resume(int interfaceNum)
+{
+	int epnum = interfaceToEndpointOut(interfaceNum);
+	USBD_HID_HandleTypeDef *hhid = ((USBD_HID_HandleTypeDef *)g_pdev->pClassData[interfaceNum]);
+	if (hhid->packetSize > 0) {
+		USBD_LL_PrepareReceive (g_pdev, epnum, hhid->rx_buffer, hhid->packetSize);
 	}
 }
 

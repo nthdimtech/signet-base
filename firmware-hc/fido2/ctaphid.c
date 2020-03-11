@@ -25,6 +25,8 @@
 #include "rand.h"
 
 #include "stm32f733xx.h"
+#include "commands.h"
+#include "usbd_hid.h"
 
 typedef enum
 {
@@ -543,13 +545,12 @@ extern void _check_ret(CborError ret, int line, const char * filename);
 int ctaphid_processing_packet = 0;
 
 int ctap_rand_needed = 0;
-int ctap_rand_owner = 0;
 
 static int process_ctaphid_packet();
 
 static void restart_command();
 
-uint8_t ctaphid_handle_packet(uint8_t * pkt_raw)
+void ctaphid_handle_packet(uint8_t * pkt_raw)
 {
     uint8_t cmd;
     uint32_t cid;
@@ -559,7 +560,8 @@ uint8_t ctaphid_handle_packet(uint8_t * pkt_raw)
 
     if (bufstatus == HID_IGNORE)
     {
-        return 0;
+	USBD_HID_rx_resume(INTERFACE_FIDO);
+	return;
     }
 
     if (bufstatus == HID_ERROR)
@@ -570,27 +572,26 @@ uint8_t ctaphid_handle_packet(uint8_t * pkt_raw)
             buffer_reset();
         }
         ctaphid_send_error(cid, cmd);
-        return 0;
+	USBD_HID_rx_resume(INTERFACE_FIDO);
+	return;
     }
 
     if (bufstatus == BUFFERING)
     {
         active_cid_timestamp = millis();
-        return 0;
+	USBD_HID_rx_resume(INTERFACE_FIDO);
+        return;
     }
     ctap_pressed = 0;
     ctap_press_timeout = 0;
     ctap_needs_press = 0;
     ctap_rand_needed = 0;
-    ctap_rand_owner = 0;
     ctaphid_processing_packet = 1;
     rand_clear_rewind_point();
 
-    if (rand_begin_read(RAND_OWNER_CTAP)) {
-        ctap_rand_owner = 1;
+    if (request_device(CTAP_SUBSYSTEM)) {
         restart_command();
     }
-    return ctaphid_processing_packet;
 }
 
 static void restart_command()
@@ -602,7 +603,8 @@ static void restart_command()
 	if (!process_ctaphid_packet()) {
 		ctaphid_processing_packet = 0;
 		rand_clear_rewind_point();
-		rand_end_read(RAND_OWNER_CTAP);
+		release_device(CTAP_SUBSYSTEM);
+		USBD_HID_rx_resume(INTERFACE_FIDO);
 	} else {
 		int rand_req = crypto_random_get_requested();
 		int rand_serv = crypto_random_get_served();
@@ -639,8 +641,7 @@ void ctaphid_press()
 void ctap_rand_update()
 {
 	int avail = rand_avail() * 4;
-	if ((avail >= ctap_rand_needed && ctap_rand_needed > 0) || (ctap_rand_owner == 0)) {
-		ctap_rand_owner = 1;
+	if (avail >= ctap_rand_needed && ctap_rand_needed > 0) {
 		ctaphid_idle();
 	}
 }
@@ -790,18 +791,20 @@ static int process_ctaphid_packet()
             break;
         case CTAPHID_CANCEL:
             printf1(TAG_HID,"CTAPHID_CANCEL\n");
+            //HC_TODO: Cancel can't really work yet since
+	    //we can't process overlapping commands safely
+#if 0
 	    ctap_pressed = 0;
 	    ctap_press_timeout = 0;
 	    ctap_needs_press = 0;
 	    ctap_rand_needed = 0;
-	    ctap_rand_owner = 0;
-	    if (rand_begin_read(RAND_OWNER_CTAP)) {
-		    rand_clear_rewind_point();
-		    rand_end_read(RAND_OWNER_CTAP);
-	    }
+            stop_blinking();
+            rand_clear_rewind_point();
 	    ctaphid_processing_packet = 0;
+            release_device(SIGNET_SUBSYSTEM);
 	    is_busy = 0;
-            break;
+#endif
+     	    break;
 #if defined(IS_BOOTLOADER)
         case CTAPHID_BOOT:
             printf1(TAG_HID,"CTAPHID_BOOT\n");
@@ -846,11 +849,16 @@ static int process_ctaphid_packet()
             if (!wb.bcnt)
                 wb.bcnt = 57;
             memset(ctap_buffer,0,wb.bcnt);
-            //HC_TODO: Need to reissue if we don't have random data
-	    ctap_generate_rng(ctap_buffer, wb.bcnt);
-            ctaphid_write(&wb, &ctap_buffer, wb.bcnt);
-            ctaphid_write(&wb, NULL, 0);
-            is_busy = 0;
+	    if (rand_avail() >= wb.bcnt) {
+		    ctap_generate_rng(ctap_buffer, wb.bcnt);
+		    ctaphid_write(&wb, &ctap_buffer, wb.bcnt);
+		    ctaphid_write(&wb, NULL, 0);
+		    is_busy = 0;
+	    } else {
+	    	ctap_rand_needed = wb.bcnt;
+	    	is_busy = 0;
+		return cmd;
+	    }
         break;
 #endif
 

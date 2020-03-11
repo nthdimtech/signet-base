@@ -361,6 +361,7 @@ int main (void)
 		work_to_do |= command_idle_ready();
 		work_to_do |= flash_idle_ready();
 		work_to_do |= usbd_scsi_idle_ready();
+		work_to_do |= sync_root_block_pending();
 		work_to_do |= (g_timer_target != 0) ? 1 : 0;
 		work_to_do |= (g_blink_period > 0) ? 1 : 0;
 		work_to_do |= g_press_pending;
@@ -377,6 +378,9 @@ int main (void)
 		usb_keyboard_idle();
 		blink_idle();
 		command_idle();
+		if (sync_root_block_pending() && is_flash_idle()) {
+			sync_root_block_immediate();
+		}
 		flash_idle();
 		usbd_scsi_idle();
 		int current_button_state = buttonState() ? 0 : 1;

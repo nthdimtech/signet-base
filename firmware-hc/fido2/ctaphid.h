@@ -91,7 +91,7 @@ typedef struct
 
 void ctaphid_init();
 
-uint8_t ctaphid_handle_packet(uint8_t * pkt_raw);
+void ctaphid_handle_packet(uint8_t * pkt_raw);
 
 void ctaphid_check_timeouts();
 

@@ -33,7 +33,6 @@ void authenticator_initialize()
 
 void authenticator_write_state(AuthenticatorState *state, int backup)
 {
-	//HC_TODO: This needs to be backed by flash. What does 'backup' mean for us?
 	if (g_root_page_valid) {
 		if (backup) {
 			root_page.fido2_auth_state_backup = *state;
@@ -43,11 +42,6 @@ void authenticator_write_state(AuthenticatorState *state, int backup)
 		sync_root_block();
 	}
 }
-
-//initialize
-//wipe
-//change password
-//cleartext update
 
 void authenticator_read_state(AuthenticatorState * state)
 {

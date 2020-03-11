@@ -139,8 +139,10 @@ union cmd_data_u {
 } __attribute__((aligned(16)));
 
 extern union cmd_data_u cmd_data;
+void sync_root_block_immediate();
+int sync_root_block_pending();
 
-int cmd_packet_recv();
+void cmd_packet_recv();
 void cmd_init();
 void cmd_packet_send(const u8 *data, u16 len);
 void cmd_event_send(int event_num, const u8 *data, int data_len);
@@ -163,6 +165,7 @@ enum command_subsystem {
 
 int request_device(enum command_subsystem system);
 void release_device(enum command_subsystem system);
+enum command_subsystem device_subsystem_owner();
 
 struct hc_device_data;
 extern int g_root_page_valid;

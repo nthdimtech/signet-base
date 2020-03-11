@@ -18,6 +18,14 @@ __weak void flash_write_complete()
 {
 }
 
+int is_flash_idle()
+{
+	if (flash_state == FLASH_IDLE) {
+		return 1;
+	} else {
+		return 0;
+	}
+}
 
 static int flash_erase_sector;
 static u32 flash_write_dest;

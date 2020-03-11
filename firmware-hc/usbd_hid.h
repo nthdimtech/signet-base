@@ -17,7 +17,7 @@
 uint8_t  USBD_HID_Setup (USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req);
 void USBD_HID_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum);
 void  USBD_HID_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum);
-
+void USBD_HID_rx_resume(int interfaceNum);
 uint8_t USBD_HID_SendReport     (USBD_HandleTypeDef  *pdev,
                                  int interfaceNum,
                                  const uint8_t *report,

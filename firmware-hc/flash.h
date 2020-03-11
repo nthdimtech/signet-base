@@ -11,6 +11,7 @@ void flash_idle();
 int flash_idle_ready();
 void flash_unlock();
 int flash_writing();
+int is_flash_idle();
 
 enum hc_boot_mode flash_get_boot_mode();
 void flash_set_boot_mode(enum hc_boot_mode mode);
