@@ -164,7 +164,7 @@ enum command_subsystem {
 };
 
 int request_device(enum command_subsystem system);
-void release_device(enum command_subsystem system);
+int release_device_request(enum command_subsystem system);
 enum command_subsystem device_subsystem_owner();
 void button_press_unprompted();
 

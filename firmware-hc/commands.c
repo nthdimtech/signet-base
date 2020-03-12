@@ -48,6 +48,7 @@ enum device_state g_device_state = DS_DISCONNECTED;
 static enum command_subsystem s_device_system_owner = NO_SUBSYSTEM;
 static int s_ctap_subsystem_waiting = 0;
 static int s_signet_subsystem_waiting = 0;
+static int s_subsystem_release_requested = 1;
 
 // Incoming buffer for next command request
 u8 cmd_packet_buf[CMD_PACKET_BUF_SIZE] __attribute__((aligned(16)));
@@ -126,12 +127,14 @@ u32 compute_device_data_crc(struct hc_device_data *d);
 void emmc_user_write_storage_tx_dma_complete(MMC_HandleTypeDef *hmmc);
 void emmc_user_write_db_tx_dma_complete(MMC_HandleTypeDef *hmmc);
 
+static void release_device(enum command_subsystem system);
+
 extern MMC_HandleTypeDef hmmc1;
 
 static void subsystem_idle_check()
 {
 	if (active_cmd == -1 && n_progress_components == 0) {
-		release_device(SIGNET_SUBSYSTEM);
+		release_device_request(SIGNET_SUBSYSTEM);
 	}
 }
 
@@ -601,10 +604,12 @@ static void initializing_iter()
 static void write_block_complete()
 {
 #ifdef BOOT_MODE_B
-	//HC_TODO: Could we prematurely release the device here?
 	if (g_sync_root_block) {
 		g_sync_root_block = 0;
-		release_device(s_device_system_owner);
+		if (s_subsystem_release_requested) {
+			s_subsystem_release_requested = 0;
+			release_device(s_device_system_owner);
+		}
 	}
 	if (db3_write_block_complete())
 		return;
@@ -1665,17 +1670,30 @@ enum command_subsystem device_subsystem_owner()
 	return s_device_system_owner;
 }
 
-void release_device(enum command_subsystem system)
+int release_device_request(enum command_subsystem system)
 {
 	__disable_irq();
 	//
 	//Do nothing if we don't own the device or the root block
 	//needs updating
 	//
-	if (system != s_device_system_owner || g_sync_root_block) {
+	if (system != s_device_system_owner) {
 		__enable_irq();
-		return;
+		return 0;
 	}
+	if (g_sync_root_block) {
+		//Wait until the root block is synchronized to release the device
+		s_subsystem_release_requested = 1;
+		__enable_irq();
+		return 0;
+	}
+	release_device(system);
+	return 1;
+}
+
+static void release_device(enum command_subsystem system)
+{
+	__disable_irq();
 #ifdef ENABLE_FIDO2
 	if (s_ctap_subsystem_waiting && system != CTAP_SUBSYSTEM) {
 		s_ctap_subsystem_waiting = 0;
@@ -1695,6 +1713,7 @@ void release_device(enum command_subsystem system)
 		s_device_system_owner = NO_SUBSYSTEM;
 		__enable_irq();
 	}
+	return;
 }
 
 void cmd_packet_recv()

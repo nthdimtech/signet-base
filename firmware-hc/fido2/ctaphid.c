@@ -603,7 +603,7 @@ static void restart_command()
 	if (!process_ctaphid_packet()) {
 		ctaphid_processing_packet = 0;
 		rand_clear_rewind_point();
-		release_device(CTAP_SUBSYSTEM);
+		release_device_request(CTAP_SUBSYSTEM);
 		USBD_HID_rx_resume(INTERFACE_FIDO);
 	} else {
 		int rand_req = crypto_random_get_requested();
