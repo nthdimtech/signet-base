@@ -388,10 +388,21 @@ int main (void)
 		if (g_press_pending) {
 			g_press_pending = 0;
 			if (!g_button_state) {
+				switch (device_subsystem_owner()) {
+				case SIGNET_SUBSYSTEM:
+					button_press();
+					break;
 #ifdef ENABLE_FIDO2
-				ctaphid_press();
+				case CTAP_SUBSYSTEM:
+					ctaphid_press();
+					break;
 #endif
-				button_press();
+				case NO_SUBSYSTEM:
+					button_press_unprompted();
+					break;
+				default:
+					break;
+				}
 				g_button_state = 1;
 			}
 		}
@@ -401,7 +412,13 @@ int main (void)
 		}
 		if (g_button_state && ((ms_count - g_ms_last_pressed) > 2000)) {
 			g_button_state = 0;
-			long_button_press();
+			switch (device_subsystem_owner()) {
+			case SIGNET_SUBSYSTEM:
+				long_button_press();
+				break;
+			default:
+				break;
+			}
 		}
 	}
 }

@@ -601,6 +601,7 @@ static void initializing_iter()
 static void write_block_complete()
 {
 #ifdef BOOT_MODE_B
+	//HC_TODO: Could we prematurely release the device here?
 	if (g_sync_root_block) {
 		g_sync_root_block = 0;
 		release_device(s_device_system_owner);
@@ -856,6 +857,19 @@ static void long_button_press_disconnected()
 #endif
 }
 
+void button_press_unprompted()
+{
+	switch (g_device_state) {
+	case DS_DISCONNECTED:
+		//HC_TODO: Not supported yet
+		//button_press_disconnected();
+		break;
+	default:
+		cmd_event_send(1, NULL, 0);
+		break;
+	}
+}
+
 void button_press()
 {
 	if (waiting_for_button_press) {
@@ -931,16 +945,6 @@ void button_press()
 #endif
 		case BUTTON_WAIT:
 			finish_command_resp(OKAY);
-			break;
-		}
-	} else if (!waiting_for_button_press && !waiting_for_long_button_press) {
-		switch (g_device_state) {
-		case DS_DISCONNECTED:
-			//HC_TODO: Not supported yet
-			//button_press_disconnected();
-			break;
-		default:
-			cmd_event_send(1, NULL, 0);
 			break;
 		}
 	} else if (waiting_for_long_button_press) {
@@ -1623,7 +1627,6 @@ void startup_cmd (u8 *data, int data_len)
 		stop_blinking();
 		end_button_press_wait();
 		end_long_button_press_wait();
-		active_cmd = -1;
 	}
 	cmd_init();
 	startup_cmd_iter();
@@ -1675,15 +1678,22 @@ void release_device(enum command_subsystem system)
 	}
 #ifdef ENABLE_FIDO2
 	if (s_ctap_subsystem_waiting && system != CTAP_SUBSYSTEM) {
+		s_ctap_subsystem_waiting = 0;
+		s_device_system_owner = CTAP_SUBSYSTEM;
 		__enable_irq();
 		ctaphid_idle();
 	} else
 #endif
 	if (s_signet_subsystem_waiting && system != SIGNET_SUBSYSTEM) {
+		s_signet_subsystem_waiting = 0;
+		s_device_system_owner = SIGNET_SUBSYSTEM;
 		__enable_irq();
 		if (!restart_signet_command()) {
 			USBD_HID_rx_resume(INTERFACE_CMD);
 		}
+	} else {
+		s_device_system_owner = NO_SUBSYSTEM;
+		__enable_irq();
 	}
 }
 
@@ -1753,6 +1763,7 @@ static int restart_signet_command()
 		//If we didn't handle button cancelation press above, it could
 		//be a sign of a bug
 		active_cmd = -1;
+		subsystem_idle_check();
 		return 0;
 	}
 

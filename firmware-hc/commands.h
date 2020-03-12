@@ -166,6 +166,7 @@ enum command_subsystem {
 int request_device(enum command_subsystem system);
 void release_device(enum command_subsystem system);
 enum command_subsystem device_subsystem_owner();
+void button_press_unprompted();
 
 struct hc_device_data;
 extern int g_root_page_valid;
