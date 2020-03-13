@@ -325,11 +325,18 @@ void sync_root_block()
 
 int sync_root_block_pending()
 {
-	return g_sync_root_block;
+	return (g_sync_root_block > 0) ? 1 : 0;
+}
+
+int sync_root_block_writing()
+{
+	return (g_sync_root_block == 2) ? 1 : 0;
 }
 
 void sync_root_block_immediate()
 {
+	//HC_TODO: enum for this magic number
+	g_sync_root_block = 2;
 	write_root_block((const u8 *)&root_page, sizeof(root_page));
 }
 
@@ -339,6 +346,8 @@ void write_root_block(const u8 *data, int sz)
 
 	if (g_root_page_valid) {
 		d->data_iteration = _root_page->data_iteration + 1;
+	} else {
+		d->data_iteration = 0;
 	}
 	d->crc = compute_device_data_crc(d);
 	if (_root_page == &_crypt_data1) {
@@ -604,7 +613,7 @@ static void initializing_iter()
 static void write_block_complete()
 {
 #ifdef BOOT_MODE_B
-	if (g_sync_root_block) {
+	if (g_sync_root_block == 2) {
 		g_sync_root_block = 0;
 		if (s_subsystem_release_requested) {
 			s_subsystem_release_requested = 0;
@@ -1600,28 +1609,35 @@ void cmd_init()
 {
 	u32 crc1 = compute_device_data_crc(&_crypt_data1);
 	u32 crc2 = compute_device_data_crc(&_crypt_data2);
-	_root_page = NULL;
+	_root_page = &_crypt_data1;
 	if (crc1 == _crypt_data1.crc) {
 		if (crc2 == _crypt_data2.crc) {
 			if (_crypt_data1.data_iteration > _crypt_data2.data_iteration) {
+				g_root_page_valid = 1;
 				_root_page = &_crypt_data1;
 			} else {
+				g_root_page_valid = 1;
 				_root_page = &_crypt_data2;
 			}
 		} else {
+			g_root_page_valid = 1;
 			_root_page = &_crypt_data1;
 		}
 	} else {
 		if (crc2 == _crypt_data2.crc) {
+			g_root_page_valid = 1;
 			_root_page = &_crypt_data2;
 		} else {
-			_root_page = NULL;
+			//We set page one as current but not valid
+			//it will get a correct CRC on the next write
+			_root_page = &_crypt_data1;
 		}
 	}
 	if (_root_page) {
 		memcpy(&root_page, (u8 *)_root_page, sizeof(root_page));
 		g_root_page_valid = 1;
 	} else {
+		memset(&root_page, 0, sizeof(root_page));
 		g_root_page_valid = 0;
 	}
 }
@@ -1644,7 +1660,7 @@ int request_device(enum command_subsystem system)
 		__enable_irq();
 		return 1;
 	}
-	if (s_device_system_owner == NO_SUBSYSTEM) {
+	if (s_device_system_owner == NO_SUBSYSTEM && (system != CTAP_SUBSYSTEM || is_ctap_initialized())) {
 		s_device_system_owner = system;
 		__enable_irq();
 		return 1;
@@ -1695,7 +1711,7 @@ static void release_device(enum command_subsystem system)
 {
 	__disable_irq();
 #ifdef ENABLE_FIDO2
-	if (s_ctap_subsystem_waiting && system != CTAP_SUBSYSTEM) {
+	if (s_ctap_subsystem_waiting && system != CTAP_SUBSYSTEM && is_ctap_initialized() ) {
 		s_ctap_subsystem_waiting = 0;
 		s_device_system_owner = CTAP_SUBSYSTEM;
 		__enable_irq();

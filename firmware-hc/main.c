@@ -278,6 +278,27 @@ void BUTTON_HANDLER()
 
 void authenticator_initialize();
 
+static void wait_for_rand(int rand_needed)
+{
+	while(1) {
+		__disable_irq();
+		if (rand_avail() >= rand_needed) {
+			__enable_irq();
+			return;
+		} else {
+			__asm__("wfi");
+			__enable_irq();
+		}
+	}
+}
+
+static int g_ctap_initialized = 0;
+
+int is_ctap_initialized()
+{
+	return g_ctap_initialized;
+}
+
 int main (void)
 {
 	SCB_EnableICache();
@@ -286,8 +307,7 @@ int main (void)
 	HAL_Init();
 	SystemClock_Config();
 	MX_GPIO_Init();
-	int blink_duration = 500;
-	HAL_Delay(blink_duration);
+	int blink_duration = 250;
 	led_on();
 	HAL_Delay(blink_duration);
 	led_off();
@@ -342,9 +362,45 @@ int main (void)
 
 	cmd_init();
 #ifdef ENABLE_FIDO2
+    	crypto_ecc256_init();
 	authenticator_initialize();
 	ctaphid_init();
-	ctap_init();
+
+	ctap_init_begin();
+
+	if (!ctap_is_state_initialized()) {
+		led_on();
+		rand_set_rewind_point();
+		crypto_random_init();
+    		if (!ctap_reset()) {
+			int rand_needed = crypto_random_get_requested();
+			rand_rewind();
+			wait_for_rand(rand_needed);
+			ctap_reset();
+		}
+
+		if (sync_root_block_pending()) {
+			sync_root_block_immediate();
+			while (flash_idle_ready()) {
+				flash_idle();
+			}
+		}
+		led_off();
+	}
+
+	crypto_random_init();
+	rand_clear_rewind_point();
+	rand_set_rewind_point();
+	ctap_init_finish();
+
+	int ctap_init_rand_needed = crypto_random_get_requested();
+
+	if (crypto_random_get_served() == ctap_init_rand_needed) {
+		g_ctap_initialized = 1;
+		rand_clear_rewind_point();
+	} else {
+		rand_rewind();
+	}
 #endif
 
 	usbd_scsi_init();
@@ -356,6 +412,7 @@ int main (void)
 
 	while (1) {
 		int work_to_do = 0;
+		int do_ctap_init = 0;
 		__disable_irq();
 		work_to_do |= usb_keyboard_idle_ready();
 		work_to_do |= command_idle_ready();
@@ -366,10 +423,26 @@ int main (void)
 		work_to_do |= (g_blink_period > 0) ? 1 : 0;
 		work_to_do |= g_press_pending;
 		work_to_do |= g_button_state;
+#if ENABLE_FIDO2
+		if (!g_ctap_initialized && (rand_avail() >= ctap_init_rand_needed) && device_subsystem_owner() == NO_SUBSYSTEM) {
+			work_to_do = 1;
+			if (request_device(CTAP_STARTUP_SUBSYSTEM)) {
+				do_ctap_init = 1;
+			}
+		}
+#endif
 		if (!work_to_do) {
 			__asm__("wfi");
 		}
 		__enable_irq();
+
+#if ENABLE_FIDO2
+		if (do_ctap_init) {
+			ctap_init_finish();
+			g_ctap_initialized = 1;
+			release_device_request(CTAP_STARTUP_SUBSYSTEM);
+		}
+#endif
 		int ms_count = HAL_GetTick();
 		if (ms_count > g_timer_target && g_timer_target != 0) {
 			timer_timeout();
@@ -378,7 +451,7 @@ int main (void)
 		usb_keyboard_idle();
 		blink_idle();
 		command_idle();
-		if (sync_root_block_pending() && is_flash_idle()) {
+		if (sync_root_block_pending() && is_flash_idle() && !sync_root_block_writing()) {
 			sync_root_block_immediate();
 		}
 		flash_idle();

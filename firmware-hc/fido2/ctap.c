@@ -1783,7 +1783,7 @@ static void ctap_state_init()
         exit(1);
     }
 
-    u8 pin[4] = {'1','2','3','4'};
+    u8 pin[4] = {'1','1','3','3'};
     ctap_update_pin(pin, 4);
 
     printf1(TAG_STOR, "Generated PIN SALT: ");
@@ -1791,7 +1791,28 @@ static void ctap_state_init()
 
 }
 
-void ctap_init()
+int ctap_state_initialize()
+{
+    ctap_state_init();
+    if (crypto_random_get_served() == crypto_random_get_requested()) {
+	authenticator_write_state(&STATE, 0);
+	authenticator_write_state(&STATE, 1);
+	return 1;
+    } else {
+	return 0;
+    }
+}
+
+int ctap_is_state_initialized()
+{
+	if (STATE.is_initialized == INITIALIZED_MARKER) {
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+int ctap_init_begin()
 {
     crypto_ecc256_init();
 
@@ -1814,13 +1835,14 @@ void ctap_init()
         }
         else
         {
-            ctap_state_init();
-            authenticator_write_state(&STATE, 0);
-            authenticator_write_state(&STATE, 1);
-
+	    return 0;
         }
     }
+    return 1;
+}
 
+void ctap_init_finish()
+{
     do_migration_if_required(&STATE);
 
     crypto_load_master_secret(STATE.key_space);
@@ -1849,8 +1871,6 @@ void ctap_init()
 #ifdef BRIDGE_TO_WALLET
     wallet_init();
 #endif
-
-
 }
 
 uint8_t ctap_is_pin_set()
@@ -2053,12 +2073,9 @@ static void ctap_reset_key_agreement()
     crypto_ecc256_make_key_pair(KEY_AGREEMENT_PUB, KEY_AGREEMENT_PRIV);
 }
 
-void ctap_reset()
+int ctap_reset()
 {
     ctap_state_init();
-
-    authenticator_write_state(&STATE, 0);
-    authenticator_write_state(&STATE, 1);
 
     if (ctap_generate_rng(PIN_TOKEN, PIN_TOKEN_SIZE) != 1)
     {
@@ -2070,6 +2087,14 @@ void ctap_reset()
     ctap_reset_key_agreement();
 
     crypto_load_master_secret(STATE.key_space);
+
+    if (crypto_random_get_served() != crypto_random_get_requested()) {
+         return 0;
+    }
+
+    authenticator_write_state(&STATE, 0);
+    authenticator_write_state(&STATE, 1);
+    return 1;
 }
 
 void lock_device_permanently() {

@@ -329,7 +329,8 @@ uint8_t ctap_request(uint8_t * pkt_raw, int length, CTAP_RESPONSE * resp);
 int ctap_encode_der_sig(uint8_t const * const in_sigbuf, uint8_t * const out_sigder);
 
 // Run ctap related power-up procedures (init pinToken, generate shared secret)
-void ctap_init();
+int ctap_init_begin();
+void ctap_init_finish();
 
 // Resets state between different accesses of different applications
 void ctap_reset_state();
@@ -343,9 +344,10 @@ int8_t ctap_leftover_pin_attempts();
 void ctap_reset_pin_attempts();
 uint8_t ctap_is_pin_set();
 uint8_t ctap_pin_matches(uint8_t * pin, int len);
-void ctap_reset();
+int ctap_reset();
 int8_t ctap_device_locked();
 int8_t ctap_device_boot_locked();
+int ctap_is_state_initialized();
 
 // Key storage API
 

@@ -156,10 +156,13 @@ void cmd_rand_update();
 void write_data_block(int pg, const u8 *src);
 void read_data_block(int pg, u8 *dest);
 void sync_root_block();
+int sync_root_block_writing();
+int sync_root_block_pending();
 
 enum command_subsystem {
 	SIGNET_SUBSYSTEM,
 	CTAP_SUBSYSTEM,
+	CTAP_STARTUP_SUBSYSTEM,
 	NO_SUBSYSTEM
 };
 

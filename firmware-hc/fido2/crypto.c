@@ -133,12 +133,10 @@ void crypto_sha256_hmac_final(uint8_t * key, uint32_t klen, uint8_t * hmac)
     hmac_sha256_digest(&hmac_sha256_ctx, 32, hmac);
 }
 
-
 void crypto_ecc256_init()
 {
     _es256_curve = nettle_get_secp_256r1();
 }
-
 
 void crypto_ecc256_load_attestation_key()
 {

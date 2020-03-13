@@ -27,4 +27,6 @@ void Error_Handler();
 
 extern PCD_HandleTypeDef hpcd_USB_OTG_HS;
 
+int is_ctap_initialized();
+
 #endif
