@@ -290,6 +290,7 @@ void ctap_flush_state(int backup)
     {
         authenticator_write_state(&STATE, 1);
     }
+    authenticator_sync_states();
 }
 
 static uint32_t auth_data_update_count(CTAP_authDataHeader * authData)
@@ -1441,6 +1442,7 @@ uint8_t ctap_update_pin_if_verified(uint8_t * pinEnc, int len, uint8_t * platfor
 
 //      set new PIN (update and store PIN_CODE_HASH)
     ctap_update_pin(pinEnc, ret);
+    authenticator_sync_states();
 
     return 0;
 }
@@ -1722,7 +1724,9 @@ uint8_t ctap_request(uint8_t * pkt_raw, int length, CTAP_RESPONSE * resp)
             status = ctap2_user_presence_test(CTAP2_UP_DELAY_MS);
             if (status == CTAP1_ERR_SUCCESS)
             {
-                ctap_reset();
+                if (ctap_reset()) {
+                    authenticator_sync_states();
+		}
             }
             break;
         case GET_NEXT_ASSERTION:
@@ -1797,6 +1801,7 @@ int ctap_state_initialize()
     if (crypto_random_get_served() == crypto_random_get_requested()) {
 	authenticator_write_state(&STATE, 0);
 	authenticator_write_state(&STATE, 1);
+        authenticator_sync_states();
 	return 1;
     } else {
 	return 0;
@@ -1832,6 +1837,7 @@ int ctap_init_begin()
             printf1(TAG_ERR,"Warning: memory corruption detected.  restoring from backup..\n");
             authenticator_read_backup_state(&STATE);
             authenticator_write_state(&STATE, 0);
+            authenticator_sync_states();
         }
         else
         {
@@ -2085,11 +2091,11 @@ int ctap_reset()
 
     if (crypto_random_get_served() != crypto_random_get_requested()) {
          return 0;
+    } else {
+        authenticator_write_state(&STATE, 0);
+        authenticator_write_state(&STATE, 1);
+    	return 1;
     }
-
-    authenticator_write_state(&STATE, 0);
-    authenticator_write_state(&STATE, 1);
-    return 1;
 }
 
 void lock_device_permanently() {
@@ -2100,4 +2106,5 @@ void lock_device_permanently() {
 
     authenticator_write_state(&STATE, 0);
     authenticator_write_state(&STATE, 1);
+    authenticator_sync_states();
 }

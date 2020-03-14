@@ -23,6 +23,7 @@
 #include "memory_layout.h"
 #ifdef ENABLE_FIDO2
 #include "ctaphid.h"
+#include "fido2/crypto.h"
 #endif
 
 #include "usbd_hid.h"
@@ -502,39 +503,61 @@ void derive_iv(u32 id, u8 *iv)
 	((u32 *)(iv + AES_BLK_SIZE - 4))[0] += (u8)(id);
 }
 
+#ifdef BOOT_MODE_B
 static void finalize_root_page_check()
 {
 	__disable_irq();
-	if (rand_avail() >= (INIT_RAND_DATA_SZ/4) && !cmd_data.init_data.root_block_finalized && (cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS)) {
-		cmd_data.init_data.root_block_finalized = 1;
-		__enable_irq();
-		for (int i = 0; i < (INIT_RAND_DATA_SZ/4); i++) {
-			((u32 *)cmd_data.init_data.rand)[i] ^= rand_get();
+	if (rand_avail() >= cmd_data.init_data.random_data_needed && !cmd_data.init_data.root_block_finalized && (cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS)) {
+		if (!g_root_page_valid || g_device_state != DS_UNINITIALIZED) {
+			//Generate new CTAP state
+			crypto_random_init();
+			rand_set_rewind_point();
+			if (ctap_reset()) {
+				//HC_TODO: The INIT_RAND_DATA_SZ define should ideally not be here. Should express random data need as
+				//two phases somehow
+				if (rand_avail() >= (INIT_RAND_DATA_SZ/4)) {
+					rand_clear_rewind_point();
+					cmd_data.init_data.root_block_finalized = 1;
+				}
+			}
+			if (!cmd_data.init_data.root_block_finalized) {
+				rand_rewind();
+				//HC_TODO: The INIT_RAND_DATA_SZ define should ideally not be here. Should express random data need as
+				//two phases somehow
+				cmd_data.init_data.random_data_needed = (INIT_RAND_DATA_SZ + crypto_random_get_requested())/4;
+			}
+		} else {
+			cmd_data.init_data.root_block_finalized = 1;
 		}
-		root_page.format = CURRENT_ROOT_BLOCK_FORMAT;
-		root_page.db_format = CURRENT_DB_FORMAT;
-		u8 *random = cmd_data.init_data.rand;
+		if (cmd_data.init_data.root_block_finalized) {
+			for (int i = 0; i < (INIT_RAND_DATA_SZ/4); i++) {
+				((u32 *)cmd_data.init_data.rand)[i] ^= rand_get();
+			}
+			root_page.format = CURRENT_ROOT_BLOCK_FORMAT;
+			root_page.db_format = CURRENT_DB_FORMAT;
+			u8 *random = cmd_data.init_data.rand;
 
-		u8 *device_id = random;
-		random += DEVICE_ID_LEN;
-		u8 *auth_rand_data = random;
-		random += AUTH_RANDOM_DATA_LEN;
-		u8 *keystore_key = random;
-		random += AES_256_KEY_SIZE;
+			u8 *device_id = random;
+			random += DEVICE_ID_LEN;
+			u8 *auth_rand_data = random;
+			random += AUTH_RANDOM_DATA_LEN;
+			u8 *keystore_key = random;
+			random += AES_256_KEY_SIZE;
 
-		memcpy(root_page.device_id, device_id, DEVICE_ID_LEN);
-		memcpy(root_page.auth_random_cleartext, auth_rand_data, AUTH_RANDOM_DATA_LEN);
-		signet_aes_256_encrypt_cbc(cmd_data.init_data.passwd, AUTH_RANDOM_DATA_LEN/AES_BLK_SIZE, NULL,
-		                           auth_rand_data, root_page.profile_auth_data[0].auth_random_cyphertext);
-		signet_aes_256_encrypt_cbc(cmd_data.init_data.passwd, HC_KEYSTORE_KEY_SIZE/AES_BLK_SIZE, NULL,
-		                           keystore_key, root_page.profile_auth_data[0].keystore_key_cyphertext);
-		memcpy(root_page.profile_auth_data[0].salt, cmd_data.init_data.salt, HC_HASH_FN_SALT_SZ);
-		memcpy(root_page.profile_auth_data[0].hash_function_params, cmd_data.init_data.hashfn, HC_HASH_FUNCTION_PARAMS_LENGTH);
-		sync_root_block();
-	} else {
-		__enable_irq();
+			memcpy(root_page.device_id, device_id, DEVICE_ID_LEN);
+			memcpy(root_page.auth_random_cleartext, auth_rand_data, AUTH_RANDOM_DATA_LEN);
+			signet_aes_256_encrypt_cbc(cmd_data.init_data.passwd, AUTH_RANDOM_DATA_LEN/AES_BLK_SIZE, NULL,
+						   auth_rand_data, root_page.profile_auth_data[0].auth_random_cyphertext);
+			signet_aes_256_encrypt_cbc(cmd_data.init_data.passwd, HC_KEYSTORE_KEY_SIZE/AES_BLK_SIZE, NULL,
+						   keystore_key, root_page.profile_auth_data[0].keystore_key_cyphertext);
+			memcpy(root_page.profile_auth_data[0].salt, cmd_data.init_data.salt, HC_HASH_FN_SALT_SZ);
+			memcpy(root_page.profile_auth_data[0].hash_function_params, cmd_data.init_data.hashfn, HC_HASH_FUNCTION_PARAMS_LENGTH);
+			sync_root_block();
+		}
 	}
+	__enable_irq();
 }
+#endif
 
 //
 // System events
@@ -550,12 +573,13 @@ void cmd_rand_update()
 	int avail = rand_avail();
 	switch (g_device_state) {
 	case DS_INITIALIZING:
-		if (avail <= (INIT_RAND_DATA_SZ/4)) {
+		finalize_root_page_check();
+		if (avail <= cmd_data.init_data.random_data_needed) {
 			cmd_data.init_data.random_data_gathered = avail - cmd_data.init_data.rand_avail_init;
-			g_progress_level[1] = cmd_data.init_data.random_data_gathered;
+			g_progress_level[1] = avail - cmd_data.init_data.rand_avail_init;
+			progress_maximum[1] = cmd_data.init_data.random_data_needed - cmd_data.init_data.rand_avail_init;
 			get_progress_check();
 		}
-		finalize_root_page_check();
 		break;
 	default:
 		break;
@@ -589,6 +613,8 @@ static void read_block_complete()
 	}
 }
 
+#ifdef BOOT_MODE_B
+
 static void initializing_iter()
 {
 	cmd_data.init_data.blocks_written++;
@@ -609,6 +635,7 @@ static void initializing_iter()
 		db3_startup_scan(cmd_data.init_data.block, &cmd_data.init_data.blk_info);
 	}
 }
+#endif
 
 static void write_block_complete()
 {
@@ -1010,7 +1037,8 @@ void initialize_cmd_complete()
 	write_data_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (u8 *)blk);
 	finish_command_resp(OKAY);
 	cmd_data.init_data.rand_avail_init = rand_avail();
-	int p = (INIT_RAND_DATA_SZ/4) - cmd_data.init_data.rand_avail_init;
+	cmd_data.init_data.random_data_needed = INIT_RAND_DATA_SZ/4;
+	int p = cmd_data.init_data.random_data_needed - cmd_data.init_data.rand_avail_init;
 	if (p < 0) p = 0;
 	int temp[] = {NUM_DATA_BLOCKS, p, 1};
 	enter_progressing_state(DS_INITIALIZING, 3, temp);

@@ -434,6 +434,8 @@ int main (void)
 		} else if (!work_to_do) {
 			__asm__("wfi");
 			__enable_irq();
+		} else {
+			__enable_irq();
 		}
 #else
 		if (!work_to_do) {

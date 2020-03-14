@@ -39,6 +39,7 @@ union cmd_data_u {
 		int random_data_gathered;
 		int root_block_finalized;
 		int blocks_written;
+		int random_data_needed;
 		u8 passwd[AES_256_KEY_SIZE];
 		u8 hashfn[AES_BLK_SIZE];
 		u8 salt[AES_256_KEY_SIZE];

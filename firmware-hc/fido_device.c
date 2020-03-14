@@ -31,6 +31,13 @@ void authenticator_initialize()
 {
 }
 
+void authenticator_sync_states()
+{
+	if (g_root_page_valid) {
+		sync_root_block();
+	}
+}
+
 void authenticator_write_state(AuthenticatorState *state, int backup)
 {
 	if (g_root_page_valid) {
@@ -39,7 +46,6 @@ void authenticator_write_state(AuthenticatorState *state, int backup)
 		} else {
 			root_page.fido2_auth_state = *state;
 		}
-		sync_root_block();
 	}
 }
 
@@ -93,7 +99,6 @@ void ctap_reset_rk()
 {
 	if (g_root_page_valid) {
 		memset(&root_page.rk_store, 0xff, sizeof(root_page.rk_store));
-		sync_root_block();
 	}
 }
 
@@ -163,7 +168,6 @@ void ctaphid_write_block(uint8_t * data)
 	ctap_hid_bytes_read += HID_MESSAGE_SIZE;
 	ctap_hid_bytes_read = ctap_hid_bytes_read % 2048;
 	if (ctap_hid_bytes_read == ctap_hid_bytes_write) {
-		led_on();
 		assert(0);
 	}
 	__enable_irq();

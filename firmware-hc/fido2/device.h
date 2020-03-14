@@ -43,6 +43,8 @@ int authenticator_is_backup_initialized();
 
 void authenticator_write_state(AuthenticatorState *, int backup);
 
+void authenticator_sync_states();
+
 // Called each main loop.  Doesn't need to do anything.
 void device_manage();
 
