@@ -412,7 +412,6 @@ int main (void)
 
 	while (1) {
 		int work_to_do = 0;
-		int do_ctap_init = 0;
 		__disable_irq();
 		work_to_do |= usb_keyboard_idle_ready();
 		work_to_do |= command_idle_ready();
@@ -426,22 +425,21 @@ int main (void)
 #if ENABLE_FIDO2
 		if (!g_ctap_initialized && (rand_avail() >= ctap_init_rand_needed) && device_subsystem_owner() == NO_SUBSYSTEM) {
 			work_to_do = 1;
+			__enable_irq();
 			if (request_device(CTAP_STARTUP_SUBSYSTEM)) {
-				do_ctap_init = 1;
+				ctap_init_finish();
+				g_ctap_initialized = 1;
+				release_device_request(CTAP_STARTUP_SUBSYSTEM);
 			}
+		} else if (!work_to_do) {
+			__asm__("wfi");
+			__enable_irq();
 		}
-#endif
+#else
 		if (!work_to_do) {
 			__asm__("wfi");
 		}
 		__enable_irq();
-
-#if ENABLE_FIDO2
-		if (do_ctap_init) {
-			ctap_init_finish();
-			g_ctap_initialized = 1;
-			release_device_request(CTAP_STARTUP_SUBSYSTEM);
-		}
 #endif
 		int ms_count = HAL_GetTick();
 		if (ms_count > g_timer_target && g_timer_target != 0) {
