@@ -1939,10 +1939,7 @@ uint8_t ctap_decrement_pin_attempts()
 
 int8_t ctap_device_locked()
 {
-	//HC_TODO: Always say device is unlocked until we understand the
-	//locking process
-	return 0;
-	//return STATE.remaining_tries;
+	return STATE.remaining_tries;
 }
 
 int8_t ctap_device_boot_locked()
@@ -1952,9 +1949,7 @@ int8_t ctap_device_boot_locked()
 
 int8_t ctap_leftover_pin_attempts()
 {
-	//HC_TODO: Hardcoding to 1 until we can track unlock attempts
-	return 1;
-	//return STATE.remaining_tries 1;
+	return STATE.remaining_tries;
 }
 
 void ctap_reset_pin_attempts()
