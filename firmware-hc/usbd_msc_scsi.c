@@ -691,6 +691,7 @@ static int g_cryptOutInt = 0;
 void HAL_CRYP_OutCpltCallback(CRYP_HandleTypeDef *hcryp)
 {
 	g_cryptOutInt = 1;
+	BEGIN_WORK(USBD_SCSI_WORK);
 }
 
 #endif
@@ -709,6 +710,7 @@ void usbd_scsi_idle()
 #ifdef BOOT_MODE_B
 	if (g_cryptOutInt) {
 		g_cryptOutInt = 0;
+		END_WORK(USBD_SCSI_WORK);
 		g_scsi_cur_aes_sector++;
 		g_scsi_num_aes_sector--;
 		g_scsi_aes_read += 512/4;

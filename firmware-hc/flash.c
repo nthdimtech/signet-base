@@ -141,8 +141,10 @@ void flash_idle()
 		}
 		if (flash_write_length) {
 			flash_state = FLASH_WRITING;
+			BEGIN_WORK(FLASH_WORK);
 		} else {
 			flash_state = FLASH_IDLE;
+			END_WORK(FLASH_WORK);
 			HAL_FLASH_Lock();
 			flash_write_complete();
 		}
@@ -157,6 +159,7 @@ void flash_idle()
 		}
 		if (flash_write_length == 0) {
 			flash_state = FLASH_IDLE;
+			END_WORK(FLASH_WORK);
 			HAL_FLASH_Lock();
 			flash_write_complete();
 		}
@@ -173,6 +176,7 @@ int flash_write (u8 *dest, const u8 *src, int count)
 		assert((flash_write_length & 3) == 0);
 		HAL_FLASH_Unlock();
 		flash_state = FLASH_WRITING;
+		BEGIN_WORK(FLASH_WORK);
 		return 1;
 	} else {
 		assert(0);
@@ -189,6 +193,7 @@ void flash_write_page (u8 *dest, const u8 *src, int count)
 		assert((flash_write_length & 3) == 0);
 		flash_erase_sector = flash_addr_to_sector((u32)dest);
 		flash_state = FLASH_ERASING;
+		BEGIN_WORK(FLASH_WORK);
 	} else {
 		assert(0);
 	}

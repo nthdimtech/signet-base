@@ -1,4 +1,5 @@
 #ifndef MAIN_H
+#define MAIN_H
 
 #include "stm32f7xx_hal.h"
 #include "usbd_core.h"
@@ -28,5 +29,29 @@ void Error_Handler();
 extern PCD_HandleTypeDef hpcd_USB_OTG_HS;
 
 int is_ctap_initialized();
+
+#define KEYBOARD_WORK (1<<0)
+#define READ_DB_TX_WORK (1<<1)
+#define WRITE_DB_TX_WORK (1<<2)
+#define MMC_TX_CPLT_WORK (1<<3)
+#define MMC_TX_DMA_CPLT_WORK (1<<4)
+#define MMC_RX_CPLT_WORK (1<<5)
+#define READ_DB_TX_CPLT_WORK (1<<6)
+#define FLASH_WORK (1<<7)
+#define USBD_SCSI_WORK (1<<8)
+#define SYNC_ROOT_BLOCK_WORK (1<<9)
+#define BUTTON_PRESS_WORK (1<<10)
+#define BUTTON_PRESSING_WORK (1<<11)
+#define TIMER_WORK (1<<12)
+#define BLINK_WORK (1<<13)
+
+extern volatile int g_work_to_do;
+
+#define BEGIN_WORK(w) g_work_to_do |= w
+#define END_WORK(w) do {\
+		__disable_irq();\
+		g_work_to_do &= ~w;\
+		__enable_irq();\
+	} while(0)
 
 #endif

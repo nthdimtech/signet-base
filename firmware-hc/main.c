@@ -38,7 +38,7 @@ MMC_HandleTypeDef hmmc1;
 
 UART_HandleTypeDef huart1;
 
-PCD_HandleTypeDef hpcd_USB_OTG_HS;
+PCD_HandleTypeDef hpcd_USB_OTG_HS __attribute__((aligned(16)));
 
 /* Private function prototypes -----------------------------------------------*/
 static void SystemClock_Config(void);
@@ -146,11 +146,13 @@ void timer_start(int ms)
 {
 	int ms_count = HAL_GetTick();
 	g_timer_target = ms_count + ms;
+	BEGIN_WORK(TIMER_WORK);
 }
 
 void timer_stop()
 {
 	g_timer_target = 0;
+	END_WORK(TIMER_WORK);
 }
 
 __weak void timer_timeout()
@@ -190,6 +192,7 @@ void blink_idle()
 		int next_timeout_event_secs = (timeout_event_msecs+999)/1000;
 		if ((timeout_event_msecs <= 0) && (g_blink_duration > 0)) {
 			g_blink_period = 0;
+			END_WORK(BLINK_WORK);
 			led_off();
 #ifdef ENABLE_FIDO2
 			ctaphid_blink_timeout();
@@ -213,6 +216,7 @@ void start_blinking(int period, int duration)
 	g_blink_duration = duration;
 	g_timeout_event_secs = (g_blink_duration + 999)/1000;
 	led_on();
+	BEGIN_WORK(BLINK_WORK);
 }
 
 void pause_blinking()
@@ -238,6 +242,7 @@ void stop_blinking()
 	g_blink_period = 0;
 	g_blink_paused = 0;
 	led_off();
+	END_WORK(BLINK_WORK);
 }
 
 int is_blinking()
@@ -273,6 +278,7 @@ void BUTTON_HANDLER()
 	int ms_count = HAL_GetTick();
 	g_ms_last_pressed = ms_count;
 	g_press_pending = 1;
+	BEGIN_WORK(BUTTON_PRESS_WORK);
 	EXTI->PR = (1 << BUTTON_PIN_NUM);
 }
 
@@ -298,6 +304,8 @@ int is_ctap_initialized()
 {
 	return g_ctap_initialized;
 }
+
+volatile int g_work_to_do = 0;
 
 int main (void)
 {
@@ -411,17 +419,17 @@ int main (void)
 	USBD_Start(&USBD_Device);
 
 	while (1) {
-		int work_to_do = 0;
 		__disable_irq();
-		work_to_do |= usb_keyboard_idle_ready();
-		work_to_do |= command_idle_ready();
-		work_to_do |= flash_idle_ready();
-		work_to_do |= usbd_scsi_idle_ready();
-		work_to_do |= sync_root_block_pending();
-		work_to_do |= (g_timer_target != 0) ? 1 : 0;
-		work_to_do |= (g_blink_period > 0) ? 1 : 0;
-		work_to_do |= g_press_pending;
-		work_to_do |= g_button_state;
+		int work_to_do = g_work_to_do;
+		//work_to_do |= usb_keyboard_idle_ready();
+		//work_to_do |= command_idle_ready();
+		//work_to_do |= flash_idle_ready();
+		//work_to_do |= usbd_scsi_idle_ready();
+		//work_to_do |= sync_root_block_pending();
+		//work_to_do |= g_press_pending;
+		//work_to_do |= g_button_state;
+		//work_to_do |= (g_timer_target != 0) ? 1 : 0;
+		//work_to_do |= (g_blink_period > 0) ? 1 : 0;
 #if ENABLE_FIDO2
 		if (!g_ctap_initialized && (rand_avail() >= ctap_init_rand_needed) && device_subsystem_owner() == NO_SUBSYSTEM) {
 			work_to_do = 1;
@@ -447,6 +455,7 @@ int main (void)
 		if (ms_count > g_timer_target && g_timer_target != 0) {
 			timer_timeout();
 			g_timer_target = 0;
+			END_WORK(TIMER_WORK);
 		}
 		usb_keyboard_idle();
 		blink_idle();
@@ -460,6 +469,7 @@ int main (void)
 
 		if (g_press_pending) {
 			g_press_pending = 0;
+			END_WORK(BUTTON_PRESS_WORK);
 			if (!g_button_state) {
 				switch (device_subsystem_owner()) {
 				case SIGNET_SUBSYSTEM:
@@ -477,14 +487,17 @@ int main (void)
 					break;
 				}
 				g_button_state = 1;
+				BEGIN_WORK(BUTTON_PRESSING_WORK);
 			}
 		}
 		if (!current_button_state && g_button_state && (ms_count - g_ms_last_pressed) > 100) {
 			button_release();
 			g_button_state = 0;
+			END_WORK(BUTTON_PRESSING_WORK);
 		}
 		if (g_button_state && ((ms_count - g_ms_last_pressed) > 2000)) {
 			g_button_state = 0;
+			END_WORK(BUTTON_PRESSING_WORK);
 			switch (device_subsystem_owner()) {
 			case SIGNET_SUBSYSTEM:
 				long_button_press();

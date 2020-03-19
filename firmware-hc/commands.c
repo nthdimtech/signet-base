@@ -183,22 +183,26 @@ void command_idle()
 {
 	if (g_read_db_tx_complete) {
 		g_read_db_tx_complete = 0;
+		END_WORK(READ_DB_TX_WORK);
 		emmc_user_done();
 		read_block_complete();
 	}
 	if (g_write_db_tx_complete) {
 		g_write_db_tx_complete = 0;
+		END_WORK(WRITE_DB_TX_WORK);
 		emmc_user_done();
 		write_block_complete();
 	}
 	if (g_mmc_tx_cplt) {
 		g_mmc_tx_cplt = 0;
+		END_WORK(MMC_TX_CPLT_WORK);
 		switch (g_emmc_user) {
 		case EMMC_USER_STORAGE:
 			emmc_user_write_storage_tx_complete(&hmmc1);
 			break;
 		case EMMC_USER_DB:
 			g_write_db_tx_complete = 1;
+			BEGIN_WORK(WRITE_DB_TX_WORK);
 			break;
 		default:
 			assert(0);
@@ -206,6 +210,7 @@ void command_idle()
 	}
 	if (g_mmc_tx_dma_cplt) {
 		g_mmc_tx_dma_cplt = 0;
+		BEGIN_WORK(MMC_TX_DMA_CPLT_WORK);
 		switch (g_emmc_user) {
 		case EMMC_USER_STORAGE:
 			emmc_user_write_storage_tx_dma_complete(&hmmc1);
@@ -219,12 +224,14 @@ void command_idle()
 	}
 	if (g_mmc_rx_cplt) {
 		g_mmc_rx_cplt = 0;
+		END_WORK(MMC_RX_CPLT_WORK);
 		switch (g_emmc_user) {
 		case EMMC_USER_STORAGE:
 			emmc_user_read_storage_rx_complete();
 			break;
 		case EMMC_USER_DB:
 			g_read_db_tx_complete = 1;
+			BEGIN_WORK(READ_DB_TX_CPLT_WORK);
 			break;
 		default:
 			assert(0);
@@ -292,6 +299,7 @@ void write_data_block (int idx, const u8 *src)
 void HAL_MMC_RxCpltCallback(MMC_HandleTypeDef *hmmc1)
 {
 	g_mmc_rx_cplt = 1;
+	BEGIN_WORK(MMC_RX_CPLT_WORK);
 }
 
 void emmc_user_write_db_tx_dma_complete(MMC_HandleTypeDef *hmmc)
@@ -302,6 +310,7 @@ void emmc_user_write_db_tx_dma_complete(MMC_HandleTypeDef *hmmc)
 void MMC_DMATXTransmitComplete(MMC_HandleTypeDef *hmmc)
 {
 	g_mmc_tx_dma_cplt = 1;
+	BEGIN_WORK(MMC_TX_DMA_CPLT_WORK);
 }
 
 void HAL_MMC_ErrorCallback(MMC_HandleTypeDef *hmmc)
@@ -313,6 +322,7 @@ void HAL_MMC_ErrorCallback(MMC_HandleTypeDef *hmmc)
 void HAL_MMC_TxCpltCallback(MMC_HandleTypeDef *hmmc1)
 {
 	g_mmc_tx_cplt = 1;
+	BEGIN_WORK(MMC_TX_CPLT_WORK);
 }
 
 //
@@ -322,6 +332,7 @@ void HAL_MMC_TxCpltCallback(MMC_HandleTypeDef *hmmc1)
 void sync_root_block()
 {
 	g_sync_root_block = 1;
+	BEGIN_WORK(SYNC_ROOT_BLOCK_WORK);
 }
 
 int sync_root_block_pending()
@@ -654,6 +665,7 @@ static void write_block_complete()
 #ifdef BOOT_MODE_B
 	if (g_sync_root_block == 2) {
 		g_sync_root_block = 0;
+		END_WORK(SYNC_ROOT_BLOCK_WORK);
 		if (s_subsystem_release_requested) {
 			s_subsystem_release_requested = 0;
 			release_device(s_device_system_owner);
