@@ -100,7 +100,7 @@ typedef struct
 	HAL_LockTypeDef         Lock;        /*!< PCD peripheral status              */
 	__IO PCD_StateTypeDef   State;       /*!< PCD communication state            */
 	__IO  uint32_t          ErrorCode;   /*!< PCD Error code                     */
-	uint32_t                Setup[12];   /*!< Setup packet buffer                */
+	uint32_t                Setup[12] __attribute__((aligned(4)));   /*!< Setup packet buffer                */
 	PCD_LPM_StateTypeDef    LPM_State;   /*!< LPM State                          */
 	uint32_t                BESL;
 
