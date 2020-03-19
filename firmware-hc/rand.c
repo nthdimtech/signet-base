@@ -87,6 +87,8 @@ void rand_push(enum rand_src _src, u32 val)
 	case RAND_SRC_RTC:
 		src = &rtc_rand_state;
 		break;
+	default:
+		return;
 	}
 	int next_head = (src->head + 1) % 1024;
 	int tail = (src->rewind_tail < 0) ? src->tail : src->rewind_tail;
