@@ -1787,9 +1787,6 @@ static void ctap_state_init()
         exit(1);
     }
 
-    u8 pin[4] = {'1','1','3','3'};
-    ctap_update_pin(pin, 4);
-
     printf1(TAG_STOR, "Generated PIN SALT: ");
     dump_hex1(TAG_STOR, STATE.PIN_SALT, sizeof STATE.PIN_SALT);
 
@@ -1945,7 +1942,7 @@ uint8_t ctap_decrement_pin_attempts()
 
 int8_t ctap_device_locked()
 {
-	return STATE.remaining_tries;
+	return STATE.remaining_tries <= 0;
 }
 
 int8_t ctap_device_boot_locked()
