@@ -179,6 +179,9 @@ int command_idle_ready()
 	return g_read_db_tx_complete | g_write_db_tx_complete | g_mmc_tx_cplt | g_mmc_tx_dma_cplt | g_mmc_rx_cplt;
 }
 
+volatile int g_write_test_tx_complete = 0;
+volatile int g_read_test_tx_complete = 0;
+
 void command_idle()
 {
 	if (g_read_db_tx_complete) {
@@ -204,6 +207,9 @@ void command_idle()
 			g_write_db_tx_complete = 1;
 			BEGIN_WORK(WRITE_DB_TX_WORK);
 			break;
+		case EMMC_USER_TEST:
+			g_write_test_tx_complete = 1;
+			break;
 		default:
 			assert(0);
 		}
@@ -217,6 +223,9 @@ void command_idle()
 			break;
 		case EMMC_USER_DB:
 			emmc_user_write_db_tx_dma_complete(&hmmc1);
+			break;
+		case EMMC_USER_TEST:
+			HAL_MMC_WriteBlocks_DMA_Cont(&hmmc1, NULL, 0);
 			break;
 		default:
 			assert(0);
@@ -232,6 +241,9 @@ void command_idle()
 		case EMMC_USER_DB:
 			g_read_db_tx_complete = 1;
 			BEGIN_WORK(READ_DB_TX_CPLT_WORK);
+			break;
+		case EMMC_USER_TEST:
+			g_read_test_tx_complete = 1;
 			break;
 		default:
 			assert(0);
@@ -250,6 +262,9 @@ void emmc_user_schedule()
 			g_emmc_user = EMMC_USER_STORAGE;
 			g_emmc_user_ready[EMMC_USER_STORAGE] = 0;
 			emmc_user_storage_start();
+		} else if (g_emmc_user_ready[EMMC_USER_TEST]) {
+			g_emmc_user = EMMC_USER_TEST;
+			g_emmc_user_ready[EMMC_USER_TEST] = 0;
 		}
 	}
 }

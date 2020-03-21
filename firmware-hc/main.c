@@ -171,6 +171,21 @@ void led_on()
 	setLED2(1);
 }
 
+static void busy_blink_once(int ms)
+{
+	led_on();
+	HAL_Delay(ms);
+	led_off();
+}
+
+static void busy_blink(int ms_off, int ms_on)
+{
+	while (1) {
+		HAL_Delay(ms_off);
+		busy_blink_once(ms_on);
+	}
+}
+
 static int g_blink_paused = 0;
 
 static uint8_t g_timeout_event_secs;
@@ -188,21 +203,23 @@ void blink_idle()
 			}
 		}
 		g_blink_state = next_blink_state;
-		int timeout_event_msecs = g_blink_duration - (ms_count - g_blink_start);
-		int next_timeout_event_secs = (timeout_event_msecs+999)/1000;
-		if ((timeout_event_msecs <= 0) && (g_blink_duration > 0)) {
-			g_blink_period = 0;
-			END_WORK(BLINK_WORK);
-			led_off();
+		if (g_blink_duration) {
+			int timeout_event_msecs = g_blink_duration - (ms_count - g_blink_start);
+			int next_timeout_event_secs = (timeout_event_msecs+999)/1000;
+			if ((timeout_event_msecs <= 0) && (g_blink_duration > 0)) {
+				g_blink_period = 0;
+				END_WORK(BLINK_WORK);
+				led_off();
 #ifdef ENABLE_FIDO2
-			ctaphid_blink_timeout();
+				ctaphid_blink_timeout();
 #endif
-			blink_timeout();
-		}
-		if (next_timeout_event_secs != g_timeout_event_secs) {
-			g_timeout_event_secs = next_timeout_event_secs;
-			if (g_device_state != DS_DISCONNECTED && g_device_state != DS_RESET) {
-				cmd_event_send(2, &g_timeout_event_secs, sizeof(g_timeout_event_secs));
+				blink_timeout();
+			}
+			if (next_timeout_event_secs != g_timeout_event_secs) {
+				g_timeout_event_secs = next_timeout_event_secs;
+				if (g_device_state != DS_DISCONNECTED && g_device_state != DS_RESET) {
+					cmd_event_send(2, &g_timeout_event_secs, sizeof(g_timeout_event_secs));
+				}
 			}
 		}
 	}
@@ -307,6 +324,89 @@ int is_ctap_initialized()
 
 volatile int g_work_to_do = 0;
 
+extern struct hc_device_data *_root_page;
+
+static int is_erased_root_page()
+{
+	const u32 *p = (const u32 *)_root_page;
+	for (int i = 0; i < (BLK_SIZE/4); i++) {
+		if (p[i] != 0xffffffff) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+static int is_zero_root_page()
+{
+	const u32 *p = (const u32 *)_root_page;
+	for (int i = 1 /* skip CRC */; i < (BLK_SIZE/4); i++) {
+		if (p[i] != 0) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+static int emmc_compare_test(const u8 *write_block, u8 *read_block, int blink_off, int blink_on)
+{
+	int blink_total = blink_off + blink_on;
+	int nr_sub_blocks = hmmc1.MmcCard.BlockNbr;
+	int nr_blocks = 512; //nr_sub_blocks/(HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ);
+	for (int i = 0; i < nr_blocks; i++) {
+		unsigned int cardState;
+		do {
+			cardState = HAL_MMC_GetCardState(&hmmc1);
+		} while (cardState != HAL_MMC_CARD_TRANSFER);
+		HAL_MMC_WriteBlocks_DMA_Initial(&hmmc1,
+						write_block,
+						BLK_SIZE,
+						i*(BLK_SIZE/MSC_MEDIA_PACKET),
+						BLK_SIZE/MSC_MEDIA_PACKET);
+		while (1) {
+			int ms = HAL_GetTick();
+			if ((ms % blink_total) > blink_off) {
+				led_on();
+			} else {
+				led_off();
+			}
+			command_idle();
+			if (g_write_test_tx_complete) {
+				g_write_test_tx_complete = 0;
+				break;
+			}
+		}
+	}
+	for (int i = 0; i < nr_blocks; i++) {
+		unsigned int cardState;
+		do {
+			cardState = HAL_MMC_GetCardState(&hmmc1);
+		} while (cardState != HAL_MMC_CARD_TRANSFER);
+		HAL_MMC_ReadBlocks_DMA(&hmmc1,
+					read_block,
+					i*(BLK_SIZE/MSC_MEDIA_PACKET),
+					BLK_SIZE/MSC_MEDIA_PACKET);
+		while (1) {
+			int ms = HAL_GetTick();
+			if ((ms % blink_total) > blink_off) {
+				led_on();
+			} else {
+				led_off();
+			}
+			command_idle();
+			if (g_read_test_tx_complete) {
+				g_read_test_tx_complete = 0;
+				break;
+			}
+		}
+		if (memcmp(write_block, read_block, BLK_SIZE)) {
+			return 1;
+		}
+	}
+	led_off();
+	return 0;
+}
+
 int main (void)
 {
 	SCB_EnableICache();
@@ -369,6 +469,76 @@ int main (void)
 	HAL_Delay(5);
 
 	cmd_init();
+
+	int memory_test_mode = 0;
+
+	if (is_erased_root_page()) {
+		int press_count = 0;
+		while(1) {
+			if (g_press_pending) {
+				g_press_pending = 0;
+				END_WORK(BUTTON_PRESS_WORK);
+				if (!g_button_state) {
+					g_button_state = 1;
+					press_count++;
+					led_on();
+					BEGIN_WORK(BUTTON_PRESSING_WORK);
+				}
+			}
+			int current_button_state = buttonState() ? 0 : 1;
+			int ms_count = HAL_GetTick();
+			if (!current_button_state && g_button_state && (ms_count - g_ms_last_pressed) > 100) {
+				g_button_state = 0;
+				led_off();
+				END_WORK(BUTTON_PRESSING_WORK);
+				if (press_count == 5) {
+					press_count = 0;
+					HAL_Delay(500);
+					busy_blink_once(100);
+				}
+			}
+			if (g_button_state && ((ms_count - g_ms_last_pressed) > 2000)) {
+				g_button_state = 0;
+				END_WORK(BUTTON_PRESSING_WORK);
+				break;
+			}
+		}
+		memset(usbBulkBufferFIFO.bufferStorage, 0, BLK_SIZE);
+		write_root_block(usbBulkBufferFIFO.bufferStorage, BLK_SIZE);
+		do {
+			flash_idle();
+		} while(!is_flash_idle());
+		do {
+			int ms_count = HAL_GetTick();
+			if ((ms_count % 1000) < 500) {
+				led_on();
+			} else {
+				led_off();
+			}
+		} while(1);
+	} else if (is_zero_root_page()) {
+		emmc_user_queue(EMMC_USER_TEST);
+		emmc_user_schedule();
+
+		for (int i = 0; i < HC_BLOCK_SZ; i += 2) {
+			usbBulkBufferFIFO.bufferStorage[i + 0] = 0xaa;
+			usbBulkBufferFIFO.bufferStorage[i + 1] = 0x55;
+		}
+		if (emmc_compare_test(usbBulkBufferFIFO.bufferStorage,
+				usbBulkBufferFIFO.bufferStorage + HC_BLOCK_SZ,
+				4900, 100)) {
+			busy_blink(2000, 2000);
+		}
+
+		memset(usbBulkBufferFIFO.bufferStorage, 0, HC_BLOCK_SZ);
+		if (emmc_compare_test(usbBulkBufferFIFO.bufferStorage,
+				usbBulkBufferFIFO.bufferStorage + HC_BLOCK_SZ,
+				1900, 100)) {
+			busy_blink(1000, 1000);
+		}
+		memory_test_mode = 1;
+	}
+
 #ifdef ENABLE_FIDO2
     	crypto_ecc256_init();
 	authenticator_initialize();
@@ -382,9 +552,14 @@ int main (void)
 		crypto_random_init();
     		if (!ctap_reset()) {
 			int rand_needed = crypto_random_get_requested();
+			crypto_random_init();
 			rand_rewind();
 			wait_for_rand(rand_needed);
-			ctap_reset();
+			if (ctap_reset()) {
+				sync_root_block();
+			}
+		} else {
+			sync_root_block();
 		}
 
 		if (sync_root_block_pending()) {
@@ -409,6 +584,9 @@ int main (void)
 	} else {
 		rand_rewind();
 	}
+
+	if (memory_test_mode)
+		busy_blink(400, 100);
 #endif
 
 	usbd_scsi_init();
@@ -421,15 +599,20 @@ int main (void)
 	while (1) {
 		__disable_irq();
 		int work_to_do = g_work_to_do;
-		//work_to_do |= usb_keyboard_idle_ready();
-		//work_to_do |= command_idle_ready();
-		//work_to_do |= flash_idle_ready();
-		//work_to_do |= usbd_scsi_idle_ready();
-		//work_to_do |= sync_root_block_pending();
-		//work_to_do |= g_press_pending;
-		//work_to_do |= g_button_state;
-		//work_to_do |= (g_timer_target != 0) ? 1 : 0;
-		//work_to_do |= (g_blink_period > 0) ? 1 : 0;
+		if (0) {
+			// HC_TODO: We should be able to get rid of this code eventually.
+			// Keeping it in until we can be sure that the bitfield mechanism
+			// is working
+			work_to_do |= usb_keyboard_idle_ready();
+			work_to_do |= command_idle_ready();
+			work_to_do |= flash_idle_ready();
+			work_to_do |= usbd_scsi_idle_ready();
+			work_to_do |= sync_root_block_pending();
+			work_to_do |= g_press_pending;
+			work_to_do |= g_button_state;
+			work_to_do |= (g_timer_target != 0) ? 1 : 0;
+			work_to_do |= (g_blink_period > 0) ? 1 : 0;
+		}
 #if ENABLE_FIDO2
 		if (!g_ctap_initialized && (rand_avail() >= ctap_init_rand_needed) && device_subsystem_owner() == NO_SUBSYSTEM) {
 			work_to_do = 1;

@@ -33,38 +33,26 @@ void authenticator_initialize()
 
 void authenticator_sync_states()
 {
-	if (g_root_page_valid) {
-		sync_root_block();
-	}
+	sync_root_block();
 }
 
 void authenticator_write_state(AuthenticatorState *state, int backup)
 {
-	if (g_root_page_valid) {
-		if (backup) {
-			root_page.fido2_auth_state_backup = *state;
-		} else {
-			root_page.fido2_auth_state = *state;
-		}
+	if (backup) {
+		root_page.fido2_auth_state_backup = *state;
+	} else {
+		root_page.fido2_auth_state = *state;
 	}
 }
 
 void authenticator_read_state(AuthenticatorState * state)
 {
-	if (g_root_page_valid) {
-		*state = root_page.fido2_auth_state;
-	} else {
-		memset(state, 0, sizeof(*state));
-	}
+	*state = root_page.fido2_auth_state;
 }
 
 void authenticator_read_backup_state(AuthenticatorState * state)
 {
-	if (g_root_page_valid) {
-		*state = root_page.fido2_auth_state_backup;
-	} else {
-		memset(state, 0, sizeof(*state));
-	}
+	*state = root_page.fido2_auth_state_backup;
 }
 
 int authenticator_is_backup_initialized()
@@ -97,9 +85,7 @@ uint32_t millis()
 
 void ctap_reset_rk()
 {
-	if (g_root_page_valid) {
-		memset(&root_page.rk_store, 0xff, sizeof(root_page.rk_store));
-	}
+	memset(&root_page.rk_store, 0xff, sizeof(root_page.rk_store));
 }
 
 uint32_t ctap_rk_size()
@@ -109,36 +95,30 @@ uint32_t ctap_rk_size()
 
 void ctap_store_rk(int index, CTAP_residentKey * rk)
 {
-	if (g_root_page_valid) {
-		if (index < RK_NUM) {
-			memmove(root_page.rk_store.rks + index, rk, sizeof(CTAP_residentKey));
-			sync_root_block();
-		} else {
-			assert(0);
-		}
+	if (index < RK_NUM) {
+		memmove(root_page.rk_store.rks + index, rk, sizeof(CTAP_residentKey));
+		sync_root_block();
+	} else {
+		assert(0);
 	}
 }
 
 void ctap_load_rk(int index, CTAP_residentKey * rk)
 {
-	if (g_root_page_valid) {
-		if (index < RK_NUM) {
-			memmove(rk, root_page.rk_store.rks + index, sizeof(CTAP_residentKey));
-		} else {
-			assert(0);
-		}
+	if (index < RK_NUM) {
+		memmove(rk, root_page.rk_store.rks + index, sizeof(CTAP_residentKey));
+	} else {
+		assert(0);
 	}
 }
 
 void ctap_overwrite_rk(int index, CTAP_residentKey * rk)
 {
-	if (g_root_page_valid) {
-		if (index < RK_NUM) {
-			memmove(root_page.rk_store.rks + index, rk, sizeof(*rk));
-			sync_root_block();
-		} else {
-			assert(0);
-		}
+	if (index < RK_NUM) {
+		memmove(root_page.rk_store.rks + index, rk, sizeof(*rk));
+		sync_root_block();
+	} else {
+		assert(0);
 	}
 }
 

@@ -164,6 +164,7 @@ void read_data_block(int pg, u8 *dest);
 void sync_root_block();
 int sync_root_block_writing();
 int sync_root_block_pending();
+void write_root_block(const u8 *data, int sz);
 
 enum command_subsystem {
 	SIGNET_SUBSYSTEM,
@@ -185,6 +186,7 @@ enum emmc_user {
 	EMMC_USER_NONE,
 	EMMC_USER_STORAGE,
 	EMMC_USER_DB,
+	EMMC_USER_TEST,
 	EMMC_NUM_USER
 };
 
@@ -197,5 +199,8 @@ extern int g_progress_level[];
 extern u8 g_encrypt_key[];
 void command_idle();
 int command_idle_ready();
+
+extern volatile int g_write_test_tx_complete;
+extern volatile int g_read_test_tx_complete;
 
 #endif
