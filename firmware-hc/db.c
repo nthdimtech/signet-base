@@ -75,6 +75,11 @@ int db3_write_block_complete()
 	return 0;
 }
 
+//
+// HC_TODO: Should evaluate if there are any performance
+// reasons to update the cache instead of only providing
+// a way to invalidate it
+//
 void invalidate_data_block_cache(int idx)
 {
 	if (idx == block_read_cache_idx) {
@@ -82,8 +87,6 @@ void invalidate_data_block_cache(int idx)
 	}
 }
 
-//NEN_TODO: Keep cache up to date when writes occur
-// Should we invalidate the cache or update it?
 static const u8 *get_cached_data_block(int idx)
 {
 	if (block_read_cache_idx == idx) {
@@ -182,7 +185,7 @@ static void db3_startup_scan_resume ()
 	blk_info->valid = block_crc_check(block_read) || blk_info->part_size == INVALID_PART_SIZE;
 	blk_info->occupied = (blk_info->part_size != INVALID_PART_SIZE);
 	if (blk_info->valid == 0) {
-		//NEN_TODO: What do we do here?
+		//HC_TODO: Block is invalid which shouldn't occur. We should perform a recovery
 	} else if (blk_info->occupied) {
 		blk_info->part_occupancy = block_read->header.occupancy;
 		blk_info->part_count = get_part_count(block_read->header.part_size);
@@ -192,7 +195,10 @@ static void db3_startup_scan_resume ()
 			int uid = ent->uid;
 			if (uid >= MIN_UID && ent->uid <= MAX_UID && ent->first) {
 #if 0
-//NEN_TODO: This code needs review and testing. Looks probably incorrect
+//
+// HC_TODO: This code needs review and testing. We can get away with this disabled so
+// long as we store only one record per block and records can't span blocks.
+//
 				if (uid_map[uid] != INVALID_BLOCK) {
 					int block_num_temp;
 					int index_temp;
@@ -203,7 +209,7 @@ static void db3_startup_scan_resume ()
 						return;
 					}
 					if (((ent->rev + 1) & 0x3) == prev_ent->rev) {
-						//NEN_TODO: sould be setting block num here
+						//HC_TODO: sould be setting block num here
 						uid_map[uid] = i;
 					}
 					struct block *block = (struct block *)block_temp;
@@ -227,7 +233,7 @@ static void db3_startup_scan_resume ()
 		read_data_block(db3_startup_scan_blk_num, (u8 *)block_read);
 	} else {
 		db3_startup_scan_running = 0;
-		//NEN_TODO: this functionality should be in callbacks
+		//HC_TODO: this functionality should be in callbacks
 		if (active_cmd == STARTUP) {
 			enter_state(DS_LOGGED_OUT);
 			cmd_data.startup.resp[3] = g_device_state;

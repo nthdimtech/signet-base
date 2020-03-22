@@ -27,6 +27,7 @@
 #include "stm32f733xx.h"
 #include "commands.h"
 #include "usbd_hid.h"
+#include "signetdev_hc_common.h"
 
 typedef enum
 {
@@ -869,10 +870,9 @@ static int process_ctaphid_packet()
             wb.cid = cid;
             wb.cmd = CTAPHID_GETVERSION;
             wb.bcnt = 3;
-            //HC_TODO: Not SOLO
- 	    ctap_buffer[0] = SOLO_VERSION_MAJ;
-            ctap_buffer[1] = SOLO_VERSION_MIN;
-            ctap_buffer[2] = SOLO_VERSION_PATCH;
+            ctap_buffer[0] = SIGNET_HC_MAJOR_VERSION;
+            ctap_buffer[1] = SIGNET_HC_MINOR_VERSION;
+            ctap_buffer[2] = SIGNET_HC_STEP_VERSION;
             ctaphid_write(&wb, &ctap_buffer, 3);
             ctaphid_write(&wb, NULL, 0);
             is_busy = 0;

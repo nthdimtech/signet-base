@@ -424,7 +424,6 @@ static uint8_t  USBD_Multi_Setup (USBD_HandleTypeDef *pdev,
 			return USBD_HID_Setup(pdev, req);
 			break;
 		default:
-			//NEN_TODO
 			break;
 		}
 	} else {
@@ -499,7 +498,6 @@ static uint8_t  USBD_Multi_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 		USBD_HID_DataIn(pdev, epnum);
 	} break;
 	default:
-		//NEN_TODO: What are we supposed to return on invalid interface?
 		break;
 	}
 	return USBD_OK;
@@ -521,7 +519,6 @@ static uint8_t  USBD_Multi_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
 		USBD_HID_DataOut(pdev, epnum);
 		break;
 	default:
-		//NEN_TODO: What are we supposed to return on invalid interface?
 		break;
 	}
 	return USBD_OK;

@@ -236,7 +236,6 @@ static int8_t  SCSI_Inquiry(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *par
 		len = LENGTH_INQUIRY_PAGE00;
 		hmsc->bot_data_length = len;
 
-		//TODO: We don't like using this bot_data array
 		while (len) {
 			len--;
 			hmsc->bot_data[len] = MSC_Page00_Inquiry_Data[len];
@@ -250,7 +249,6 @@ static int8_t  SCSI_Inquiry(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *par
 		}
 		hmsc->bot_data_length = len;
 
-		//TODO: We don't like using this bot_data array
 		while (len) {
 			len--;
 			hmsc->bot_data[len] = pPage[len];
@@ -301,7 +299,6 @@ static int8_t SCSI_ReadFormatCapacity(USBD_HandleTypeDef  *pdev, uint8_t lun, ui
 
 	uint8_t *bot_data = hmsc->bot_data;
 
-	//TODO: We don't like using this bot_data array
 	for(i = 0U; i < 12U ; i++) {
 		bot_data[i] = 0U;
 	}
@@ -757,8 +754,7 @@ void emmc_user_write_storage_tx_dma_complete(MMC_HandleTypeDef *hmmc)
 	mmcDataTransferred += mmcReadLen;
 	mmcBlockAddr += mmcReadLen/512;
 	mmcBlocksToTransfer -= mmcReadLen/512;
-	//TODO: handle return error code
-	HAL_MMC_WriteBlocks_DMA_Cont(&hmmc1, NULL, 0);
+	HAL_MMC_WriteBlocks_DMA_Cont(&hmmc1, NULL, 0); //HC_TODO: handle return error code
 }
 
 void HAL_MMC_AbortCallback(MMC_HandleTypeDef *hmmc)

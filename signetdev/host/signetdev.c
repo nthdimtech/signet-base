@@ -667,20 +667,35 @@ int signetdev_begin_initialize_device(void *param, int *token,
 int signetdev_read_block(void *param, int *token, unsigned int idx)
 {
 	*token = get_cmd_token();
-	u8 msg[] = {(u8)idx};
-	return signetdev_priv_send_message(param, *token,
-			READ_BLOCK, SIGNETDEV_CMD_READ_BLOCK,
-			0, msg, sizeof(msg), SIGNETDEV_PRIV_GET_RESP);
+	if (g_device_type == SIGNETDEV_DEVICE_HC) {
+		u8 msg[] = {(u8)(idx & 0xff), (u8)(idx >> 8)};
+		return signetdev_priv_send_message(param, *token,
+				READ_BLOCK_HC, SIGNETDEV_CMD_READ_BLOCK,
+				0, msg, sizeof(msg), SIGNETDEV_PRIV_GET_RESP);
+	} else {
+		u8 msg[] = {(u8)(idx)};
+		return signetdev_priv_send_message(param, *token,
+				READ_BLOCK, SIGNETDEV_CMD_READ_BLOCK,
+				0, msg, sizeof(msg), SIGNETDEV_PRIV_GET_RESP);
+	}
 }
 
 int signetdev_write_block(void *param, int *token, unsigned int idx, const void *buffer)
 {
 	*token = get_cmd_token();
-	u8 msg[MAX_BLK_SIZE + 1] = {(u8)idx};
-	memcpy(msg + 1, buffer, signetdev_device_block_size());
-	return signetdev_priv_send_message(param, *token,
-				WRITE_BLOCK, SIGNETDEV_CMD_WRITE_BLOCK,
-				0, msg, signetdev_device_block_size() + 1, SIGNETDEV_PRIV_GET_RESP);
+	if (g_device_type == SIGNETDEV_DEVICE_HC) {
+		u8 msg[MAX_BLK_SIZE + 2] = {(u8)(idx & 0xff), (u8)(idx >> 8)};
+		memcpy(msg + 2, buffer, signetdev_device_block_size());
+		return signetdev_priv_send_message(param, *token,
+					WRITE_BLOCK_HC, SIGNETDEV_CMD_WRITE_BLOCK,
+					0, msg, signetdev_device_block_size() + 2, SIGNETDEV_PRIV_GET_RESP);
+	} else {
+		u8 msg[MAX_BLK_SIZE + 1] = {(u8)(idx)};
+		memcpy(msg + 2, buffer, signetdev_device_block_size());
+		return signetdev_priv_send_message(param, *token,
+					WRITE_BLOCK, SIGNETDEV_CMD_WRITE_BLOCK,
+					0, msg, signetdev_device_block_size() + 1, SIGNETDEV_PRIV_GET_RESP);
+	}
 }
 
 int signetdev_write_flash(void *param, int *token, u32 addr, const void *data, unsigned int data_len)
@@ -887,6 +902,7 @@ void signetdev_priv_handle_command_resp(void *user, int token,
 {
 	switch (dev_cmd)
 	{
+	case READ_BLOCK_HC:
 	case READ_BLOCK: {
 		if (resp_len != signetdev_device_block_size()) {
 			signetdev_priv_handle_error();

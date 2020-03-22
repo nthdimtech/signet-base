@@ -599,20 +599,6 @@ int main (void)
 	while (1) {
 		__disable_irq();
 		int work_to_do = g_work_to_do;
-		if (0) {
-			// HC_TODO: We should be able to get rid of this code eventually.
-			// Keeping it in until we can be sure that the bitfield mechanism
-			// is working
-			work_to_do |= usb_keyboard_idle_ready();
-			work_to_do |= command_idle_ready();
-			work_to_do |= flash_idle_ready();
-			work_to_do |= usbd_scsi_idle_ready();
-			work_to_do |= sync_root_block_pending();
-			work_to_do |= g_press_pending;
-			work_to_do |= g_button_state;
-			work_to_do |= (g_timer_target != 0) ? 1 : 0;
-			work_to_do |= (g_blink_period > 0) ? 1 : 0;
-		}
 #if ENABLE_FIDO2
 		if (!g_ctap_initialized && (rand_avail() >= ctap_init_rand_needed) && device_subsystem_owner() == NO_SUBSYSTEM) {
 			work_to_do = 1;

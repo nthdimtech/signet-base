@@ -203,4 +203,12 @@ int command_idle_ready();
 extern volatile int g_write_test_tx_complete;
 extern volatile int g_read_test_tx_complete;
 
+enum root_block_sync_state {
+	ROOT_BLOCK_SYNCED,
+	ROOT_BLOCK_MODIFIED,
+	ROOT_BLOCK_WRITING
+};
+
+extern enum root_block_sync_state g_root_block_sync_state;
+
 #endif

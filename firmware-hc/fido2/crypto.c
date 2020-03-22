@@ -428,10 +428,13 @@ void crypto_aes256_reset_iv(uint8_t * nonce)
 	}
 }
 
-//HC_TODO: this is poorly named and poorly placed
+//
+// HC_TODO: Implement aes256-cbc encrypt/decrypt only once. At the moment the implementation
+// in signet_aes.c can't work here as is. The code size cost should be minimal since we are
+// mostly wrapping nettle's AES-256 code
+//
 void xor_block(const u8 *src_block, const u8 *mask, u8 *dst_block);
 
-//HC_TODO: Don't we already have this in the DB code?
 void crypto_aes256_encrypt(uint8_t * buf, int length)
 {
 	if (!aes_encrypt_mode) {
@@ -453,7 +456,6 @@ void crypto_aes256_encrypt(uint8_t * buf, int length)
 	}
 }
 
-//HC_TODO: Don't we already have this in the DB code?
 void crypto_aes256_decrypt(uint8_t * buf, int length)
 {
 	if (!aes_decrypt_mode) {

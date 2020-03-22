@@ -90,7 +90,7 @@ void ctap_reset_rk()
 
 uint32_t ctap_rk_size()
 {
-	return RK_NUM; //HC_TODO: This is probably not the right number for the long term
+	return RK_NUM;
 }
 
 void ctap_store_rk(int index, CTAP_residentKey * rk)
@@ -129,7 +129,7 @@ void device_disable_up(bool request_active)
 
 void device_wink()
 {
-	//HC_TODO: Output some debug here? Do we really have to?
+	//HC_TODO: What are we supposed to do here?
 }
 
 static u8 ctaphid_tx_buffer[2048] __attribute__((aligned(4)));

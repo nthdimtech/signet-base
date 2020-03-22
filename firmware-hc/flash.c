@@ -74,7 +74,7 @@ int flash_writing()
 	}
 }
 
-//TODO: compute these from memory layout defines'
+//HC_TODO: compute these from memory layout defines
 #define BOOTLOADER_MODE_ADD0_VAL (0x82)
 #define APPLICATION_MODE_ADD0_VAL (0x88)
 

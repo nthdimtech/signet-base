@@ -42,11 +42,7 @@ typedef int LenType;
 typedef ssize_t RetType;
 typedef size_t LenType;
 #else
-//#  error "Cannot implement open_memstream!"
-//NEN_TODO: Can we?
-#include <stddef.h>
-typedef ssize_t RetType;
-typedef size_t LenType;
+#error "Cannot implement open_memstream!"
 #endif
 
 #include "compilersupport_p.h"

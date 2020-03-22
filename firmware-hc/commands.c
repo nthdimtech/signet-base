@@ -42,7 +42,8 @@ static int g_uninitialized_wiped = 0;
 static int g_mmc_tx_cplt = 0;
 static int g_mmc_tx_dma_cplt = 0;
 static int g_mmc_rx_cplt = 0;
-int g_sync_root_block = 0;
+
+enum root_block_sync_state g_root_block_sync_state = ROOT_BLOCK_SYNCED;
 
 enum device_state g_device_state = DS_DISCONNECTED;
 
@@ -346,24 +347,23 @@ void HAL_MMC_TxCpltCallback(MMC_HandleTypeDef *hmmc1)
 
 void sync_root_block()
 {
-	g_sync_root_block = 1;
+	g_root_block_sync_state = ROOT_BLOCK_MODIFIED;
 	BEGIN_WORK(SYNC_ROOT_BLOCK_WORK);
 }
 
 int sync_root_block_pending()
 {
-	return (g_sync_root_block > 0) ? 1 : 0;
+	return (g_root_block_sync_state != ROOT_BLOCK_SYNCED) ? 1 : 0;
 }
 
 int sync_root_block_writing()
 {
-	return (g_sync_root_block == 2) ? 1 : 0;
+	return (g_root_block_sync_state == ROOT_BLOCK_WRITING) ? 1 : 0;
 }
 
 void sync_root_block_immediate()
 {
-	//HC_TODO: enum for this magic number
-	g_sync_root_block = 2;
+	g_root_block_sync_state = ROOT_BLOCK_WRITING;
 	write_root_block((const u8 *)&root_page, sizeof(root_page));
 }
 
@@ -518,15 +518,24 @@ void derive_iv(u32 id, u8 *iv)
 {
 	memset(iv, 0, AES_BLK_SIZE);
 	switch (root_page.format) {
-	case CURRENT_ROOT_BLOCK_FORMAT:
-		//TODO: Handle DEVICE_ID_LEN > AES_BLK_SIZE
-		memcpy(iv, root_page.device_id, DEVICE_ID_LEN);
+	case ROOT_BLOCK_FORMAT_CURRENT:
+		memcpy(iv, root_page.device_id, (DEVICE_ID_LEN > AES_BLK_SIZE) ? AES_BLK_SIZE : DEVICE_ID_LEN);
 		break;
 	default:
-		//TODO: What to do here?
+		assert(0);
 		break;
 	}
-	((u32 *)(iv + AES_BLK_SIZE - 4))[0] += (u8)(id); //HC_TODO: Use id as a u32 in a later DB revision
+	switch (root_page.db_format) {
+	case DB_FORMAT_CURRENT:
+		((u32 *)(iv + AES_BLK_SIZE - 4))[0] += (u32)(id);
+		break;
+	case DB_FORMAT_2:
+		((u32 *)(iv + AES_BLK_SIZE - 4))[0] += (u8)(id);
+		break;
+	default:
+		assert(0);
+		break;
+	}
 }
 
 #ifdef BOOT_MODE_B
@@ -542,8 +551,8 @@ static void finalize_root_page_check()
 		for (int i = 0; i < (INIT_RAND_DATA_SZ/4); i++) {
 			((u32 *)cmd_data.init_data.rand)[i] ^= rand_get();
 		}
-		root_page.format = CURRENT_ROOT_BLOCK_FORMAT;
-		root_page.db_format = CURRENT_DB_FORMAT;
+		root_page.format = ROOT_BLOCK_FORMAT_CURRENT;
+		root_page.db_format = DB_FORMAT_CURRENT;
 		u8 *random = cmd_data.init_data.rand;
 
 		u8 *device_id = random;
@@ -643,7 +652,7 @@ static void read_block_complete()
 		return;
 #endif
 	switch (active_cmd) {
-	case READ_BLOCK:
+	case READ_BLOCK_HC:
 		finish_command(OKAY, cmd_data.read_block.block, BLK_SIZE);
 		return;
 	default:
@@ -667,8 +676,8 @@ static void initializing_iter()
 	} else if (cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS) {
 		finalize_root_page_check();
 	} else {
-		g_root_block_version = CURRENT_ROOT_BLOCK_FORMAT;
-		g_db_version = CURRENT_DB_FORMAT;
+		g_root_block_version = ROOT_BLOCK_FORMAT_CURRENT;
+		g_db_version = DB_FORMAT_CURRENT;
 		g_root_page_valid = 1;
 		db3_startup_scan(cmd_data.init_data.block, &cmd_data.init_data.blk_info);
 	}
@@ -678,8 +687,8 @@ static void initializing_iter()
 static void write_block_complete()
 {
 #ifdef BOOT_MODE_B
-	if (g_sync_root_block == 2) {
-		g_sync_root_block = 0;
+	if (g_root_block_sync_state == ROOT_BLOCK_WRITING) {
+		g_root_block_sync_state = ROOT_BLOCK_SYNCED;
 		END_WORK(SYNC_ROOT_BLOCK_WORK);
 		if (s_subsystem_release_requested) {
 			s_subsystem_release_requested = 0;
@@ -711,8 +720,8 @@ static void write_block_complete()
 	switch (active_cmd) {
 	case WRITE_CLEARTEXT_PASSWORD:
 	case CHANGE_MASTER_PASSWORD:
-	case WRITE_BLOCK:
-	case ERASE_BLOCK:
+	case WRITE_BLOCK_HC:
+	case ERASE_BLOCK_HC:
 		finish_command_resp(OKAY);
 		break;
 	case WRITE_FLASH:
@@ -801,7 +810,7 @@ void long_button_press()
 			break;
 		case CHANGE_MASTER_PASSWORD:
 			switch (root_page.format) {
-			case CURRENT_ROOT_BLOCK_FORMAT:
+			case ROOT_BLOCK_FORMAT_CURRENT:
 				signet_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, AUTH_RANDOM_DATA_LEN/AES_BLK_SIZE, NULL,
 				                           root_page.auth_random_cleartext,
 							   root_page.profile_auth_data[0].auth_random_cyphertext);
@@ -829,7 +838,11 @@ void button_release()
 	if (waiting_for_long_button_press) {
 		resume_blinking();
 	} else if (g_device_state == DS_DISCONNECTED) {
-		//HC_TODO: Not supported yet
+		//
+		// HC_TODO: Not supported yet. Need to add cleartext
+		// password data to root block
+		//
+
 		//button_release_disconnected();
 	}
 }
@@ -941,7 +954,11 @@ void button_press_unprompted()
 {
 	switch (g_device_state) {
 	case DS_DISCONNECTED:
-		//HC_TODO: Not supported yet
+		//
+		// HC_TODO: Not supported yet. Need to add cleartext
+		// password data to root block
+		//
+
 		//button_press_disconnected();
 		break;
 	default:
@@ -973,7 +990,7 @@ void button_press()
 #ifdef BOOT_MODE_B
 		case LOGIN:
 			switch (root_page.format) {
-			case CURRENT_ROOT_BLOCK_FORMAT: {
+			case ROOT_BLOCK_FORMAT_CURRENT: {
 				int rc = attempt_login_256(cmd_data.login.password,
 				                           root_page.auth_random_cleartext,
 				                           root_page.profile_auth_data[0].auth_random_cyphertext,
@@ -1000,7 +1017,7 @@ void button_press()
 		case LOGIN_TOKEN: {
 			int rc;
 			switch (root_page.format) {
-			case CURRENT_ROOT_BLOCK_FORMAT:
+			case ROOT_BLOCK_FORMAT_CURRENT:
 				rc = attempt_login_256((u8 *)cmd_data.login_token.token,
 				                       root_page.auth_random_cleartext,
 				                       token_auth_rand_cyphertext,
@@ -1117,11 +1134,11 @@ void restore_device_cmd ()
 
 void read_block_cmd (u8 *data, int data_len)
 {
-	if (data_len != 1) {
+	if (data_len != 2) {
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	int idx = *data;
+	int idx = *((u16 *)data);
 	if (idx >= NUM_STORAGE_BLOCKS) {
 		finish_command_resp(INVALID_INPUT);
 		return;
@@ -1132,13 +1149,12 @@ void read_block_cmd (u8 *data, int data_len)
 
 void write_block_cmd(u8 *data, int data_len)
 {
-	//TODO: consider making the header 2 or 4 bytes to we can have alignment for DMA transfer
-	if (data_len != (1 + BLK_SIZE)) {
+	if (data_len != (2 + BLK_SIZE)) {
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	cmd_data.write_block.block_idx = *data;
-	data++;
+	cmd_data.write_block.block_idx = *((u16 *)data);
+	data += 2;
 	memcpy(cmd_data.write_block.block, data, BLK_SIZE);
 	if (cmd_data.write_block.block_idx >= NUM_STORAGE_BLOCKS) {
 		finish_command_resp(INVALID_INPUT);
@@ -1149,12 +1165,12 @@ void write_block_cmd(u8 *data, int data_len)
 
 void erase_block_cmd(u8 *data, int data_len)
 {
-	if (data_len != 1) {
+	if (data_len != 2) {
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	int idx = *data;
-	data++;
+	int idx = *((u16 *)data);
+	data +=2;
 	if (idx >= NUM_STORAGE_BLOCKS) {
 		finish_command_resp(INVALID_INPUT);
 		return;
@@ -1165,13 +1181,17 @@ void erase_block_cmd(u8 *data, int data_len)
 
 void get_device_capacity_cmd(u8 *data, int data_len)
 {
-	//TODO
+	//
+	// HC_TODO: This needs a real implementation. The client has never used
+	// this command so the response format is not actually defined.
+	//
 	static struct {
 		u16 block_size;
 		u8 sub_blk_mask_size;
 		u8 sub_blk_data_size;
 		u16 num_blocks;
 	} __attribute__((packed)) device_capacity;
+	memset(&device_capacity, 0, sizeof(device_capacity));
 	finish_command(OKAY, (u8 *)&device_capacity, sizeof(device_capacity));
 }
 
@@ -1189,7 +1209,7 @@ void change_master_password_cmd(u8 *data, int data_len)
 	memcpy(cmd_data.change_master_password.salt, salt, HC_HASH_FN_SALT_SZ);
 	memcpy(cmd_data.change_master_password.new_key, new_key, HC_KEYSTORE_KEY_SIZE);
 	switch (root_page.format) {
-	case CURRENT_ROOT_BLOCK_FORMAT: {
+	case ROOT_BLOCK_FORMAT_CURRENT: {
 		int rc = attempt_login_256(old_key,
 					   root_page.auth_random_cleartext,
 					   root_page.profile_auth_data[0].auth_random_cyphertext,
@@ -1310,7 +1330,7 @@ void enter_mobile_mode_cmd()
 
 int is_device_wiped()
 {
-	//NEN_TODO: Is checking if the root blocked is wiped sufficient?
+	//HC_TODO: Is checking if the root blocked is wiped sufficient?
 	u32 *data_area = (u32 *)(_root_page);
 	for (int i = 0; i < (BLK_SIZE)/4; i++) {
 		if (data_area[i] != 0xffffffff) {
@@ -1399,11 +1419,6 @@ int logged_out_state(int cmd, u8 *data, int data_len)
 	case GET_DEVICE_CAPACITY:
 		get_device_capacity_cmd(data, data_len);
 		break;
-#if NEN_TODO
-	case ENTER_MOBILE_MODE:
-		enter_mobile_mode_cmd();
-		break;
-#endif
 #ifdef FACTORY_MODE
 	case UPDATE_FIRMWARE:
 		update_firmware_cmd(data, data_len);
@@ -1503,7 +1518,7 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 	break;
 	case UPDATE_UIDS:
 	case UPDATE_UID: {
-		//TODO: move this all into db.c
+		//HC_TODO: This block should move into db.c
 		if (data_len < 4) {
 			finish_command_resp(INVALID_INPUT);
 			return 0;
@@ -1583,7 +1598,7 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 int backing_up_device_state (int cmd, u8 *data, int data_len)
 {
 	switch (cmd) {
-	case READ_BLOCK:
+	case READ_BLOCK_HC:
 		read_block_cmd(data, data_len);
 		break;
 	case BACKUP_DEVICE_DONE:
@@ -1599,10 +1614,10 @@ int backing_up_device_state (int cmd, u8 *data, int data_len)
 int restoring_device_state(int cmd, u8 *data, int data_len)
 {
 	switch (cmd) {
-	case WRITE_BLOCK:
+	case WRITE_BLOCK_HC:
 		write_block_cmd(data, data_len);
 		break;
-	case ERASE_BLOCK:
+	case ERASE_BLOCK_HC:
 		erase_block_cmd(data, data_len);
 		break;
 	case RESTORE_DEVICE_DONE:
@@ -1637,7 +1652,7 @@ void startup_cmd_iter()
 	}
 	g_root_block_version = root_page.format;
 	switch (root_page.format) {
-	case CURRENT_ROOT_BLOCK_FORMAT:
+	case ROOT_BLOCK_FORMAT_CURRENT:
 		memcpy(resp + STARTUP_RESP_INFO_SIZE, root_page.profile_auth_data[0].hash_function_params, HC_HASH_FUNCTION_PARAMS_LENGTH);
 		memcpy(resp + STARTUP_RESP_INFO_SIZE + HC_HASH_FUNCTION_PARAMS_LENGTH, root_page.profile_auth_data[0].salt, HC_HASH_FN_SALT_SZ);
 		g_db_version = root_page.db_format;
@@ -1654,7 +1669,8 @@ void startup_cmd_iter()
 	}
 
 	switch (g_db_version) {
-	case CURRENT_DB_FORMAT:
+	case DB_FORMAT_CURRENT:
+	case DB_FORMAT_2:
 		db3_startup_scan(cmd_data.startup.block, &cmd_data.startup.blk_info);
 		break;
 	default:
@@ -1768,7 +1784,7 @@ int release_device_request(enum command_subsystem system)
 		__enable_irq();
 		return 0;
 	}
-	if (g_sync_root_block) {
+	if (g_root_block_sync_state != ROOT_BLOCK_SYNCED) {
 		//Wait until the root block is synchronized to release the device
 		s_subsystem_release_requested = 1;
 		__enable_irq();

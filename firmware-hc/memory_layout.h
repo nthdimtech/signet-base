@@ -100,10 +100,10 @@ struct hc_volume {
 	u8 volume_name[MAX_VOLUME_NAME_LEN];
 } __attribute__ ((packed));
 
-#define RK_NUM 10
+#define RK_NUM 15
 
 struct ResidentKeyStore {
-    CTAP_residentKey rks[RK_NUM];
+    CTAP_residentKey rks[RK_NUM]; //HC_TODO: This should be variable size somehow in the future
 };
 
 struct hc_device_data {
