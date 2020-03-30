@@ -65,6 +65,6 @@ struct hc_firmware_file_body {
 
 #define SIGNET_HC_MAJOR_VERSION 0
 #define SIGNET_HC_MINOR_VERSION 2
-#define SIGNET_HC_STEP_VERSION 0
+#define SIGNET_HC_STEP_VERSION 1
 
 #endif

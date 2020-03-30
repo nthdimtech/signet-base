@@ -12,7 +12,8 @@
 #include "usb_keyboard.h"
 #include "crc.h"
 #include "usbd_msc_scsi.h"
-
+#include "fido2/crypto.h"
+#include "fido2/ctaphid.h"
 #include "memory_layout.h"
 
 void ctaphid_press();
@@ -337,11 +338,11 @@ static int is_erased_root_page()
 	return 1;
 }
 
-static int is_zero_root_page()
+static int is_memtest_root_page()
 {
-	const u32 *p = (const u32 *)_root_page;
-	for (int i = 1 /* skip CRC */; i < (BLK_SIZE/4); i++) {
-		if (p[i] != 0) {
+	const u8 *p = (const u8 *)_root_page;
+	for (int i = (offsetof(struct hc_device_data, data_iteration) + 4) /* skip CRC and data iteration. HC_TODO */; i < BLK_SIZE; i++) {
+		if (p[i] != 0x80) {
 			return 0;
 		}
 	}
@@ -352,12 +353,13 @@ static int emmc_compare_test(const u8 *write_block, u8 *read_block, int blink_of
 {
 	int blink_total = blink_off + blink_on;
 	int nr_sub_blocks = hmmc1.MmcCard.BlockNbr;
-	int nr_blocks = 512; //nr_sub_blocks/(HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ);
+	int nr_blocks = nr_sub_blocks/(HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ);
 	for (int i = 0; i < nr_blocks; i++) {
 		unsigned int cardState;
 		do {
 			cardState = HAL_MMC_GetCardState(&hmmc1);
 		} while (cardState != HAL_MMC_CARD_TRANSFER);
+		int ms_start = HAL_GetTick();
 		HAL_MMC_WriteBlocks_DMA_Initial(&hmmc1,
 						write_block,
 						BLK_SIZE,
@@ -369,6 +371,9 @@ static int emmc_compare_test(const u8 *write_block, u8 *read_block, int blink_of
 				led_on();
 			} else {
 				led_off();
+			}
+			if (ms > (ms_start + 1000)) {
+				return 2;
 			}
 			command_idle();
 			if (g_write_test_tx_complete) {
@@ -382,6 +387,7 @@ static int emmc_compare_test(const u8 *write_block, u8 *read_block, int blink_of
 		do {
 			cardState = HAL_MMC_GetCardState(&hmmc1);
 		} while (cardState != HAL_MMC_CARD_TRANSFER);
+		int ms_start = HAL_GetTick();
 		HAL_MMC_ReadBlocks_DMA(&hmmc1,
 					read_block,
 					i*(BLK_SIZE/MSC_MEDIA_PACKET),
@@ -393,6 +399,9 @@ static int emmc_compare_test(const u8 *write_block, u8 *read_block, int blink_of
 			} else {
 				led_off();
 			}
+			if (ms > (ms_start + 1000)) {
+				return 4;
+			}
 			command_idle();
 			if (g_read_test_tx_complete) {
 				g_read_test_tx_complete = 0;
@@ -400,7 +409,7 @@ static int emmc_compare_test(const u8 *write_block, u8 *read_block, int blink_of
 			}
 		}
 		if (memcmp(write_block, read_block, BLK_SIZE)) {
-			return 1;
+			return 8;
 		}
 	}
 	led_off();
@@ -493,7 +502,7 @@ int main (void)
 				END_WORK(BUTTON_PRESSING_WORK);
 				if (press_count == 5) {
 					press_count = 0;
-					HAL_Delay(500);
+					HAL_Delay(400);
 					busy_blink_once(100);
 				}
 			}
@@ -503,20 +512,14 @@ int main (void)
 				break;
 			}
 		}
-		memset(usbBulkBufferFIFO.bufferStorage, 0, BLK_SIZE);
+		memset(usbBulkBufferFIFO.bufferStorage, 0x80, BLK_SIZE);
 		write_root_block(usbBulkBufferFIFO.bufferStorage, BLK_SIZE);
 		do {
 			flash_idle();
 		} while(!is_flash_idle());
-		do {
-			int ms_count = HAL_GetTick();
-			if ((ms_count % 1000) < 500) {
-				led_on();
-			} else {
-				led_off();
-			}
-		} while(1);
-	} else if (is_zero_root_page()) {
+		busy_blink(300,300);
+	}
+	else if (is_memtest_root_page()) {
 		emmc_user_queue(EMMC_USER_TEST);
 		emmc_user_schedule();
 
@@ -524,21 +527,14 @@ int main (void)
 			usbBulkBufferFIFO.bufferStorage[i + 0] = 0xaa;
 			usbBulkBufferFIFO.bufferStorage[i + 1] = 0x55;
 		}
-		if (emmc_compare_test(usbBulkBufferFIFO.bufferStorage,
+		int rc = emmc_compare_test(usbBulkBufferFIFO.bufferStorage,
 				usbBulkBufferFIFO.bufferStorage + HC_BLOCK_SZ,
-				4900, 100)) {
-			busy_blink(2000, 2000);
-		}
-
-		memset(usbBulkBufferFIFO.bufferStorage, 0, HC_BLOCK_SZ);
-		if (emmc_compare_test(usbBulkBufferFIFO.bufferStorage,
-				usbBulkBufferFIFO.bufferStorage + HC_BLOCK_SZ,
-				1900, 100)) {
-			busy_blink(1000, 1000);
+				4900, 100)
+	        if (rc)	{
+			busy_blink(rc * 1000, rc * 1000);
 		}
 		memory_test_mode = 1;
 	}
-
 #ifdef ENABLE_FIDO2
     	crypto_ecc256_init();
 	authenticator_initialize();
