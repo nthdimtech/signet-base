@@ -97,10 +97,11 @@ static void handle_error()
 	}
 	struct send_message_req **msg = pending_message();
 	if (msg) {
-		signetdev_priv_finalize_message(msg, SIGNET_ERROR_DISCONNECT);
+		struct send_message_req *temp = *msg;
+		conn->tx_state.message = NULL;
+		conn->rx_state.message = NULL;
+		signetdev_priv_finalize_message(&temp, SIGNET_ERROR_DISCONNECT);
 	}
-	conn->tx_state.message = NULL;
-	conn->rx_state.message = NULL;
 }
 
 static int attempt_raw_hid_write()

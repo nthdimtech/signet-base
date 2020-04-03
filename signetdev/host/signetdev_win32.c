@@ -52,10 +52,11 @@ void signetdev_priv_handle_error()
 
 	struct send_message_req **msg = pending_message();
 	if (msg) {
-		signetdev_priv_finalize_message(msg, SIGNET_ERROR_DISCONNECT);
+		struct send_message_req *temp = *msg;
+		g_tx_state.message = NULL;
+		g_rx_state.message = NULL;
+		signetdev_priv_finalize_message(&temp, SIGNET_ERROR_DISCONNECT);
 	}
-	g_tx_state.message = NULL;
-	g_rx_state.message = NULL;
 	if (g_error_handler) {
 		g_error_handler(g_error_handler_param);
 	}
@@ -228,6 +229,9 @@ static DWORD WINAPI transaction_thread(LPVOID lpParameter)
 		ResetEvent(wait_handles[index]);
 		switch(index) {
 		case 0: {
+			if (g_device_handle == INVALID_HANDLE_VALUE) {
+				break;
+			}
 			DWORD n;
 			if (!GetOverlappedResult(g_device_handle, &g_read_overlapped, &n, FALSE)) {
 				signetdev_priv_handle_error();
@@ -245,6 +249,9 @@ static DWORD WINAPI transaction_thread(LPVOID lpParameter)
 			state_iter();
 		} break;
 		case 1: {
+			if (g_device_handle == INVALID_HANDLE_VALUE) {
+				break;
+			}
 			DWORD n;
 			if (!GetOverlappedResult(g_device_handle, &g_write_overlapped, &n, FALSE)) {
 				signetdev_priv_handle_error();
