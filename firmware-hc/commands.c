@@ -312,7 +312,7 @@ void emmc_user_done()
 
 void emmc_user_queue(enum emmc_user user)
 {
-	assert_lit(!g_emmc_user_ready[user], 0, 1);
+	assert(!g_emmc_user_ready[user]);
 	g_emmc_user_ready[user] = 1;
 }
 
@@ -366,7 +366,13 @@ void MMC_DMATXTransmitComplete(MMC_HandleTypeDef *hmmc)
 void HAL_MMC_ErrorCallback(MMC_HandleTypeDef *hmmc)
 {
 	UNUSED(hmmc);
-	assert_lit(0, 1, 0);
+	assert(0);
+}
+
+void HAL_MMC_AbortCallback(MMC_HandleTypeDef *hmmc)
+{
+	UNUSED(hmmc);
+	assert(0);
 }
 
 void HAL_MMC_TxCpltCallback(MMC_HandleTypeDef *hmmc1)
