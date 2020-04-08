@@ -194,7 +194,6 @@ enum emmc_user {
 };
 
 void emmc_user_queue(enum emmc_user user);
-void emmc_user_schedule();
 void emmc_user_done();
 
 //TODO: Use functions to update progress

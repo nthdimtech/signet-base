@@ -521,7 +521,6 @@ int main (void)
 	}
 	else if (is_memtest_root_page()) {
 		emmc_user_queue(EMMC_USER_TEST);
-		emmc_user_schedule();
 
 		for (int i = 0; i < HC_BLOCK_SZ; i += 2) {
 			usbBulkBufferFIFO.bufferStorage[i + 0] = 0xaa;
@@ -628,7 +627,6 @@ int main (void)
 			g_emmc_idle_ms = -1;
 			END_WORK(MMC_IDLE_WORK);
 			emmc_user_queue(EMMC_USER_STANDBY);
-			emmc_user_schedule();
 		}
 #endif
 		usb_keyboard_idle();

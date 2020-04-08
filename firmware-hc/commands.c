@@ -268,7 +268,7 @@ static void emmc_user_standby_end()
 }
 #endif
 
-void emmc_user_schedule()
+static void emmc_user_schedule()
 {
 #if ENABLE_MMC_STANDBY
 	if (g_emmc_user == EMMC_USER_STANDBY) {
@@ -284,15 +284,15 @@ void emmc_user_schedule()
 #endif
 		if (g_emmc_user_ready[EMMC_USER_DB]) {
 			g_emmc_user = EMMC_USER_DB;
-			g_emmc_user_ready[EMMC_USER_DB] = 0;
+			g_emmc_user_ready[g_emmc_user] = 0;
 			emmc_user_db_start();
 		} else if (g_emmc_user_ready[EMMC_USER_STORAGE]) {
 			g_emmc_user = EMMC_USER_STORAGE;
-			g_emmc_user_ready[EMMC_USER_STORAGE] = 0;
+			g_emmc_user_ready[g_emmc_user] = 0;
 			emmc_user_storage_start();
 		} else if (g_emmc_user_ready[EMMC_USER_TEST]) {
 			g_emmc_user = EMMC_USER_TEST;
-			g_emmc_user_ready[EMMC_USER_TEST] = 0;
+			g_emmc_user_ready[g_emmc_user] = 0;
 		}
 #if ENABLE_MMC_STANDBY
 		else if (g_emmc_user_ready[EMMC_USER_STANDBY]) {
@@ -314,6 +314,7 @@ void emmc_user_queue(enum emmc_user user)
 {
 	assert(!g_emmc_user_ready[user]);
 	g_emmc_user_ready[user] = 1;
+	emmc_user_schedule();
 }
 
 void read_data_block (int idx, u8 *dest)
@@ -322,11 +323,10 @@ void read_data_block (int idx, u8 *dest)
 		memcpy(dest, (u8 *)_root_page, BLK_SIZE);
 		read_block_complete();
 	} else {
-		emmc_user_queue(EMMC_USER_DB);
 		g_db_action = DB_ACTION_READ;
 		g_db_read_idx = idx;
 		g_db_read_dest = dest;
-		emmc_user_schedule();
+		emmc_user_queue(EMMC_USER_DB);
 	}
 }
 
@@ -338,11 +338,10 @@ void write_data_block (int idx, const u8 *src)
 	if (idx == ROOT_DATA_BLOCK) {
 		write_root_block(src, BLK_SIZE);
 	} else {
-		emmc_user_queue(EMMC_USER_DB);
 		g_db_action = DB_ACTION_WRITE;
 		g_db_write_idx = idx;
 		g_db_write_src = src;
-		emmc_user_schedule();
+		emmc_user_queue(EMMC_USER_DB);
 	}
 }
 

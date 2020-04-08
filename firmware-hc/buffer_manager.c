@@ -29,7 +29,7 @@ static int bufferFIFO_stageStalled(struct bufferFIFO *bf, int stage)
 			return 1;
 		}
 	} else {
-		if (((bf->_stageWriteIndex[0] - bf->_stageReadIndex[bf->numStages - 1] + 1) > bf->bufferCount)) {
+		if (bf->_stageWriteIndex[0] == (bf->_stageReadIndex[bf->numStages - 1] + bf->bufferCount)) {
 			return 1;
 		}
 	}
