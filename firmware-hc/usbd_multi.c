@@ -149,7 +149,7 @@ static uint8_t USBD_Multi_CfgHSDesc[] __attribute__((aligned (4))) = {
 	0x01,         /*bConfigurationValue: Configuration value*/
 	0x00,         /*iConfiguration: Index of string descriptor describing the configuration*/
 	0x80,         /*bmAttributes: bus powered and Support Remote Wake-up */
-	50,         /*MaxPower 100 mA: this current is used for detecting Vbus*/
+	100,         /*MaxPower 200 mA: this current is used for detecting Vbus*/
 
 	//
 	// Keyboard descriptors
@@ -505,7 +505,6 @@ static uint8_t  USBD_Multi_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 
 static uint8_t  USBD_Multi_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
 {
-	g_pdev = pdev;
 	int interfaceNum = endpointToInterface(epnum);
 	switch (interfaceNum) {
 	case INTERFACE_MSC: {
