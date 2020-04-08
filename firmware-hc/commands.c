@@ -43,6 +43,10 @@ static int g_mmc_tx_cplt = 0;
 static int g_mmc_tx_dma_cplt = 0;
 static int g_mmc_rx_cplt = 0;
 
+#if ENABLE_MMC_STANDBY
+volatile int g_emmc_idle_ms = -1;
+#endif
+
 enum root_block_sync_state g_root_block_sync_state = ROOT_BLOCK_SYNCED;
 
 enum device_state g_device_state = DS_DISCONNECTED;
@@ -252,9 +256,32 @@ void command_idle()
 	}
 }
 
+#if ENABLE_MMC_STANDBY
+static void emmc_user_standby_start()
+{
+	SDMMC_CmdSelDesel(hmmc1.Instance, (uint32_t)(((uint32_t)hmmc1.MmcCard.RelCardAdd) << 16));
+}
+
+static void emmc_user_standby_end()
+{
+	SDMMC_CmdSelDesel(hmmc1.Instance, (uint32_t)(((uint32_t)hmmc1.MmcCard.RelCardAdd) << 16));
+}
+#endif
+
 void emmc_user_schedule()
 {
+#if ENABLE_MMC_STANDBY
+	if (g_emmc_user == EMMC_USER_STANDBY) {
+		emmc_user_standby_end();
+		emmc_user_done();
+		return;
+	}
+#endif
 	if (g_emmc_user == EMMC_USER_NONE) {
+#if ENABLE_MMC_STANDBY
+		g_emmc_idle_ms = HAL_GetTick();
+		BEGIN_WORK(MMC_IDLE_WORK);
+#endif
 		if (g_emmc_user_ready[EMMC_USER_DB]) {
 			g_emmc_user = EMMC_USER_DB;
 			g_emmc_user_ready[EMMC_USER_DB] = 0;
@@ -267,6 +294,13 @@ void emmc_user_schedule()
 			g_emmc_user = EMMC_USER_TEST;
 			g_emmc_user_ready[EMMC_USER_TEST] = 0;
 		}
+#if ENABLE_MMC_STANDBY
+		else if (g_emmc_user_ready[EMMC_USER_STANDBY]) {
+			g_emmc_user = EMMC_USER_STANDBY;
+			g_emmc_user_ready[EMMC_USER_STANDBY] = 0;
+			emmc_user_standby_start();
+		}
+#endif
 	}
 }
 

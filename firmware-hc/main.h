@@ -11,6 +11,8 @@
 #define HIGH_INT_PRIORITY (1)
 #define HIGHEST_INT_PRIORITY (0)
 
+#define ENABLE_MMC_STANDBY 0
+
 void led_on();
 void led_off();
 void start_blinking(int period, int duration);
@@ -44,6 +46,10 @@ int is_ctap_initialized();
 #define BUTTON_PRESSING_WORK (1<<11)
 #define TIMER_WORK (1<<12)
 #define BLINK_WORK (1<<13)
+
+#if ENABLE_MMC_STANDBY
+#define MMC_IDLE_WORK (1<<14)
+#endif
 
 extern volatile int g_work_to_do;
 

@@ -617,11 +617,20 @@ int main (void)
 		__enable_irq();
 #endif
 		int ms_count = HAL_GetTick();
+
 		if (ms_count > g_timer_target && g_timer_target != 0) {
 			timer_timeout();
 			g_timer_target = 0;
 			END_WORK(TIMER_WORK);
 		}
+#if ENABLE_MMC_STANDBY
+		if (g_emmc_idle_ms != -1 && ms_count > (g_emmc_idle_ms + 1000)) {
+			g_emmc_idle_ms = -1;
+			END_WORK(MMC_IDLE_WORK);
+			emmc_user_queue(EMMC_USER_STANDBY);
+			emmc_user_schedule();
+		}
+#endif
 		usb_keyboard_idle();
 		blink_idle();
 		command_idle();

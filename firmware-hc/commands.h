@@ -187,6 +187,9 @@ enum emmc_user {
 	EMMC_USER_STORAGE,
 	EMMC_USER_DB,
 	EMMC_USER_TEST,
+#if ENABLE_MMC_STANDBY
+	EMMC_USER_STANDBY,
+#endif
 	EMMC_NUM_USER
 };
 
@@ -202,6 +205,9 @@ int command_idle_ready();
 
 extern volatile int g_write_test_tx_complete;
 extern volatile int g_read_test_tx_complete;
+#if ENABLE_MMC_STANDBY
+extern volatile int g_emmc_idle_ms;
+#endif
 
 enum root_block_sync_state {
 	ROOT_BLOCK_SYNCED,
