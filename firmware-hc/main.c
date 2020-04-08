@@ -529,7 +529,7 @@ int main (void)
 		}
 		int rc = emmc_compare_test(usbBulkBufferFIFO.bufferStorage,
 				usbBulkBufferFIFO.bufferStorage + HC_BLOCK_SZ,
-				4900, 100)
+				4900, 100);
 	        if (rc)	{
 			busy_blink(rc * 1000, rc * 1000);
 		}
