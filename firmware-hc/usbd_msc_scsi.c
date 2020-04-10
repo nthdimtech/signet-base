@@ -455,8 +455,8 @@ static int8_t SCSI_StartStopUnit(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t
 
 void readProcessingComplete(struct bufferFIFO *bf)
 {
-	MSC_BOT_SendCSW (s_pdev, USBD_CSW_CMD_PASSED);
-	assert_lit(mmcDataToTransfer == 0, 1, 1);
+	MSC_BOT_SendCSW (g_pdev, USBD_CSW_CMD_PASSED);
+	assert(mmcDataToTransfer == 0);
 }
 
 int g_usb_transmitting = 0;
@@ -621,8 +621,9 @@ static int8_t SCSI_Read10(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *params
 #endif
 		bufferFIFO_start(&usbBulkBufferFIFO, len);
 		return 0;
+	} else {
+		return SCSI_ProcessRead(pdev, lun);
 	}
-	return SCSI_ProcessRead(pdev, lun);
 }
 
 void emmc_user_storage_start()
@@ -662,8 +663,8 @@ void emmc_user_storage_start()
 
 void writeProcessingComplete(struct bufferFIFO *bf)
 {
-	MSC_BOT_SendCSW (s_pdev, USBD_CSW_CMD_PASSED);
-	assert_lit(mmcDataToTransfer == 0, 1, 1);
+	MSC_BOT_SendCSW (g_pdev, USBD_CSW_CMD_PASSED);
+	assert(mmcDataToTransfer == 0);
 }
 
 void processUSBWriteBuffer(struct bufferFIFO *bf, int readSize, u32 readData, const uint8_t *bufferRead, uint8_t *bufferWrite, int stageIdx)
