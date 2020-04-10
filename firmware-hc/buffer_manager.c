@@ -19,16 +19,17 @@ static void bufferFIFO_execStage(struct bufferFIFO *bf, int stageIdx)
 static int bufferFIFO_stageStalled(struct bufferFIFO *bf, int stage)
 {
 	if (bf->_stageProcessing[stage] || bf->_stalled[stage]) {
+		//Stage is stalled stalled if we aren't done writing to our destination buffer or
+		//we stalled due to running out of data previously
 		return 1;
 	} else if (stage != 0) {
 		int prevStage = stage - 1;
 		if ((bf->_stageReadIndex[stage] == bf->_stageWriteIndex[prevStage])) {
+			//We're stalled if the previous stage is writing to the buffer we are reading
 			return 1;
 		}
 	} else {
-		if (((bf->_stageWriteIndex[0] - bf->_stageReadIndex[bf->numStages - 1]) == bf->bufferCount)) {
-			return 1;
-		} else if (((bf->_stageWriteIndex[0] - bf->_stageReadIndex[bf->numStages - 1]) > bf->bufferCount)) {
+		if (((bf->_stageWriteIndex[0] - bf->_stageReadIndex[bf->numStages - 1] + 1) > bf->bufferCount)) {
 			return 1;
 		}
 	}
@@ -62,7 +63,7 @@ void bufferFIFO_processingComplete(struct bufferFIFO *bf, int stageIdx, int writ
 	if (!bufferFIFO_stageStalled(bf, nextStageIdx))
 		bufferFIFO_execStage(bf, nextStageIdx);
 	if (bf->_processing) {
-		while(bf->_stall_index < bf->numStages) {
+		while (bf->_stall_index < bf->numStages) {
 			if (bf->_stageProcessing[bf->_stall_index] || !bf->_stalled[bf->_stall_index])
 				break;
 			bf->_stall_index++;
@@ -70,6 +71,7 @@ void bufferFIFO_processingComplete(struct bufferFIFO *bf, int stageIdx, int writ
 		if (bf->_stall_index == bf->numStages) {
 			bf->_processing = 0;
 			bf->processingComplete(bf);
+			led_off();
 		}
 	}
 	__enable_irq();
@@ -77,6 +79,7 @@ void bufferFIFO_processingComplete(struct bufferFIFO *bf, int stageIdx, int writ
 
 void bufferFIFO_start(struct bufferFIFO *bf, int firstBufferSize)
 {
+	led_on();
 	__disable_irq();
 	bf->_processing = 1;
 	bf->_stall_index = 0;
