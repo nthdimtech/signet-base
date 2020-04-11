@@ -591,6 +591,9 @@ int main (void)
 	USBD_MSC_RegisterStorage(&USBD_Device, &USBD_MSC_Template_fops);
 	USBD_Start(&USBD_Device);
 
+	int work_led_off_ms = 0;
+	int work_led_state = 0;
+
 	while (1) {
 		__disable_irq();
 		int work_to_do = g_work_to_do;
@@ -604,7 +607,9 @@ int main (void)
 				release_device_request(CTAP_STARTUP_SUBSYSTEM);
 			}
 		} else if (!work_to_do) {
+			HAL_SuspendTick();
 			__asm__("wfi");
+			HAL_ResumeTick();
 			__enable_irq();
 		} else {
 			__enable_irq();
@@ -618,6 +623,27 @@ int main (void)
 		__enable_irq();
 #endif
 		int ms_count = HAL_GetTick();
+		const int work_to_light = KEYBOARD_WORK | SYNC_ROOT_BLOCK_WORK | FLASH_WORK;
+		if ((g_work_to_do & work_to_light) || g_emmc_user == EMMC_USER_STORAGE || g_emmc_user == EMMC_USER_DB) {
+			if (!work_led_state) {
+				work_led_off_ms = ms_count + 40;
+				BEGIN_WORK(WORK_STATUS_WORK);
+			}
+			work_led_state = 1;
+		} else {
+			if (work_led_state) {
+				work_led_off_ms = ms_count + 10;
+			}
+			work_led_state = 0;
+		}
+		if (!(g_work_to_do & BLINK_WORK)) {
+			if (work_led_state || (!work_led_state && ms_count < work_led_off_ms)) {
+				led_on();
+			} else {
+				END_WORK(WORK_STATUS_WORK);
+				led_off();
+			}
+		}
 
 		if (ms_count > g_timer_target && g_timer_target != 0) {
 			timer_timeout();

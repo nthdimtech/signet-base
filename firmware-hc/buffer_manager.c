@@ -71,7 +71,6 @@ void bufferFIFO_processingComplete(struct bufferFIFO *bf, int stageIdx, int writ
 		if (bf->_stall_index == bf->numStages) {
 			bf->_processing = 0;
 			bf->processingComplete(bf);
-			led_off();
 		}
 	}
 	__enable_irq();
@@ -79,7 +78,6 @@ void bufferFIFO_processingComplete(struct bufferFIFO *bf, int stageIdx, int writ
 
 void bufferFIFO_start(struct bufferFIFO *bf, int firstBufferSize)
 {
-	led_on();
 	__disable_irq();
 	bf->_processing = 1;
 	bf->_stall_index = 0;

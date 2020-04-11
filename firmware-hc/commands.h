@@ -196,6 +196,8 @@ enum emmc_user {
 void emmc_user_queue(enum emmc_user user);
 void emmc_user_done();
 
+extern volatile enum emmc_user g_emmc_user;
+
 //TODO: Use functions to update progress
 extern int g_progress_level[];
 extern u8 g_encrypt_key[];

@@ -98,7 +98,7 @@ static int waiting_for_long_button_press = 0;
 //
 extern MMC_HandleTypeDef hmmc1;
 
-enum emmc_user g_emmc_user = EMMC_USER_NONE;
+volatile enum emmc_user g_emmc_user = EMMC_USER_NONE;
 
 int g_emmc_user_ready[EMMC_NUM_USER];
 

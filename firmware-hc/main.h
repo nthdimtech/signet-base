@@ -46,9 +46,10 @@ int is_ctap_initialized();
 #define BUTTON_PRESSING_WORK (1<<11)
 #define TIMER_WORK (1<<12)
 #define BLINK_WORK (1<<13)
+#define WORK_STATUS_WORK (1<<14)
 
 #if ENABLE_MMC_STANDBY
-#define MMC_IDLE_WORK (1<<14)
+#define MMC_IDLE_WORK (1<<15)
 #endif
 
 extern volatile int g_work_to_do;
