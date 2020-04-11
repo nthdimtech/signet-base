@@ -21,7 +21,7 @@ enum update_uid_status {
 #define MAX_PART_SIZE ((BLK_SIZE - sizeof(struct block) - sizeof(struct uid_ent))/SUB_BLK_SIZE)
 
 static u8 block_read_cache[BLK_SIZE];
-static u8 block_read_cache_idx = -1;
+static u16 block_read_cache_idx = -1;
 static int block_read_cache_updating = 0;
 
 static void update_uid_cmd_iter();
@@ -103,7 +103,7 @@ extern u8 g_encrypt_key[AES_256_KEY_SIZE];
 
 struct block_info g_block_info_tbl[MAX_DATA_BLOCK + 1];
 
-static u8 uid_map[MAX_UID + 1]; //0 == invalid, block #
+static u16 uid_map[MAX_UID + 1]; //0 == invalid, block #
 
 struct uid_ent {
 	unsigned int uid : 12;
