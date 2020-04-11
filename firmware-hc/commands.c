@@ -191,7 +191,7 @@ void command_idle()
 {
 	if (g_read_db_tx_complete) {
 		g_read_db_tx_complete = 0;
-		END_WORK(READ_DB_TX_WORK);
+		END_WORK(READ_DB_TX_CPLT_WORK);
 		emmc_user_done();
 		read_block_complete();
 	}
@@ -221,7 +221,7 @@ void command_idle()
 	}
 	if (g_mmc_tx_dma_cplt) {
 		g_mmc_tx_dma_cplt = 0;
-		BEGIN_WORK(MMC_TX_DMA_CPLT_WORK);
+		END_WORK(MMC_TX_DMA_CPLT_WORK);
 		switch (g_emmc_user) {
 		case EMMC_USER_STORAGE:
 			emmc_user_write_storage_tx_dma_complete(&hmmc1);

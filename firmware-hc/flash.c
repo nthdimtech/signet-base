@@ -136,12 +136,9 @@ void flash_idle()
 		et.NbSectors = 1;
 		et.VoltageRange = FLASH_VOLTAGE_RANGE_3;
 		status = HAL_FLASHEx_Erase(&et, &bs);
-		if (status != HAL_OK) {
-			while(1);
-		}
+		assert(status == HAL_OK);
 		if (flash_write_length) {
 			flash_state = FLASH_WRITING;
-			BEGIN_WORK(FLASH_WORK);
 		} else {
 			flash_state = FLASH_IDLE;
 			END_WORK(FLASH_WORK);
