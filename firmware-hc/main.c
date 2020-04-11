@@ -611,7 +611,9 @@ int main (void)
 		}
 #else
 		if (!work_to_do) {
+			HAL_SuspendTick();
 			__asm__("wfi");
+			HAL_ResumeTick();
 		}
 		__enable_irq();
 #endif
