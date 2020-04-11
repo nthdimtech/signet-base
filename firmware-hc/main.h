@@ -53,11 +53,16 @@ int is_ctap_initialized();
 
 extern volatile int g_work_to_do;
 
-#define BEGIN_WORK(w) g_work_to_do |= w
+#define BEGIN_WORK(w) do {\
+		__disable_irq();\
+		g_work_to_do |= w; \
+		__enable_irq();\
+	} while (0)
+
 #define END_WORK(w) do {\
 		__disable_irq();\
 		g_work_to_do &= ~w;\
 		__enable_irq();\
-	} while(0)
+	} while (0)
 
 #endif
