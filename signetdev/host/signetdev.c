@@ -691,7 +691,7 @@ int signetdev_write_block(void *param, int *token, unsigned int idx, const void 
 					0, msg, signetdev_device_block_size() + 2, SIGNETDEV_PRIV_GET_RESP);
 	} else {
 		u8 msg[MAX_BLK_SIZE + 1] = {(u8)(idx)};
-		memcpy(msg + 2, buffer, signetdev_device_block_size());
+		memcpy(msg + 1, buffer, signetdev_device_block_size());
 		return signetdev_priv_send_message(param, *token,
 					WRITE_BLOCK, SIGNETDEV_CMD_WRITE_BLOCK,
 					0, msg, signetdev_device_block_size() + 1, SIGNETDEV_PRIV_GET_RESP);
