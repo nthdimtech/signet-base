@@ -125,7 +125,7 @@ static void fail(int l1, int l2)
 {
 	setLED1(l1);
 	setLED2(l2);
-	while(1);
+	Error_Handler();
 }
 
 #ifdef assert
@@ -889,7 +889,10 @@ static void MX_GPIO_Init(void)
 void Error_Handler(void)
 {
 	/* User can add his own implementation to report the HAL error return state */
-	while(1);
+	__disable_irq();
+	__set_BASEPRI(__get_BASEPRI() & 0xf0);
+	while(1)
+		__asm__("wfi");
 }
 
 #ifdef  USE_FULL_ASSERT

@@ -2,6 +2,8 @@
 #include "main.h"
 #include "stm32f7xx_it.h"
 
+void Error_Handler();
+
 /******************************************************************************/
 /*           Cortex-M7 Processor Interruption and Exception Handlers          */
 /******************************************************************************/
@@ -17,8 +19,7 @@ void NMI_Handler(void)
   */
 void HardFault_Handler(void)
 {
-	while (1) {
-	}
+	Error_Handler();
 }
 
 /**
@@ -26,8 +27,7 @@ void HardFault_Handler(void)
   */
 void MemManage_Handler(void)
 {
-	while (1) {
-	}
+	Error_Handler();
 }
 
 /**
@@ -35,8 +35,7 @@ void MemManage_Handler(void)
   */
 void BusFault_Handler(void)
 {
-	while (1) {
-	}
+	Error_Handler();
 }
 
 /**
@@ -44,8 +43,7 @@ void BusFault_Handler(void)
   */
 void UsageFault_Handler(void)
 {
-	while (1) {
-	}
+	Error_Handler();
 }
 
 /**
