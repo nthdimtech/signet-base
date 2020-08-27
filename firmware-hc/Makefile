@@ -152,7 +152,7 @@ $(TARGET_ELF): $(OBJECTS) $(ASM_OBJECTS)
 $(TARGET_BIN): $(TARGET_ELF)
 	$(HTUPLE)-objcopy $^ -O binary $@
 
-hc-firmware-encoder: hc_firmware_encoder.c signetdev_hc_common.h
-	$(CC) $< -o $@ -lz
+hc-firmware-encoder: hc_firmware_encoder.c
+	$(CC) -I../signetdev/common $< -o $@ -lz
 
 -include $(DEPFILES)
