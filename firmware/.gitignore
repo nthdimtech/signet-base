@@ -3,3 +3,5 @@ signet-fw.bin
 signet-fw.dfu
 *.sfw
 ct-ng/.build
+libb64-1.2.1/src/libb64.a
+toolchain/

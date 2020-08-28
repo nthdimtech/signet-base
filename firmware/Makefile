@@ -2,8 +2,9 @@ all: signet-fw.dfu
 
 BTUPLE:=$(shell echo $(shell ./config.guess) | sed -e 's/\([a-z_09A-Z]\)*-/\1-build_/')
 HTUPLE:=arm-none-eabi
+export PATH := $(PWD)/toolchain/$(HTUPLE)/bin:$(PATH)
 
-LIBBDF_INSTALLDIR=$(HOME)/x-tools/$(HTUPLE)/$(BTUPLE)/$(HTUPLE)
+LIBBDF_INSTALLDIR=./toolchain/$(HTUPLE)/$(BTUPLE)/$(HTUPLE)
 
 HOST_CFLAGS=-I.. -std=c99 -D_DEFAULT_SOURCE
 
@@ -20,8 +21,11 @@ FIRMWARE_ENCODER_INCLUDES=-I$(LIBBDF_INSTALLDIR)/include -Ilibb64-1.2.1/include
 FIRMWARE_ENCODER_LIBS=-lbfd -lz -ldl -ljson-c -liberty libb64-1.2.1/src/libb64.a
 FIRMWARE_ENCODER_CPPFLAGS=-DPACKAGE
 
-signet-firmware-encoder: signet-firmware-encoder.c
+signet-firmware-encoder: signet-firmware-encoder.c libb64-1.2.1/src/libb64.a
 	gcc $< $(HOST_CFLAGS) $(FIRMWARE_ENCODER_LDFLAGS) $(FIRMWARE_ENCODER_INCLUDES) $(FIRMWARE_ENCODER_CPPFLAGS) $(FIRMWARE_ENCODER_LIBS) -o $@
+
+libb64-1.2.1/src/libb64.a:
+	make -C ./libb64-1.2.1 all_src
 
 LIBS=-lnettle
 CFLAGS=-mcpu=cortex-m4 -mthumb -ffunction-sections -fdata-sections -O2 -I. -I..
@@ -37,7 +41,8 @@ LDFLAGS+= -Wl,"-Tstm32l443xc.ld"
 CFLAGS += -DUSE_RAW_HID -I../signet-desktop-client/common
 
 clean:
-	rm -rf *.o *.d signet-fw signet-fw.* serial-loader signet-firmware-encoder dfu-util-loader
+	rm -rf *.o *.d signet-fw signet-fw.* serial-loader signet-firmware-encoder
+	make -C ./libb64-1.2.1 clean_src
 
 %.o: %.c
 	$(HTUPLE)-gcc  $(CFLAGS) $< -c -o $@

@@ -1,8 +1,9 @@
 [submodule "nettle"]
 	path = firmware/nettle
 	url = ../nettle.git
+	ignore = dirty
 [submodule "crosstool-ng"]
-	path = firmware/crosstool-ng
+	path = crosstool-ng
 	url = https://github.com/crosstool-ng/crosstool-ng.git
 [submodule "firmware-hc/nettle"]
 	path = firmware-hc/external/nettle
@@ -10,3 +11,4 @@
 [submodule "firmware-hc/mini-gmp"]
 	path = firmware-hc/external/mini-gmp
 	url = https://github.com/chfast/mini-gmp.git
+	ignore = dirty

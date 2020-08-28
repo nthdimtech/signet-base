@@ -1,3 +1,5 @@
+export PATH := $(PWD)/toolchain/arm-none-eabi/bin:$(PATH)
+
 BT_MODE?=A
 ifeq ($(BT_MODE), A)
 TARGET_BASE_NAME=signet-fw-a
