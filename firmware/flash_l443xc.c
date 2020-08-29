@@ -1,6 +1,7 @@
 #include "flash.h"
 #include "regmap.h"
 #include "signetdev/common/signetdev_common.h"
+#include "signetdev/common/signetdev_common_priv.h"
 
 enum flash_state {
 	FLASH_IDLE,

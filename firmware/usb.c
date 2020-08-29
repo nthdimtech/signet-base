@@ -258,8 +258,8 @@ static const u8 device_descriptor[] = {
 	0,//0x2, //No subclass
 	0,//1, //Interface specific protocol
 	CTRL_RX_SIZE, //> CTRL_TX_SIZE ? CTRL_RX_SIZE : CTRL_TX_SIZE, //max packet size
-	WTB(USB_VENDOR_ID), //Vendor ID
-	WTB(USB_SIGNET_DESKTOP_PRODUCT_ID), //Product ID
+	WTB(USB_SIGNET_VENDOR_ID), //Vendor ID
+	WTB(USB_SIGNET_PRODUCT_ID), //Product ID
 	WTB(USB_REV_ID), //Rev ID
 	1, //Manufacturer string
 	2, //Product string

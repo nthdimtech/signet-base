@@ -25,7 +25,7 @@ static int active_cmd = -1;
 static int cmd_iter_count = 0;
 static int cmd_messages_remaining = 0;
 
-enum device_state device_state = DISCONNECTED;
+enum device_state device_state = DS_DISCONNECTED;
 
 // Incoming buffer for next command request
 u8 cmd_packet_buf[CMD_PACKET_BUF_SIZE];
@@ -58,7 +58,7 @@ static int n_progress_components = 0;
 static int progress_level[8];
 static int progress_maximum[8];
 static int progress_check = 0;
-static int progress_target_state = DISCONNECTED;
+static int progress_target_state = DS_DISCONNECTED;
 static int waiting_for_button_press = 0;
 static int waiting_for_long_button_press = 0;
 
@@ -248,7 +248,7 @@ void cmd_rand_update()
 {
 	int avail = rand_avail();
 	switch (device_state) {
-	case INITIALIZING:
+	case DS_INITIALIZING:
 		if (avail <= (INIT_RAND_DATA_SZ/4)) {
 			cmd_data.init_data.random_data_gathered = avail - cmd_data.init_data.rand_avail_init;
 			progress_level[1] = cmd_data.init_data.random_data_gathered;
@@ -275,7 +275,7 @@ void startup_cmd_iter();
 void flash_write_complete()
 {
 	switch (device_state) {
-	case INITIALIZING:
+	case DS_INITIALIZING:
 		cmd_data.init_data.blocks_written++;
 		progress_level[0] = cmd_data.init_data.blocks_written;
 		if (progress_level[0] > progress_maximum[0]) progress_level[0] = progress_maximum[0];
@@ -293,29 +293,29 @@ void flash_write_complete()
 			header_version = 2;
 			db_version = 2;
 			if (db2_startup_scan(cmd_data.init_data.block, &cmd_data.init_data.blk_info)) {
-				enter_state(LOGGED_OUT);
+				enter_state(DS_LOGGED_OUT);
 			} else {
 				//Shouldn't be possible to have a INITIAL database in an inconsistent state
-				enter_state(UNINITIALIZED);
+				enter_state(DS_UNINITIALIZED);
 			}
 		}
 		break;
-	case WIPING:
+	case DS_WIPING:
 		cmd_data.wipe_data.block++;
 		progress_level[0] = cmd_data.wipe_data.block;
 		get_progress_check();
 		if (cmd_data.wipe_data.block == NUM_STORAGE_BLOCKS) {
-			enter_state(UNINITIALIZED);
+			enter_state(DS_UNINITIALIZED);
 		} else {
 			flash_write_page(ID_BLK(cmd_data.wipe_data.block), NULL, 0);
 		}
 		break;
-	case ERASING_PAGES:
+	case DS_ERASING_PAGES:
 		cmd_data.erase_flash_pages.index++;
 		progress_level[0] = cmd_data.erase_flash_pages.index;
 		get_progress_check();
 		if (cmd_data.erase_flash_pages.index == cmd_data.erase_flash_pages.num_pages) {
-			enter_state(FIRMWARE_UPDATE);
+			enter_state(DS_FIRMWARE_UPDATE);
 		} else {
 			flash_write_page((void *)(FLASH_MEM_BASE_ADDR +
 				FLASH_PAGE_SIZE * cmd_data.erase_flash_pages.index), NULL, 0);
@@ -383,23 +383,23 @@ void long_button_press()
 			break;
 		case UPDATE_FIRMWARE:
 			finish_command_resp(OKAY);
-			enter_state(FIRMWARE_UPDATE);
+			enter_state(DS_FIRMWARE_UPDATE);
 			break;
 		case WIPE: {
 			finish_command_resp(OKAY);
 			cmd_data.wipe_data.block = 0;
 			flash_write_page(ID_BLK(cmd_data.wipe_data.block), NULL, 0);
 			int temp[] = {NUM_STORAGE_BLOCKS};
-			enter_progressing_state(WIPING, 1, temp);
+			enter_progressing_state(DS_WIPING, 1, temp);
 			} break;
 		case BACKUP_DEVICE:
 			finish_command_resp(OKAY);
 			state_data.backup.prev_state = device_state;
-			enter_state(BACKING_UP_DEVICE);
+			enter_state(DS_BACKING_UP_DEVICE);
 			break;
 		case RESTORE_DEVICE:
 			finish_command_resp(OKAY);
-			enter_state(RESTORING_DEVICE);
+			enter_state(DS_RESTORING_DEVICE);
 			break;
 		case INITIALIZE:
 			initialize_cmd_complete();
@@ -421,7 +421,7 @@ void long_button_press()
 			flash_write_page(ID_BLK(0), (u8 *)&root_page, sizeof(root_page));
 			break;
 		}
-	} else if (device_state == DISCONNECTED) {
+	} else if (device_state == DS_DISCONNECTED) {
 		long_button_press_disconnected();
 	}
 }
@@ -430,7 +430,7 @@ void button_release()
 {
 	if (waiting_for_long_button_press) {
 		resume_blinking();
-	} else if (device_state == DISCONNECTED) {
+	} else if (device_state == DS_DISCONNECTED) {
 		button_release_disconnected();
 	}
 }
@@ -459,7 +459,7 @@ void login_cmd_iter()
 			stm_aes_256_encrypt_cbc((u8 *)cmd_data.login.token, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
 					encrypt_key, token_encrypt_key_ct);
 			finish_command(OKAY, (u8 *)cmd_data.login.gen_token, AES_256_KEY_SIZE);
-			enter_state(LOGGED_IN);
+			enter_state(DS_LOGGED_IN);
 		}
 	}
 }
@@ -565,7 +565,7 @@ void button_press()
 						login_cmd_iter();
 					} else {
 						finish_command_resp(OKAY);
-						enter_state(LOGGED_IN);
+						enter_state(DS_LOGGED_IN);
 					}
 				} else {
 					finish_command_resp(BAD_PASSWORD);
@@ -587,7 +587,7 @@ void button_press()
 					encrypt_key);
 				if (rc) {
 					finish_command_resp(OKAY);
-					enter_state(LOGGED_IN);
+					enter_state(DS_LOGGED_IN);
 				} else {
 					finish_command_resp(BAD_PASSWORD);
 				}
@@ -606,7 +606,7 @@ void button_press()
 		}
 	} else if (!waiting_for_button_press && !waiting_for_long_button_press) {
 		switch (device_state) {
-			case DISCONNECTED:
+			case DS_DISCONNECTED:
 				button_press_disconnected();
 				break;
 			default:
@@ -622,7 +622,7 @@ void usb_keyboard_typing_done()
 	if (active_cmd == TYPE) {
 		finish_command_resp(OKAY);
 	}
-	if (device_state == DISCONNECTED) {
+	if (device_state == DS_DISCONNECTED) {
 		cleartext_pass_typing = 0;
 	}
 }
@@ -666,7 +666,7 @@ void initialize_cmd_complete()
 	int p = (INIT_RAND_DATA_SZ/4) - cmd_data.init_data.rand_avail_init;
 	if (p < 0) p = 0;
 	int temp[] = {NUM_DATA_BLOCKS, p, 1};
-	enter_progressing_state(INITIALIZING, 3, temp);
+	enter_progressing_state(DS_INITIALIZING, 3, temp);
 }
 
 void wipe_cmd()
@@ -797,7 +797,7 @@ void cmd_disconnect()
 	end_button_press_wait();
 	end_long_button_press_wait();
 	active_cmd = -1;
-	enter_state(DISCONNECTED);
+	enter_state(DS_DISCONNECTED);
 }
 
 void get_rand_bits_cmd_check()
@@ -922,7 +922,7 @@ int uninitialized_state(int cmd, u8 *data, int data_len)
 #ifdef FACTORY_MODE
 	case UPDATE_FIRMWARE:
 		finish_command_resp(OKAY);
-		enter_state(FIRMWARE_UPDATE);
+		enter_state(DS_FIRMWARE_UPDATE);
 		break;
 #else
 	case UPDATE_FIRMWARE:
@@ -982,7 +982,7 @@ int logged_out_state(int cmd, u8 *data, int data_len)
 #ifdef FACTORY_MODE
 	case UPDATE_FIRMWARE:
 		finish_command_resp(OKAY);
-		enter_state(FIRMWARE_UPDATE);
+		enter_state(DS_FIRMWARE_UPDATE);
 		break;
 #endif
 	default:
@@ -1113,7 +1113,7 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 		begin_button_press_wait();
 		break;
 	case LOGOUT:
-		enter_state(LOGGED_OUT);
+		enter_state(DS_LOGGED_OUT);
 		finish_command_resp(OKAY);
 		break;
 	case UPDATE_FIRMWARE:
@@ -1160,7 +1160,7 @@ int restoring_device_state(int cmd, u8 *data, int data_len)
 		erase_block_cmd(data, data_len);
 		break;
 	case RESTORE_DEVICE_DONE:
-		enter_state(DISCONNECTED);
+		enter_state(DS_DISCONNECTED);
 		finish_command_resp(OKAY);
 		break;
 	default:
@@ -1179,7 +1179,7 @@ void startup_cmd_iter()
 	resp[3] = device_state;
 	resp[4] = header_version;
 	resp[5] = 0;
-	if (device_state == UNINITIALIZED) {
+	if (device_state == DS_UNINITIALIZED) {
 		finish_command(OKAY, resp, sizeof(resp));
 	} else {
 		switch (header_version) {
@@ -1215,7 +1215,7 @@ void cmd_init()
 void startup_cmd(u8 *data, int data_len)
 {
 	dprint_s("STARTUP\r\n");
-	if (device_state != DISCONNECTED) {
+	if (device_state != DS_DISCONNECTED) {
 		stop_blinking();
 		end_button_press_wait();
 		end_long_button_press_wait();
@@ -1225,10 +1225,10 @@ void startup_cmd(u8 *data, int data_len)
 	cmd_init();
 	if (memcmp(root_page.signature + 1, root_signature + 1, AES_BLK_SIZE - 1)) {
 		dprint_s("STARTUP: uninitialized\r\n");
-		enter_state(UNINITIALIZED);
+		enter_state(DS_UNINITIALIZED);
 	} else {
 		dprint_s("STARTUP: logged out\r\n");
-		enter_state(LOGGED_OUT);
+		enter_state(DS_LOGGED_OUT);
 	}
 	header_version = root_page.signature[0];
 	startup_cmd_iter();
@@ -1298,33 +1298,33 @@ int cmd_packet_recv()
 	}
 
 	switch (device_state) {
-	case DISCONNECTED:
+	case DS_DISCONNECTED:
 		break;
-	case UNINITIALIZED:
+	case DS_UNINITIALIZED:
 		ret = uninitialized_state(active_cmd, data, data_len);
 		break;
-	case INITIALIZING:
+	case DS_INITIALIZING:
 		ret = initializing_state(active_cmd, data, data_len);
 		break;
-	case WIPING:
+	case DS_WIPING:
 		ret = wiping_state(active_cmd, data, data_len);
 		break;
-	case BACKING_UP_DEVICE:
+	case DS_BACKING_UP_DEVICE:
 		ret = backing_up_device_state(active_cmd, data, data_len);
 		break;
-	case RESTORING_DEVICE:
+	case DS_RESTORING_DEVICE:
 		ret = restoring_device_state(active_cmd, data, data_len);
 		break;
-	case ERASING_PAGES:
+	case DS_ERASING_PAGES:
 		ret = erasing_pages_state(active_cmd, data, data_len);
 		break;
-	case FIRMWARE_UPDATE:
+	case DS_FIRMWARE_UPDATE:
 		ret = firmware_update_state(active_cmd, data, data_len);
 		break;
-	case LOGGED_OUT:
+	case DS_LOGGED_OUT:
 		ret = logged_out_state(active_cmd, data, data_len);
 		break;
-	case LOGGED_IN:
+	case DS_LOGGED_IN:
 		ret = logged_in_state(active_cmd, data, data_len);
 		break;
 	default:

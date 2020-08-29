@@ -11,7 +11,7 @@ SERIAL_LOADER_LDFLAGS=-L$(LIBBDF_INSTALLDIR)/lib
 SERIAL_LOADER_INCLUDES=-I$(LIBBDF_INSTALLDIR)/include
 SERIAL_LOADER_LIBS=-lbfd -lz -ldl -liberty
 SERIAL_LOADER_CPPFLAGS=-DPACKAGE
- 
+
 serial-loader: serial-loader.c
 	gcc $< $(HOST_CFLAGS) $(SERIAL_LOADER_LDFLAGS) $(SERIAL_LOADER_INCLUDES) $(SERIAL_LOADER_CPPFLAGS) $(SERIAL_LOADER_LIBS) -o $@
 
@@ -24,7 +24,7 @@ signet-firmware-encoder: signet-firmware-encoder.c
 	gcc $< $(HOST_CFLAGS) $(FIRMWARE_ENCODER_LDFLAGS) $(FIRMWARE_ENCODER_INCLUDES) $(FIRMWARE_ENCODER_CPPFLAGS) $(FIRMWARE_ENCODER_LIBS) -o $@
 
 LIBS=-lnettle
-CFLAGS=-mcpu=cortex-m4 -mthumb -ffunction-sections -fdata-sections -O2 -I..
+CFLAGS=-mcpu=cortex-m4 -mthumb -ffunction-sections -fdata-sections -O2 -I. -I..
 LDFLAGS=-Wl,"--gc-sections"
 
 CFLAGS+= -DFIRMWARE -Wall
