@@ -2,6 +2,7 @@
 #include "types.h"
 #include "regmap.h"
 #include "signetdev/common/signetdev_common.h"
+#include "signetdev/common/signetdev_common_priv.h"
 
 void usb_send_bytes(int ep, const u8 *data, int length);
 

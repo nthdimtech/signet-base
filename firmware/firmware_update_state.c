@@ -2,7 +2,6 @@
 
 #include "firmware_update_state.h"
 #include "commands.h"
-#include "signetdev/common/signetdev_common.h"
 #include "flash.h"
 #include "regmap.h"
 #include "print.h"
@@ -27,7 +26,7 @@ static void erase_flash_pages_cmd(u8 *data, int data_len)
 	flash_write_page((void *)(FLASH_MEM_BASE_ADDR +
 			FLASH_PAGE_SIZE * cmd_data.erase_flash_pages.index), NULL, 0);
 	int temp[] = {cmd_data.erase_flash_pages.num_pages};
-	enter_progressing_state(ERASING_PAGES, 1, temp);
+	enter_progressing_state(DS_ERASING_PAGES, 1, temp);
 	finish_command_resp(OKAY);
 }
 

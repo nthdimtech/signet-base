@@ -76,7 +76,7 @@ void blink_idle()
 		}
 		if (next_timeout_event_secs != timeout_event_secs) {
 			timeout_event_secs = next_timeout_event_secs;
-			if (device_state != DISCONNECTED && device_state != RESET) {
+			if (device_state != DS_DISCONNECTED && device_state != DS_RESET) {
 				cmd_event_send(2, &timeout_event_secs, sizeof(timeout_event_secs));
 			}
 		}
