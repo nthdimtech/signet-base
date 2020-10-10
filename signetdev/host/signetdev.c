@@ -24,7 +24,7 @@ void *g_error_handler_param = NULL;
 
 enum signetdev_device_type g_device_type = SIGNETDEV_DEVICE_NONE;
 
-int signetdev_device_block_size()
+unsigned int signetdev_device_block_size()
 {
 	switch (g_device_type) {
 	case SIGNETDEV_DEVICE_ORIGINAL:
@@ -32,27 +32,28 @@ int signetdev_device_block_size()
 	case SIGNETDEV_DEVICE_HC:
 		return SIGNET_HC_BLK_SIZE;
 	default:
-		return -1;
+		//TODO do not ignore return error in callers of this function
+		return 0;
 	}
 }
 
-int signetdev_max_entry_data_size()
+unsigned int signetdev_max_entry_data_size()
 {
 	switch (g_device_type) {
 	case SIGNETDEV_DEVICE_ORIGINAL:
 	case SIGNETDEV_DEVICE_HC:
 		return SUB_BLK_DATA_SIZE * ((signetdev_device_block_size() - SUB_BLK_SIZE)/SUB_BLK_SIZE);
 	default:
-		return -1;
+		return 0;
 	}
 }
 
-int signetdev_device_num_root_blocks()
+unsigned int signetdev_device_num_root_blocks()
 {
 	return 1;
 }
 
-int signetdev_priv_cmd_payload_size()
+unsigned int signetdev_priv_cmd_payload_size()
 {
 	return signetdev_device_block_size() + CMD_PACKET_HEADER_SIZE + 1;
 }
@@ -92,18 +93,18 @@ int signetdev_priv_startup_resp_info_size()
 	}
 }
 
-int signetdev_priv_startup_resp_size()
+unsigned int signetdev_priv_startup_resp_size()
 {
 	switch (g_device_type) {
 	case SIGNETDEV_DEVICE_ORIGINAL:
 	case SIGNETDEV_DEVICE_HC:
 		return signetdev_priv_startup_resp_info_size() + HASH_FN_SZ + SALT_SZ_V2;
 	default:
-		return -1;
+		return 0;
 	}
 }
 
-int signetdev_device_num_storage_blocks()
+unsigned int signetdev_device_num_storage_blocks()
 {
 	switch (g_device_type) {
 	case SIGNETDEV_DEVICE_ORIGINAL:
@@ -111,18 +112,18 @@ int signetdev_device_num_storage_blocks()
 	case SIGNETDEV_DEVICE_HC:
 		return SIGNET_HC_NUM_STORAGE_BLOCKS;
 	default:
-		return -1;
+		return 0;
 	}
 }
 
-int signetdev_device_num_data_blocks()
+unsigned int signetdev_device_num_data_blocks()
 {
 	switch (g_device_type) {
 	case SIGNETDEV_DEVICE_HC:
 	case SIGNETDEV_DEVICE_ORIGINAL:
 		return signetdev_device_num_storage_blocks() - signetdev_device_num_root_blocks();
 	default:
-		return -1;
+		return 0;
 	}
 }
 

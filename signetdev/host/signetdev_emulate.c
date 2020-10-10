@@ -69,17 +69,6 @@ static void enter_state(int state)
 	g_deviceState.n_progress_components = 0;
 }
 
-static void enter_progressing_state(int state, unsigned int components, unsigned int *maximums)
-{
-	g_deviceState.state = (enum device_state)state;
-	g_deviceState.progress_level = 0;
-	g_deviceState.n_progress_components = components;
-	for (unsigned int i = 0; i < components; i++) {
-		g_deviceState.progress_levels[i] = 0;
-		g_deviceState.progress_maximums[i] = maximums[i];
-	}
-}
-
 //
 // Database helpers
 //

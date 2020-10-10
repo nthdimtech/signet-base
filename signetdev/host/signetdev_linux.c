@@ -60,10 +60,10 @@ void signetdev_priv_handle_error()
 	}
 }
 
-static void command_response(int rc)
+static int command_response(int rc)
 {
 	char resp = rc;
-	write(g_command_resp_pipe[1], &resp, 1);
+	return write(g_command_resp_pipe[1], &resp, 1);
 }
 
 static void handle_exit(void *arg)
@@ -182,15 +182,15 @@ static int attempt_open_connection()
 
 static void handle_command(int command, void *p)
 {
-	int rc;
+	int rc __attribute__((unused)); // TODO add error handling
 	struct signetdev_connection *conn = &g_connection;
 	switch (command) {
 	case SIGNETDEV_CMD_EMULATE_BEGIN:
 		if (!g_opening_connection && conn->fd < 0) {
 			g_emulating = 1;
-			command_response(1);
+			rc = command_response(1);
 		} else {
-			command_response(0);
+			rc = command_response(0);
 		}
 		break;
 	case SIGNETDEV_CMD_EMULATE_END:
@@ -198,7 +198,7 @@ static void handle_command(int command, void *p)
 		break;
 	case SIGNETDEV_CMD_OPEN:
 		g_device_type = attempt_open_connection();
-		command_response(g_device_type);
+		rc = command_response(g_device_type);
 		break;
 	case SIGNETDEV_CMD_CLOSE:
 		g_opening_connection = 0;
@@ -384,15 +384,17 @@ void *transaction_thread(void *arg)
 
 int signetdev_priv_issue_command(int command, void *p)
 {
+	int err __attribute__((unused)); // TODO add error handling
 	intptr_t v[2] = {command, (intptr_t)p};
-	write(g_command_pipe[1], v, sizeof(intptr_t) * 2);
+	err = write(g_command_pipe[1], v, sizeof(intptr_t) * 2);
 	char cmd_resp;
-	read(g_command_resp_pipe[0], &cmd_resp, 1);
+	err = read(g_command_resp_pipe[0], &cmd_resp, 1);
 	return cmd_resp;
 }
 
 void signetdev_priv_issue_command_no_resp(int command, void *p)
 {
 	intptr_t v[2] = {command, (intptr_t)p};
-	write(g_command_pipe[1], v, sizeof(intptr_t) * 2);
+	int err __attribute__((unused)); // TODO return int and do error handling in callers
+	err = write(g_command_pipe[1], v, sizeof(intptr_t) * 2);
 }
