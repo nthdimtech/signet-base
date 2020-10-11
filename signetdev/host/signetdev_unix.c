@@ -2,6 +2,7 @@
 #include "signetdev_priv.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
@@ -23,8 +24,10 @@ void signetdev_close_connection()
 
 void signetdev_priv_platform_init()
 {
-	pipe(g_command_pipe);
-	pipe(g_command_resp_pipe);
+	if (pipe(g_command_pipe) == -1 || pipe(g_command_resp_pipe) == -1) {
+		perror("Signet device: Could not open pipe!");
+		exit(-1);
+	}
 	fcntl(g_command_pipe[0], F_SETFL, O_NONBLOCK);
 	pthread_create(&worker_thread, NULL, transaction_thread, NULL);
 }

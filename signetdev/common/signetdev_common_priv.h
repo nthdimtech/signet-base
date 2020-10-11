@@ -58,11 +58,11 @@
 #define MAX_CMD_PACKET_PAYLOAD_SIZE (MAX_BLK_SIZE + CMD_PACKET_HEADER_SIZE + 1)
 #define MAX_CMD_PACKET_BUF_SIZE (MAX_CMD_PACKET_PAYLOAD_SIZE + CMD_PACKET_HEADER_SIZE + MAX_HID_PAYLOAD_SIZE - 1)
 
-int signetdev_priv_cmd_payload_size();
+unsigned int signetdev_priv_cmd_payload_size();
 int signetdev_priv_hid_packet_size();
 int signetdev_priv_hid_payload_size();
 int signetdev_priv_startup_resp_info_size();
-int signetdev_priv_startup_resp_size();
+unsigned int signetdev_priv_startup_resp_size();
 int signetdev_priv_init_rand_data_size();
 
 //

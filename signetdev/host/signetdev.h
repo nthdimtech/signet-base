@@ -29,11 +29,11 @@ enum signetdev_device_type signetdev_open_connection();
 void signetdev_close_connection();
 
 //Device query functions
-int signetdev_max_entry_data_size();
-int signetdev_device_block_size();
-int signetdev_device_num_data_blocks();
-int signetdev_device_num_root_blocks();
-int signetdev_device_num_storage_blocks();
+unsigned int signetdev_max_entry_data_size();
+unsigned int signetdev_device_block_size();
+unsigned int signetdev_device_num_data_blocks();
+unsigned int signetdev_device_num_root_blocks();
+unsigned int signetdev_device_num_storage_blocks();
 
 void signetdev_set_keymap(const struct signetdev_key *keys, int n_keys);
 int signetdev_can_type(const u8 *keys, int n_keys);
