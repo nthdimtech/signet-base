@@ -1,10 +1,12 @@
 export PATH := $(PWD)/toolchain/arm-none-eabi/bin:$(PATH)
 
+BOARD_REV?=2
 BT_MODE?=A
+
 ifeq ($(BT_MODE), A)
-TARGET_BASE_NAME=signet-fw-a
+TARGET_BASE_NAME=signet-fw-$(BOARD_REV)-a
 else
-TARGET_BASE_NAME=signet-fw-b
+TARGET_BASE_NAME=signet-fw-$(BOARD_REV)-b
 endif
 
 TARGET_BIN=$(TARGET_BASE_NAME).bin
@@ -22,8 +24,12 @@ LDFLAGS=-Wl,"--gc-sections"
 LDFLAGS+=-Wl,"-Map=$(TARGET_MAP)"
 
 CFLAGS+= -DFIRMWARE -DUSE_RAW_HID -DSTM32F733xx -DUSE_HAL_DRIVER -Wall
+ifeq ($(BOARD_REV), 2)
+CFLAGS+=-DVCC_1_8
+CFLAGS+=-DBOARD_REV_2
+endif
 CFLAGS+= -Istm32f7xx -I. -I../signetdev/common
-CFLAGS += -Itinycbor -Ifido2 -Ifido2/extensions
+CFLAGS+= -Itinycbor -Ifido2 -Ifido2/extensions
 
 ifeq ($(BT_MODE), A)
 LDFLAGS+= -Wl,"-Tstm32f733iekx_a.ld"

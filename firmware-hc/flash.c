@@ -29,7 +29,7 @@ int is_flash_idle()
 
 static int flash_erase_sector;
 static u32 flash_write_dest;
-static const u32 *flash_write_src;
+static const u8 *flash_write_src;
 static int flash_write_length;
 
 u32 flash_sector_to_addr(int x)
@@ -148,11 +148,19 @@ void flash_idle()
 		break;
 	case FLASH_WRITING:
 		for (int i = 0; i < 16 && flash_write_length > 0; i++) {
-			status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, flash_write_dest, *flash_write_src);
+#ifdef VCC_1_8
+			status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE, flash_write_dest, *flash_write_src);
 			assert(status == HAL_OK);
-			flash_write_length -= 4;
+			flash_write_length--;
 			flash_write_src++;
-			flash_write_dest += 4;
+			flash_write_dest++;
+#else
+			status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, flash_write_dest, *((u32 *)flash_write_src));
+			assert(status == HAL_OK);
+			flash_write_length-=4;
+			flash_write_src+=4;
+			flash_write_dest+=4;
+#endif
 		}
 		if (flash_write_length == 0) {
 			flash_state = FLASH_IDLE;
@@ -168,7 +176,7 @@ int flash_write (u8 *dest, const u8 *src, int count)
 {
 	if (flash_state == FLASH_IDLE) {
 		flash_write_dest = (u32)dest;
-		flash_write_src = (u32 *)src;
+		flash_write_src = src;
 		flash_write_length = count;
 		assert((flash_write_length & 3) == 0);
 		HAL_FLASH_Unlock();
@@ -185,7 +193,7 @@ void flash_write_page (u8 *dest, const u8 *src, int count)
 {
 	if (flash_state == FLASH_IDLE) {
 		flash_write_dest = (u32)dest;
-		flash_write_src = (u32 *)src;
+		flash_write_src = src;
 		flash_write_length = count;
 		assert((flash_write_length & 3) == 0);
 		flash_erase_sector = flash_addr_to_sector((u32)dest);

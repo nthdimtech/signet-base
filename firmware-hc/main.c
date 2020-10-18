@@ -52,6 +52,22 @@ static void MX_USART1_UART_Init(void);
 #endif
 USBD_HandleTypeDef USBD_Device;
 
+#ifdef BOARD_REV_2
+
+#define LED1_PORT GPIOG
+#define LED1_PIN GPIO_PIN_0
+
+#define LED2_PORT GPIOE
+#define LED2_PIN GPIO_PIN_12
+
+#define BUTTON_PORT GPIOC
+#define BUTTON_PORT_NUM (2)
+#define BUTTON_PIN GPIO_PIN_5
+#define BUTTON_PIN_NUM (5)
+#define BUTTON_IRQ (EXTI9_5_IRQn)
+#define BUTTON_HANDLER (EXTI9_5_IRQHandler)
+
+#else
 #define LED1_PORT GPIOI
 #define LED1_PIN GPIO_PIN_11
 
@@ -64,6 +80,7 @@ USBD_HandleTypeDef USBD_Device;
 #define BUTTON_PIN_NUM (0)
 #define BUTTON_IRQ (EXTI0_IRQn)
 #define BUTTON_HANDLER (EXTI0_IRQHandler)
+#endif
 
 void setLED1(int x)
 {
@@ -468,8 +485,8 @@ int main (void)
 	SYSCFG->EXTICR[BUTTON_PIN_NUM / 4] = (BUTTON_PORT_NUM << (4 * (BUTTON_PIN_NUM % 4)));
 	EXTI->FTSR |= (1 << BUTTON_PIN_NUM);
 	EXTI->IMR |= (1 << BUTTON_PIN_NUM);
-	HAL_NVIC_SetPriority(EXTI0_IRQn, HIGH_INT_PRIORITY, 0);
-	HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+	HAL_NVIC_SetPriority(BUTTON_IRQ, HIGH_INT_PRIORITY, 0);
+	HAL_NVIC_EnableIRQ(BUTTON_IRQ);
 
 	usbBulkBufferFIFO.maxBufferSize = USB_BULK_BUFFER_SIZE;
 	usbBulkBufferFIFO.bufferStorage = g_usbBulkBuffer;
@@ -534,6 +551,7 @@ int main (void)
 		}
 		memory_test_mode = 1;
 	}
+
 #ifdef ENABLE_FIDO2
     	crypto_ecc256_init();
 	authenticator_initialize();
@@ -729,18 +747,27 @@ static void SystemClock_Config(void)
 	RCC_OscInitStruct.HSEState = RCC_HSE_ON;
 	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
 	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+#ifdef VCC_1_8
+	RCC_OscInitStruct.PLL.PLLM = 2*3;
+	RCC_OscInitStruct.PLL.PLLN = 48*3;
+	RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+	RCC_OscInitStruct.PLL.PLLQ = 2*3;
+#else
 	RCC_OscInitStruct.PLL.PLLM = 6;
 	RCC_OscInitStruct.PLL.PLLN = 216;
 	RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
 	RCC_OscInitStruct.PLL.PLLQ = 9;
+#endif
 	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
 		Error_Handler();
 	}
 	/** Activate the Over-Drive mode
 	*/
+#ifndef VCC_1_8
 	if (HAL_PWREx_EnableOverDrive() != HAL_OK) {
 		Error_Handler();
 	}
+#endif
 
 	RCC_OscInitStruct.OscillatorType =  RCC_OSCILLATORTYPE_LSI | RCC_OSCILLATORTYPE_LSE;
 	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
@@ -754,8 +781,8 @@ static void SystemClock_Config(void)
 	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
 	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
 	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
-	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
+	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
 	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_7) != HAL_OK) {
 		Error_Handler();
@@ -858,6 +885,10 @@ static void MX_GPIO_Init(void)
 	__HAL_RCC_GPIOD_CLK_ENABLE();
 	__HAL_RCC_GPIOI_CLK_ENABLE();
 	__HAL_RCC_GPIOH_CLK_ENABLE();
+#ifdef BOARD_REV_2
+	__HAL_RCC_GPIOG_CLK_ENABLE();
+	__HAL_RCC_GPIOE_CLK_ENABLE();
+#endif
 
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(GPIOI, GPIO_PIN_11, GPIO_PIN_RESET);
@@ -866,24 +897,24 @@ static void MX_GPIO_Init(void)
 	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_RESET);
 
 	/*Configure GPIO pin : PD0 (switch) */
-	GPIO_InitStruct.Pin = GPIO_PIN_0;
+	GPIO_InitStruct.Pin = BUTTON_PIN;
 	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
-	HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+	HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
 	/*Configure GPIO pin : PI11 (Status LED 1)*/
-	GPIO_InitStruct.Pin = GPIO_PIN_11;
+	GPIO_InitStruct.Pin = LED1_PIN;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-	HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
+	HAL_GPIO_Init(LED1_PORT, &GPIO_InitStruct);
 
 	/*Configure GPIO pin : PD13 (Status LED 2)*/
-	GPIO_InitStruct.Pin = GPIO_PIN_13;
+	GPIO_InitStruct.Pin = LED2_PIN;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-	HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+	HAL_GPIO_Init(LED2_PORT, &GPIO_InitStruct);
 }
 
 void Error_Handler(void)
