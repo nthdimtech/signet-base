@@ -164,6 +164,7 @@ void read_data_block(int pg, u8 *dest);
 void sync_root_block();
 int sync_root_block_writing();
 int sync_root_block_pending();
+int sync_root_block_error();
 void write_root_block(const u8 *data, int sz);
 
 enum command_subsystem {
@@ -213,9 +214,8 @@ extern volatile int g_emmc_idle_ms;
 enum root_block_sync_state {
 	ROOT_BLOCK_SYNCED,
 	ROOT_BLOCK_MODIFIED,
-	ROOT_BLOCK_WRITING
+	ROOT_BLOCK_WRITING,
+	ROOT_BLOCK_SYNC_FAILED
 };
-
-extern enum root_block_sync_state g_root_block_sync_state;
 
 #endif

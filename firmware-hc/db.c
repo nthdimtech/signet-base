@@ -24,37 +24,38 @@ static u8 block_read_cache[BLK_SIZE];
 static u16 block_read_cache_idx = -1;
 static int block_read_cache_updating = 0;
 
-static void update_uid_cmd_iter();
-static void read_uid_cmd_iter();
-static void db3_startup_scan_resume();
+static void update_uid_cmd_iter(u32 rc);
+static void read_uid_cmd_iter(u32 rc);
+static void db3_startup_scan_resume(u32 rc);
+static void update_uid_cmd_write_finished(u32 rc);
 
-int db3_read_block_complete()
+int db3_read_block_complete(u32 rc) //*
 {
 	if (block_read_cache_updating) {
 		block_read_cache_updating = 0;
 		switch(active_cmd) {
 		case UPDATE_UID:
 		case UPDATE_UIDS:
-			update_uid_cmd_iter();
+			update_uid_cmd_iter(rc);
 			return 1;
 		case READ_UID:
-			read_uid_cmd_iter();
+			read_uid_cmd_iter(rc);
 			return 1;
 		case READ_ALL_UIDS:
-			read_all_uids_cmd_iter();
+			read_all_uids_cmd_iter(rc);
 			return 1;
 		}
 	}
 	switch (g_device_state) {
 	case DS_INITIALIZING:
-		db3_startup_scan_resume();
+		db3_startup_scan_resume(rc);
 		return 1;
 	default:
 		break;
 	}
 	switch (active_cmd) {
 	case STARTUP:
-		db3_startup_scan_resume();
+		db3_startup_scan_resume(rc);
 		return 1;
 	default:
 		break;
@@ -62,12 +63,12 @@ int db3_read_block_complete()
 	return 0;
 }
 
-int db3_write_block_complete()
+int db3_write_block_complete(u32 rc) //*
 {
 	switch (active_cmd) {
 	case UPDATE_UIDS:
 	case UPDATE_UID:
-		update_uid_cmd_write_finished();
+		update_uid_cmd_write_finished(rc);
 		return 1;
 	default:
 		break;
@@ -172,8 +173,16 @@ static u8 *get_part(const struct block *block, const struct block_info *info, in
 	return ((u8 *)block) + ((info->part_tbl_offs + (info->part_size * n)) * SUB_BLK_SIZE);
 }
 
-static void db3_startup_scan_resume ()
+static void db3_startup_scan_resume (u32 rc)
 {
+	if (rc) {
+		enter_state(DS_ERROR);
+		if (active_cmd == STARTUP) {
+			cmd_data.startup.resp[3] = g_device_state;
+			finish_command(READ_FAILED, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
+		}
+		return;
+	}
 	int i = db3_startup_scan_blk_num;
 	struct block *block_read = db3_startup_scan_block_read;
 #if 0
@@ -504,11 +513,16 @@ void update_uid_cmd (int uid, u8 *data, int data_len, int sz, int press_type)
 	cmd_data.update_uid.prev_block_num = INVALID_BLOCK;
 	memcpy(cmd_data.update_uid.entry, data, data_len);
 	cmd_data.update_uid.entry_sz = sz;
-	update_uid_cmd_iter();
+	update_uid_cmd_iter(0);
 }
 
-static void update_uid_cmd_iter()
+static void update_uid_cmd_iter(u32 error)
 {
+	if (error) {
+		enter_state(DS_ERROR);
+		finish_command_resp(READ_FAILED);
+		return;
+	}
 	enum update_uid_status rc = update_uid(cmd_data.update_uid.uid,
 	                                cmd_data.update_uid.entry,
 	                                cmd_data.update_uid.entry_sz,
@@ -546,8 +560,13 @@ void update_uid_cmd_complete()
 	write_data_block(cmd_data.update_uid.block_num, (u8 *)block);
 }
 
-void update_uid_cmd_write_finished()
+static void update_uid_cmd_write_finished(u32 rc) //*
 {
+	if (rc) {
+		enter_state(DS_ERROR);
+		finish_command_resp(WRITE_FAILED);
+		return;
+	}
 	cmd_data.update_uid.write_count++;
 	if (cmd_data.update_uid.write_count == 1) {
 		//This is the first write completed
@@ -609,11 +628,16 @@ void read_uid_cmd(int uid, int masked)
 	cmd_data.read_uid.masked = masked;
 	cmd_data.read_uid.waiting_for_button_press = 0;
 	derive_iv(cmd_data.read_uid.uid, cmd_data.read_uid.iv);
-	read_uid_cmd_iter();
+	read_uid_cmd_iter(0);
 }
 
-static void read_uid_cmd_iter()
+static void read_uid_cmd_iter(u32 error)
 {
+	if (error) {
+		enter_state(DS_ERROR);
+		finish_command_resp(READ_FAILED);
+		return;
+	}
 	struct block *blk;
 	enum update_uid_status rc = find_uid(cmd_data.read_uid.uid, &cmd_data.read_uid.ent, &cmd_data.read_uid.block_num, &blk, &cmd_data.read_uid.index);
 	switch (rc) {

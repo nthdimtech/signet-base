@@ -20,9 +20,13 @@ void update_firmware_cmd(u8 *data, int data_len)
 	memcpy(&g_update_firmware, data, sizeof(g_update_firmware));
 }
 
-void write_flash_cmd_complete()
+void write_flash_cmd_complete(u32 rc)
 {
-	finish_command_resp(OKAY);
+	if (rc) {
+		finish_command_resp(WRITE_FAILED);
+	} else {
+		finish_command_resp(OKAY);
+	}
 }
 
 void update_firmware_cmd_complete()
@@ -37,8 +41,9 @@ int in_memory_range(u32 addr, u32 base_addr, u32 len)
 	return (addr >= base_addr && addr <= end_addr);
 }
 
-void firmware_update_write_block_complete()
+void firmware_update_write_block_complete(u32 error)
 {
+	//TODO: Handle error
 	switch (g_device_state) {
 	case DS_ERASING_PAGES:
 		cmd_data.erase_flash_pages.index++;

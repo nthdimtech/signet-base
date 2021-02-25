@@ -581,6 +581,9 @@ int main (void)
 				flash_idle();
 			}
 		}
+		if (sync_root_block_error()) {
+			//TODO: Handle error
+		}
 		led_off();
 	}
 
@@ -678,7 +681,7 @@ int main (void)
 		usb_keyboard_idle();
 		blink_idle();
 		command_idle();
-		if (sync_root_block_pending() && is_flash_idle() && !sync_root_block_writing()) {
+		if (sync_root_block_pending() && is_flash_idle() && !sync_root_block_writing() && !sync_root_block_error()) {
 			sync_root_block_immediate();
 		}
 		flash_idle();

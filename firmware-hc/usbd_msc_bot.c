@@ -13,7 +13,7 @@ static void MSC_BOT_CBW_Decode (USBD_HandleTypeDef  *pdev);
 static void MSC_BOT_SendData (USBD_HandleTypeDef *pdev, uint8_t* pbuf,
                               uint16_t len);
 
-static void MSC_BOT_Abort(USBD_HandleTypeDef  *pdev);
+void MSC_BOT_Abort(USBD_HandleTypeDef  *pdev);
 
 
 /**
@@ -237,7 +237,7 @@ void  MSC_BOT_SendCSW (USBD_HandleTypeDef  *pdev,
 * @retval status
 */
 
-static void  MSC_BOT_Abort (USBD_HandleTypeDef  *pdev)
+void  MSC_BOT_Abort (USBD_HandleTypeDef  *pdev)
 {
 	USBD_MSC_BOT_HandleTypeDef  *hmsc = (USBD_MSC_BOT_HandleTypeDef*)pdev->pClassData[INTERFACE_MSC];
 

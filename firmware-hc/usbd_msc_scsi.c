@@ -325,15 +325,6 @@ static int8_t SCSI_ReadFormatCapacity(USBD_HandleTypeDef  *pdev, uint8_t lun, ui
 static int8_t SCSI_ModeSense6 (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params)
 {
 	USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*) pdev->pClassData[INTERFACE_MSC];
-#if 0
-	uint16_t len = 8U;
-	hmsc->bot_data_length = len;
-
-	while (len) {
-		len--;
-		hmsc->bot_data[len] = MSC_Mode_Sense6_data[len];
-	}
-#endif
 	uint16_t length = (uint16_t)MIN(hmsc->cbw.dDataLength, 8U);
 	hmsc->csw.dDataResidue -= length;
 	hmsc->csw.bStatus = USBD_CSW_CMD_PASSED;
@@ -347,14 +338,6 @@ static int8_t SCSI_ModeSense10 (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t 
 {
 	uint16_t len = 8U;
 	USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*) pdev->pClassData[INTERFACE_MSC];
-#if 0
-	hmsc->bot_data_length = len;
-
-	while (len) {
-		len--;
-		hmsc->bot_data[len] = MSC_Mode_Sense10_data[len];
-	}
-#endif
 	uint16_t length = (uint16_t)MIN(hmsc->cbw.dDataLength, 8U);
 	hmsc->csw.dDataResidue -= length;
 	hmsc->csw.bStatus = USBD_CSW_CMD_PASSED;
@@ -450,10 +433,18 @@ static int8_t SCSI_StartStopUnit(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t
 	return 0;
 }
 
-void readProcessingComplete(struct bufferFIFO *bf)
+void readProcessingComplete(struct bufferFIFO *bf, u32 errorStatus, u32 errorStage)
 {
-	assert(mmcDataToTransfer == 0);
-	MSC_BOT_SendCSW (g_pdev, USBD_CSW_CMD_PASSED);
+	USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*) g_pdev->pClassData[INTERFACE_MSC];
+	if (errorStatus == HAL_OK) {
+		assert(mmcDataToTransfer == 0);
+		MSC_BOT_SendCSW (g_pdev, USBD_CSW_CMD_PASSED);
+	} else {
+		//TODO: Do we really need to reset bDataResidue?
+		hmsc->csw.dDataResidue = hmsc->cbw.dDataLength;
+		MSC_BOT_SendCSW (g_pdev, USBD_CSW_CMD_PASSED);
+		MSC_BOT_Abort(g_pdev);
+	}
 }
 
 int g_usb_transmitting = 0;
@@ -470,8 +461,7 @@ static int8_t SCSI_ProcessRead (USBD_HandleTypeDef  *pdev, uint8_t lun)
 		if (hmsc->scsi_blk_len == 0) {
 			bufferFIFO_stallStage(&usbBulkBufferFIFO, hmsc->stageIdx);
 		}
-		bufferFIFO_processingComplete(&usbBulkBufferFIFO, hmsc->stageIdx, len, 0);
-		return 0;
+		bufferFIFO_processingComplete(&usbBulkBufferFIFO, hmsc->stageIdx, len, 0, HAL_OK);
 	}
 	return 0;
 }
@@ -531,18 +521,21 @@ static void processDecryptReadBuffer(struct bufferFIFO *bf,
 
 #endif
 
-void emmc_user_read_storage_rx_complete()
+void emmc_user_read_storage_rx_complete(MMC_HandleTypeDef *hmmc1)
 {
-	mmcDataToTransfer -= mmcReadLen;
-	mmcDataTransferred += mmcReadLen;
-	mmcBlockAddr += mmcReadLen/512;
-	mmcBlocksToTransfer -= mmcReadLen/512;
+	u32 rc = hmmc1->ErrorCode;
+	if (rc == HAL_OK) {
+		mmcDataToTransfer -= mmcReadLen;
+		mmcDataTransferred += mmcReadLen;
+		mmcBlockAddr += mmcReadLen/512;
+		mmcBlocksToTransfer -= mmcReadLen/512;
 
-	if (mmcDataToTransfer == 0) {
-		bufferFIFO_stallStage(&usbBulkBufferFIFO, mmcStageIdx);
+		if (mmcDataToTransfer == 0) {
+			bufferFIFO_stallStage(&usbBulkBufferFIFO, mmcStageIdx);
+		}
 	}
 	emmc_user_done();
-	bufferFIFO_processingComplete(&usbBulkBufferFIFO, mmcStageIdx, mmcReadLen, 0);
+	bufferFIFO_processingComplete(&usbBulkBufferFIFO, mmcStageIdx, mmcReadLen, 0, rc);
 }
 
 static int8_t SCSI_Read10(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *params)
@@ -626,6 +619,7 @@ void emmc_user_storage_start()
 	if (hmsc->bot_state == USBD_BOT_DATA_IN) {
 		int lun = hmsc->cbw.bLUN;
 
+		//TODO: Need timeout and error checking here
 		do {
 			cardState = HAL_MMC_GetCardState(&hmmc1);
 		} while (cardState != HAL_MMC_CARD_TRANSFER);
@@ -634,12 +628,19 @@ void emmc_user_storage_start()
 			(EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ)) +
 			(g_scsi_volume[lun].region_start * g_scsi_region_size_blocks);
 
-		HAL_MMC_ReadBlocks_DMA(&hmmc1, mmcBufferRead,
+		u32 rc = HAL_MMC_ReadBlocks_DMA(&hmmc1, mmcBufferRead,
 				blockAddrAdj,
 				mmcReadLen/512);
+		if (rc != HAL_OK) {
+			if (!hmmc1.ErrorCode) {
+				hmmc1.ErrorCode = rc;
+			}
+			emmc_user_read_storage_rx_complete(&hmmc1);
+		}
 	} else if (hmsc->bot_state == USBD_BOT_DATA_OUT) {
 		int lun = hmsc->cbw.bLUN;
 
+		//TODO: Need timeout and error checking here
 		do {
 			cardState = HAL_MMC_GetCardState(&hmmc1);
 		} while (cardState != HAL_MMC_CARD_TRANSFER);
@@ -648,16 +649,30 @@ void emmc_user_storage_start()
 			(EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ)) +
 			(g_scsi_volume[lun].region_start * g_scsi_region_size_blocks);
 
-		HAL_MMC_WriteBlocks_DMA_Initial(&hmmc1, mmcBufferWrite, mmcReadLen,
+		u32 rc = HAL_MMC_WriteBlocks_DMA_Initial(&hmmc1, mmcBufferWrite, mmcReadLen,
 				blockAddrAdj,
 				mmcReadLen/512);
+		if (rc != HAL_OK) {
+			if (!hmmc1.ErrorCode) {
+				hmmc1.ErrorCode = rc;
+			}
+			emmc_user_write_storage_tx_complete(&hmmc1);
+		}
 	}
 }
 
-void writeProcessingComplete(struct bufferFIFO *bf)
+void writeProcessingComplete(struct bufferFIFO *bf, u32 errorStatus, u32 errorStage)
 {
-	assert(mmcDataToTransfer == 0);
-	MSC_BOT_SendCSW (g_pdev, USBD_CSW_CMD_PASSED);
+	USBD_MSC_BOT_HandleTypeDef  *hmsc = (USBD_MSC_BOT_HandleTypeDef*) g_pdev->pClassData[INTERFACE_MSC];
+	if (errorStatus == 0) {
+		assert(mmcDataToTransfer == 0);
+		MSC_BOT_SendCSW (g_pdev, USBD_CSW_CMD_PASSED);
+	} else {
+		//TODO: Do we really need to reset bDataResidue?
+		hmsc->csw.dDataResidue = hmsc->cbw.dDataLength;
+		MSC_BOT_SendCSW (g_pdev, USBD_CSW_CMD_PASSED);
+		MSC_BOT_Abort(g_pdev);
+	}
 }
 
 void processUSBWriteBuffer(struct bufferFIFO *bf, int readSize, u32 readData, const uint8_t *bufferRead, uint8_t *bufferWrite, int stageIdx)
@@ -711,7 +726,8 @@ void usbd_scsi_idle()
 			if (g_cryptDataToTransfer == 0) {
 				bufferFIFO_stallStage(&usbBulkBufferFIFO, g_cryptStageIdx);
 			}
-			bufferFIFO_processingComplete(&usbBulkBufferFIFO, g_cryptStageIdx, g_cryptTxLen, 0);
+			u32 rc = hmmc1.ErrorCode;
+			bufferFIFO_processingComplete(&usbBulkBufferFIFO, g_cryptStageIdx, g_cryptTxLen, 0, rc);
 		} else {
 			set_crypt_config();
 			if (g_scsi_aes_encrypt) {
@@ -740,17 +756,6 @@ void processEncryptWriteBuffer(struct bufferFIFO *bf, int readLen, u32 readData,
 }
 #endif
 
-int mmcTXDmaActive = 0;
-
-void emmc_user_write_storage_tx_dma_complete(MMC_HandleTypeDef *hmmc)
-{
-	mmcDataToTransfer -= mmcReadLen;
-	mmcDataTransferred += mmcReadLen;
-	mmcBlockAddr += mmcReadLen/512;
-	mmcBlocksToTransfer -= mmcReadLen/512;
-	HAL_MMC_WriteBlocks_DMA_Cont(&hmmc1, NULL, 0); //HC_TODO: handle return error code
-}
-
 void processMMCWriteBuffer(struct bufferFIFO *bf, int readLen, u32 readData, const uint8_t *bufferRead, uint8_t *bufferWrite, int stageIdx)
 {
 	mmcStageIdx = stageIdx;
@@ -763,11 +768,18 @@ int mmcShortWriteCount = 0;
 
 void emmc_user_write_storage_tx_complete(MMC_HandleTypeDef *hmmc1)
 {
-	if (mmcDataToTransfer == 0) {
-		bufferFIFO_stallStage(&usbBulkBufferFIFO, mmcStageIdx);
+	u32 rc = hmmc1->ErrorCode;
+	if (rc == HAL_OK) {
+		mmcDataToTransfer -= mmcReadLen;
+		mmcDataTransferred += mmcReadLen;
+		mmcBlockAddr += mmcReadLen/512;
+		mmcBlocksToTransfer -= mmcReadLen/512;
+		if (mmcDataToTransfer == 0) {
+			bufferFIFO_stallStage(&usbBulkBufferFIFO, mmcStageIdx);
+		}
 	}
 	emmc_user_done();
-	bufferFIFO_processingComplete(&usbBulkBufferFIFO, mmcStageIdx, mmcReadLen, 0);
+	bufferFIFO_processingComplete(&usbBulkBufferFIFO, mmcStageIdx, mmcReadLen, 0, rc);
 }
 
 static int8_t SCSI_Write10 (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params)
@@ -925,6 +937,6 @@ static int8_t SCSI_ProcessWrite (USBD_HandleTypeDef  *pdev, uint8_t lun)
 	if (hmsc->scsi_blk_len == 0) {
 		bufferFIFO_stallStage(&usbBulkBufferFIFO, hmsc->stageIdx);
 	}
-	bufferFIFO_processingComplete(&usbBulkBufferFIFO, hmsc->stageIdx, len, 0);
+	bufferFIFO_processingComplete(&usbBulkBufferFIFO, hmsc->stageIdx, len, 0, HAL_OK);
 	return 0;
 }

@@ -14,7 +14,7 @@ enum flash_state {
 
 enum flash_state flash_state = FLASH_IDLE;
 
-__weak void flash_write_complete()
+__weak void flash_write_complete(u32 error)
 {
 }
 
@@ -137,20 +137,24 @@ void flash_idle()
 		et.VoltageRange = FLASH_VOLTAGE_RANGE_3;
 		status = HAL_FLASHEx_Erase(&et, &bs);
 		assert(status == HAL_OK);
-		if (flash_write_length) {
+		if (status != HAL_OK) {
+			flash_state = FLASH_IDLE;
+			END_WORK(FLASH_WORK);
+			HAL_FLASH_Lock();
+			flash_write_complete(status);
+		} else if (flash_write_length) {
 			flash_state = FLASH_WRITING;
 		} else {
 			flash_state = FLASH_IDLE;
 			END_WORK(FLASH_WORK);
 			HAL_FLASH_Lock();
-			flash_write_complete();
+			flash_write_complete(0);
 		}
 		break;
 	case FLASH_WRITING:
 		for (int i = 0; i < 16 && flash_write_length > 0; i++) {
 #ifdef VCC_1_8
 			status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE, flash_write_dest, *flash_write_src);
-			assert(status == HAL_OK);
 			flash_write_length--;
 			flash_write_src++;
 			flash_write_dest++;
@@ -161,12 +165,19 @@ void flash_idle()
 			flash_write_src+=4;
 			flash_write_dest+=4;
 #endif
+			if (status != HAL_OK) {
+				flash_state = FLASH_IDLE;
+				END_WORK(FLASH_WORK);
+				HAL_FLASH_Lock();
+				flash_write_complete(status);
+				return;
+			}
 		}
 		if (flash_write_length == 0) {
 			flash_state = FLASH_IDLE;
 			END_WORK(FLASH_WORK);
 			HAL_FLASH_Lock();
-			flash_write_complete();
+			flash_write_complete(0);
 		}
 		break;
 	}

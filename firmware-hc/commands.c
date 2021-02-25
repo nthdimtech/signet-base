@@ -38,6 +38,7 @@ static int cmd_iter_count = 0;
 static int cmd_messages_remaining = 0;
 static int g_write_db_tx_complete = 0;
 static int g_read_db_tx_complete = 0;
+static u32 g_db_transfer_error = 0;
 static int g_uninitialized_wiped = 0;
 static int g_mmc_tx_cplt = 0;
 static int g_mmc_tx_dma_cplt = 0;
@@ -47,7 +48,7 @@ static int g_mmc_rx_cplt = 0;
 volatile int g_emmc_idle_ms = -1;
 #endif
 
-enum root_block_sync_state g_root_block_sync_state = ROOT_BLOCK_SYNCED;
+static enum root_block_sync_state g_root_block_sync_state = ROOT_BLOCK_SYNCED;
 
 enum device_state g_device_state = DS_DISCONNECTED;
 
@@ -121,17 +122,13 @@ static const u8 *g_db_write_src;
 
 void emmc_user_storage_start();
 
-static void read_block_complete();
-static void write_block_complete();
+static void read_block_complete(u32 rc);
+static void write_block_complete(u32 rc);
 
-void startup_cmd_iter();
-static void write_block_complete();
+static void startup_cmd_iter(u32 rc);
 void write_root_block(const u8 *data, int sz);
 
 u32 compute_device_data_crc(struct hc_device_data *d);
-
-void emmc_user_write_storage_tx_dma_complete(MMC_HandleTypeDef *hmmc);
-void emmc_user_write_db_tx_dma_complete(MMC_HandleTypeDef *hmmc);
 
 static void release_device(enum command_subsystem system);
 
@@ -144,8 +141,13 @@ static void subsystem_idle_check()
 	}
 }
 
+void emmc_user_db_error(HAL_StatusTypeDef rc)
+{
+}
+
 void emmc_user_db_start()
 {
+	HAL_StatusTypeDef rc;
 	HAL_MMC_CardStateTypeDef cardState;
 	switch (g_db_action) {
 	case DB_ACTION_READ: {
@@ -154,10 +156,13 @@ void emmc_user_db_start()
 		do {
 			cardState = HAL_MMC_GetCardState(&hmmc1);
 		} while (cardState != HAL_MMC_CARD_TRANSFER);
-		HAL_MMC_ReadBlocks_DMA(&hmmc1,
+		rc = HAL_MMC_ReadBlocks_DMA(&hmmc1,
 		                       dest,
 				       (idx - MIN_DATA_BLOCK + EMMC_DB_FIRST_BLOCK)*(HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ),
 		                       BLK_SIZE/MSC_MEDIA_PACKET);
+		if (rc != HAL_OK) {
+			emmc_user_db_error(rc);
+		}
 	}
 	break;
 	case DB_ACTION_WRITE: {
@@ -166,12 +171,15 @@ void emmc_user_db_start()
 		do {
 			cardState = HAL_MMC_GetCardState(&hmmc1);
 		} while (cardState != HAL_MMC_CARD_TRANSFER);
-
-		HAL_MMC_WriteBlocks_DMA_Initial(&hmmc1,
+		
+		rc = HAL_MMC_WriteBlocks_DMA_Initial(&hmmc1,
 		                                src,
 		                                BLK_SIZE,
 						(idx - MIN_DATA_BLOCK + EMMC_DB_FIRST_BLOCK)*(HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ),
 						BLK_SIZE/MSC_MEDIA_PACKET);
+		if (rc != HAL_OK) {
+			emmc_user_db_error(rc);
+		}
 	}
 	break;
 	default:
@@ -181,7 +189,7 @@ void emmc_user_db_start()
 
 int command_idle_ready()
 {
-	return g_read_db_tx_complete | g_write_db_tx_complete | g_mmc_tx_cplt | g_mmc_tx_dma_cplt | g_mmc_rx_cplt;
+	return g_read_db_tx_complete | g_write_db_tx_complete | g_mmc_tx_cplt | g_mmc_rx_cplt;
 }
 
 volatile int g_write_test_tx_complete = 0;
@@ -193,13 +201,15 @@ void command_idle()
 		g_read_db_tx_complete = 0;
 		END_WORK(READ_DB_TX_CPLT_WORK);
 		emmc_user_done();
-		read_block_complete();
+		//TODO: handle errors
+		read_block_complete(0);
 	}
 	if (g_write_db_tx_complete) {
 		g_write_db_tx_complete = 0;
 		END_WORK(WRITE_DB_TX_WORK);
 		emmc_user_done();
-		write_block_complete();
+		//TODO: handle errors
+		write_block_complete(0);
 	}
 	if (g_mmc_tx_cplt) {
 		g_mmc_tx_cplt = 0;
@@ -219,29 +229,12 @@ void command_idle()
 			assert(0);
 		}
 	}
-	if (g_mmc_tx_dma_cplt) {
-		g_mmc_tx_dma_cplt = 0;
-		END_WORK(MMC_TX_DMA_CPLT_WORK);
-		switch (g_emmc_user) {
-		case EMMC_USER_STORAGE:
-			emmc_user_write_storage_tx_dma_complete(&hmmc1);
-			break;
-		case EMMC_USER_DB:
-			emmc_user_write_db_tx_dma_complete(&hmmc1);
-			break;
-		case EMMC_USER_TEST:
-			HAL_MMC_WriteBlocks_DMA_Cont(&hmmc1, NULL, 0);
-			break;
-		default:
-			assert(0);
-		}
-	}
 	if (g_mmc_rx_cplt) {
 		g_mmc_rx_cplt = 0;
 		END_WORK(MMC_RX_CPLT_WORK);
 		switch (g_emmc_user) {
 		case EMMC_USER_STORAGE:
-			emmc_user_read_storage_rx_complete();
+			emmc_user_read_storage_rx_complete(&hmmc1);
 			break;
 		case EMMC_USER_DB:
 			g_read_db_tx_complete = 1;
@@ -321,7 +314,7 @@ void read_data_block (int idx, u8 *dest)
 {
 	if (idx == ROOT_DATA_BLOCK) {
 		memcpy(dest, (u8 *)_root_page, BLK_SIZE);
-		read_block_complete();
+		read_block_complete(0);
 	} else {
 		g_db_action = DB_ACTION_READ;
 		g_db_read_idx = idx;
@@ -351,27 +344,44 @@ void HAL_MMC_RxCpltCallback(MMC_HandleTypeDef *hmmc1)
 	BEGIN_WORK(MMC_RX_CPLT_WORK);
 }
 
-void emmc_user_write_db_tx_dma_complete(MMC_HandleTypeDef *hmmc)
-{
-	HAL_MMC_WriteBlocks_DMA_Cont(&hmmc1, NULL, 0);
-}
+extern USBD_HandleTypeDef  *g_pdev;
 
-void MMC_DMATXTransmitComplete(MMC_HandleTypeDef *hmmc)
+void HAL_MMC_Failed(MMC_HandleTypeDef *hmmc)
 {
-	g_mmc_tx_dma_cplt = 1;
-	BEGIN_WORK(MMC_TX_DMA_CPLT_WORK);
+	USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*) g_pdev->pClassData[INTERFACE_MSC];
+	switch (g_emmc_user) {
+	case EMMC_USER_STORAGE:
+		if (hmsc->bot_state == USBD_BOT_DATA_OUT) {
+			g_mmc_tx_cplt = 1;
+			BEGIN_WORK(MMC_TX_CPLT_WORK);
+		} else if (hmsc->bot_state == USBD_BOT_DATA_IN) {
+			g_mmc_rx_cplt = 1;
+			BEGIN_WORK(MMC_RX_CPLT_WORK);
+		}
+		break;
+	case EMMC_USER_DB:
+		if (g_db_action == DB_ACTION_READ) {
+			g_mmc_rx_cplt = 1;
+			BEGIN_WORK(MMC_RX_CPLT_WORK);
+		} else if (g_db_action == DB_ACTION_WRITE) {
+			g_mmc_tx_cplt = 1;
+			BEGIN_WORK(MMC_TX_CPLT_WORK);
+		}	
+		break;
+	default:
+		assert_lit(0, 1, 1);
+		break;
+	}
 }
 
 void HAL_MMC_ErrorCallback(MMC_HandleTypeDef *hmmc)
 {
-	UNUSED(hmmc);
-	assert(0);
+	HAL_MMC_Failed(hmmc);
 }
 
 void HAL_MMC_AbortCallback(MMC_HandleTypeDef *hmmc)
 {
-	UNUSED(hmmc);
-	assert(0);
+	HAL_MMC_Failed(hmmc);
 }
 
 void HAL_MMC_TxCpltCallback(MMC_HandleTypeDef *hmmc1)
@@ -398,6 +408,11 @@ int sync_root_block_pending()
 int sync_root_block_writing()
 {
 	return (g_root_block_sync_state == ROOT_BLOCK_WRITING) ? 1 : 0;
+}
+
+int sync_root_block_error()
+{
+	return (g_root_block_sync_state == ROOT_BLOCK_SYNC_FAILED) ? 1 : 0;
 }
 
 void sync_root_block_immediate()
@@ -684,14 +699,15 @@ void cmd_rand_update()
 
 extern int block_read_cache_updating;
 
-static void read_block_complete()
+static void read_block_complete(u32 rc)
 {
 #ifdef BOOT_MODE_B
-	if (db3_read_block_complete())
+	if (db3_read_block_complete(rc))
 		return;
 #endif
 	switch (active_cmd) {
 	case READ_BLOCK_HC:
+		//TODO: Handle error
 		finish_command(OKAY, cmd_data.read_block.block, BLK_SIZE);
 		return;
 	default:
@@ -701,8 +717,9 @@ static void read_block_complete()
 
 #ifdef BOOT_MODE_B
 
-static void initializing_iter()
+static void initializing_iter(u32 rc)
 {
+	//TODO: handle errors
 	cmd_data.init_data.blocks_written++;
 	g_progress_level[0] = cmd_data.init_data.blocks_written;
 	if (g_progress_level[0] > progress_maximum[0]) g_progress_level[0] = progress_maximum[0];
@@ -723,24 +740,29 @@ static void initializing_iter()
 }
 #endif
 
-static void write_block_complete()
+static void write_block_complete(u32 rc)
 {
 #ifdef BOOT_MODE_B
 	if (g_root_block_sync_state == ROOT_BLOCK_WRITING) {
-		g_root_block_sync_state = ROOT_BLOCK_SYNCED;
+		if (rc) {
+			g_root_block_sync_state = ROOT_BLOCK_SYNC_FAILED;
+		} else {
+			g_root_block_sync_state = ROOT_BLOCK_SYNCED;
+		}
 		END_WORK(SYNC_ROOT_BLOCK_WORK);
 		if (s_subsystem_release_requested) {
 			s_subsystem_release_requested = 0;
 			release_device(s_device_system_owner);
 		}
 	}
-	if (db3_write_block_complete())
+	if (db3_write_block_complete(rc))
 		return;
 	switch (g_device_state) {
 	case DS_INITIALIZING:
-		initializing_iter();
+		initializing_iter(rc);
 		break;
 	case DS_WIPING:
+		//TODO: handle errors
 		cmd_data.wipe_data.block_idx++;
 		g_progress_level[0] = cmd_data.wipe_data.block_idx;
 		get_progress_check();
@@ -761,25 +783,29 @@ static void write_block_complete()
 	case CHANGE_MASTER_PASSWORD:
 	case WRITE_BLOCK_HC:
 	case ERASE_BLOCK_HC:
-		finish_command_resp(OKAY);
+		if (rc) {
+			enter_state(DS_ERROR);
+			finish_command_resp(WRITE_FAILED);
+		} else {
+			finish_command_resp(OKAY);
+		}
 		break;
 	case WRITE_FLASH:
-		write_flash_cmd_complete();
+		write_flash_cmd_complete(rc); //*
 		break;
 	case STARTUP:
-		startup_cmd_iter();
+		startup_cmd_iter(rc); //*
 		break;
 	default:
 		break;
 	}
 }
 
-void flash_write_complete()
+void flash_write_complete(u32 error) //*
 {
-	write_block_complete();
-	firmware_update_write_block_complete();
+	write_block_complete(error);
+	firmware_update_write_block_complete(error);
 }
-
 
 void flash_write_failed()
 {
@@ -1669,9 +1695,18 @@ int restoring_device_state(int cmd, u8 *data, int data_len)
 	return 0;
 }
 
-void startup_cmd_iter()
+void startup_cmd_iter(u32 rc)
 {
+	u32 command_response;
 	u8 *resp = cmd_data.startup.resp;
+
+	if (rc) {
+		command_response = OKAY;
+	} else {
+		enter_state(DS_ERROR);
+		command_response = WRITE_FAILED;
+	}
+
 	memset(cmd_data.startup.resp, 0, sizeof(cmd_data.startup.resp));
 	resp[0] = SIGNET_HC_MAJOR_VERSION;
 	resp[1] = SIGNET_HC_MINOR_VERSION;
@@ -1684,9 +1719,15 @@ void startup_cmd_iter()
 #ifdef BOOT_MODE_B
 	if (!g_root_page_valid) {
 		g_uninitialized_wiped = 0;
-		enter_state(DS_UNINITIALIZED);
+		if (command_response == OKAY) {
+			enter_state(DS_UNINITIALIZED);
+		}
 		resp[3] = g_device_state;
-		finish_command(OKAY, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
+		finish_command(command_response, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
+		return;
+	}
+	if (rc) {
+		finish_command(command_response, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
 		return;
 	}
 	g_root_block_version = root_page.format;
@@ -1722,7 +1763,7 @@ void startup_cmd_iter()
 #else
 	enter_state(DS_BOOTLOADER);
 	resp[3] = g_device_state;
-	finish_command(OKAY, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
+	finish_command(command_response, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
 #endif
 }
 
@@ -1776,7 +1817,7 @@ void startup_cmd (u8 *data, int data_len)
 		end_long_button_press_wait();
 	}
 	cmd_init();
-	startup_cmd_iter();
+	startup_cmd_iter(0);
 }
 
 int request_device(enum command_subsystem system)

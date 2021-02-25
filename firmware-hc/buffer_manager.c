@@ -9,11 +9,11 @@ static void bufferFIFO_execStage(struct bufferFIFO *bf, int stageIdx)
 	int writeBufferIdx = (bf->_stageWriteIndex[stageIdx] % bf->bufferCount);
 	bf->_stageProcessing[stageIdx] = 1;
 	bf->processStage[stageIdx](bf,
-	                           bf->_bufferSize[readBufferIdx],
-	                           bf->_bufferData[readBufferIdx],
-	                           bf->bufferStorage + bf->maxBufferSize * readBufferIdx,
-	                           bf->bufferStorage + bf->maxBufferSize * writeBufferIdx,
-	                           stageIdx);
+				   bf->_bufferSize[readBufferIdx],
+				   bf->_bufferData[readBufferIdx],
+				   bf->bufferStorage + bf->maxBufferSize * readBufferIdx,
+				   bf->bufferStorage + bf->maxBufferSize * writeBufferIdx,
+				   stageIdx);
 }
 
 static int bufferFIFO_stageStalled(struct bufferFIFO *bf, int stage)
@@ -44,33 +44,46 @@ void bufferFIFO_stallStage(struct bufferFIFO *bf, int stageIdx)
 	__enable_irq();
 }
 
-void bufferFIFO_processingComplete(struct bufferFIFO *bf, int stageIdx, int writeLen, u32 bufferData)
+void bufferFIFO_processingComplete(struct bufferFIFO *bf, int stageIdx, int writeLen, u32 bufferData, u32 rc)
 {
 	__disable_irq();
-	if (writeLen >= 0) {
-		int i = bf->_stageWriteIndex[stageIdx] % bf->bufferCount;
-		bf->_bufferSize[i] = writeLen;
-		bf->_bufferData[i] = bufferData;
+	int i = bf->_stageWriteIndex[stageIdx] % bf->bufferCount;
+	bf->_bufferSize[i] = writeLen;
+	bf->_bufferData[i] = bufferData;
+	bf->_stageErrorStatus[stageIdx] = rc;
+
+	if (rc) {
+		bf->_errorStatus = rc;
+		bf->_errorStage = stageIdx;
 	}
+
 	int nextStageIdx = (stageIdx + 1) % bf->numStages;
 	//Advance read/write indexes
 	bf->_stageProcessing[stageIdx] = 0;
 	bf->_stageWriteIndex[stageIdx]++;
 	bf->_stageReadIndex[stageIdx]++;
-	//Process the next buffer if we aren't stalled by the next stage
-	if (!bufferFIFO_stageStalled(bf, stageIdx))
-		bufferFIFO_execStage(bf, stageIdx);
-	if (!bufferFIFO_stageStalled(bf, nextStageIdx))
-		bufferFIFO_execStage(bf, nextStageIdx);
+
+	if (!bf->_errorStatus) {
+		//Process the next buffer if we aren't stalled by the next stage
+		if (!bufferFIFO_stageStalled(bf, stageIdx))
+			bufferFIFO_execStage(bf, stageIdx);
+		if (!bufferFIFO_stageStalled(bf, nextStageIdx))
+			bufferFIFO_execStage(bf, nextStageIdx);
+	}
 	if (bf->_processing) {
 		while (bf->_stall_index < bf->numStages) {
 			if (bf->_stageProcessing[bf->_stall_index] || !bf->_stalled[bf->_stall_index])
 				break;
 			bf->_stall_index++;
 		}
-		if (bf->_stall_index == bf->numStages) {
+		int i = 0;
+		for (; i < bf->numStages; i++) {
+			if (bf->_stageProcessing[i])
+				break;
+		}
+		if (bf->_stall_index == bf->numStages || (bf->_errorStatus && i == bf->numStages)) {
 			bf->_processing = 0;
-			bf->processingComplete(bf);
+			bf->processingComplete(bf, bf->_errorStatus, bf->_errorStage);
 		}
 	}
 	__enable_irq();
@@ -81,12 +94,15 @@ void bufferFIFO_start(struct bufferFIFO *bf, int firstBufferSize)
 	__disable_irq();
 	bf->_processing = 1;
 	bf->_stall_index = 0;
+	bf->_errorStatus = 0;
+	bf->_errorStage = 0;
 	for (int i = 0; i < bf->bufferCount; i++) {
 		bf->_bufferSize[i] = 0;
 	}
 	for (int i = 0; i < bf->numStages; i++) {
 		bf->_stageProcessing[i] = 0;
 		bf->_stalled[i] = 0;
+		bf->_stageErrorStatus[i] = 0;
 		if (bf->numStages > 2) {
 			if (i == 0) {
 				bf->_stageReadIndex[i] = bf->numStages - 2;

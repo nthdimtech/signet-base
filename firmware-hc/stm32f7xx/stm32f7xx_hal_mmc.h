@@ -315,6 +315,9 @@ typedef void (*pMMC_CallbackTypeDef)           (MMC_HandleTypeDef *hmmc);
 #define   MMC_CONTEXT_WRITE_MULTIPLE_BLOCK ((uint32_t)0x00000020U)  /*!< Write multiple blocks operation  */
 #define   MMC_CONTEXT_IT                   ((uint32_t)0x00000008U)  /*!< Process in Interrupt mode        */
 #define   MMC_CONTEXT_DMA                  ((uint32_t)0x00000080U)  /*!< Process in DMA mode              */
+#define   MMC_CONTEXT_READ		   (MMC_CONTEXT_READ_SINGLE_BLOCK | MMC_CONTEXT_READ_MULTIPLE_BLOCK)  /*!< Process in DMA mode              */
+#define   MMC_CONTEXT_WRITE		   (MMC_CONTEXT_WRITE_SINGLE_BLOCK | MMC_CONTEXT_WRITE_MULTIPLE_BLOCK)  /*!< Process in DMA mode              */
+#define   MMC_CONTEXT_TRANSFER 		   (MMC_CONTEXT_READ | MMC_CONTEXT_WRITE)  /*!< Process in DMA mode              */
 
 /**
   * @}
