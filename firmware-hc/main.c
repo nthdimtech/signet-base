@@ -433,6 +433,8 @@ static int emmc_compare_test(const u8 *write_block, u8 *read_block, int blink_of
 	return 0;
 }
 
+#define CLOCK_RATE_MEASUREMENT 0
+
 int main (void)
 {
 	SCB_EnableICache();
@@ -441,6 +443,8 @@ int main (void)
 	HAL_Init();
 	SystemClock_Config();
 	MX_GPIO_Init();
+
+#if !CLOCK_RATE_MEASUREMENT
 	int blink_duration = 250;
 	led_on();
 	HAL_Delay(blink_duration);
@@ -449,11 +453,31 @@ int main (void)
 	MX_DMA_Init();
 	MX_AES_Init();
 	MX_SDMMC1_MMC_Init();
+#endif
 
 	//TODO: move this elsewhere
 	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
 	DWT->CYCCNT = 0;
 	DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+
+#if CLOCK_RATE_MEASUREMENT
+	u64 clk = 0;
+	u32 clk_prev;
+	clk_prev = DWT->CYCCNT;
+	while(1) {
+		u32 clk_cur = DWT->CYCCNT;
+		clk += (clk_cur - clk_prev);
+		clk_prev = clk_cur;
+
+		u32 sec = clk / SystemCoreClock;
+
+		if ((sec % 10) < 5) {
+			led_off();
+		} else {
+			led_on();
+		}
+	}
+#endif
 
 	__HAL_RCC_CRC_CLK_ENABLE();
 	crc_init();
