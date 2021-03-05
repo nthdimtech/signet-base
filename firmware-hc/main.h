@@ -53,6 +53,13 @@ int is_ctap_initialized();
 
 extern volatile int g_work_to_do;
 
+#define NESTED_ISR_LOCK_NEEDED() uint32_t isr_status_temp
+#define NESTED_ISR_LOCK() do { \
+	isr_status_temp = __get_PRIMASK(); \
+	__disable_irq(); \
+} while (0)
+#define NESTED_ISR_UNLOCK() do { if (isr_status_temp) { __enable_irq(); }} while (0)
+
 #define BEGIN_WORK(w) do {\
 		__disable_irq();\
 		g_work_to_do |= w; \
