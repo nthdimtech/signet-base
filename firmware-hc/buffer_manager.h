@@ -31,5 +31,6 @@ struct bufferFIFO {
 void bufferFIFO_processingComplete(struct bufferFIFO *bf, int stageIdx, int writeLen, u32 bufferData, u32 error);
 void bufferFIFO_start(struct bufferFIFO *bf, int firstBufferSize);
 void bufferFIFO_stallStage(struct bufferFIFO *bf, int stageIdx);
+void bufferFIFO_stop(struct bufferFIFO *bf);
 
 #endif

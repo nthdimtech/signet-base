@@ -124,4 +124,10 @@ void bufferFIFO_start(struct bufferFIFO *bf, int firstBufferSize)
 	__enable_irq();
 }
 
+void bufferFIFO_stop(struct bufferFIFO *bf)
+{
+	__disable_irq();
+	bf->_processing = 0;
+	__enable_irq();
+}
 
