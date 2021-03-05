@@ -15,9 +15,6 @@ void begin_long_button_press_wait();
 void invalidate_data_block_cache(int idx);
 void get_progress_check();
 
-extern enum device_state g_device_state;
-extern int active_cmd;
-
 union state_data_u {
 	struct {
 		int prev_state;
@@ -144,19 +141,22 @@ union cmd_data_u {
 	} read_cleartext_password;
 } __attribute__((aligned(16)));
 
-extern union cmd_data_u cmd_data;
+extern union cmd_data_u g_cmd_data;
 void sync_root_block_immediate();
 int sync_root_block_pending();
 
 void cmd_packet_recv();
 void cmd_init();
+void cmd_root_block_scan();
 void cmd_packet_send(const u8 *data, u16 len);
 void cmd_event_send(int event_num, const u8 *data, int data_len);
 
-extern u8 cmd_packet_buf[];
+extern u8 g_cmd_packet_buf[];
 
 void enter_state(enum device_state state);
 void enter_progressing_state(enum device_state state, int _n_progress_components, int *_progress_maximums);
+void update_state_progress(enum device_state state, int idx, int level, int maximum);
+int get_state_max_progress(enum device_state state, int idx);
 
 void cmd_rand_update();
 void write_data_block(int pg, const u8 *src);
@@ -180,8 +180,7 @@ enum command_subsystem device_subsystem_owner();
 void button_press_unprompted();
 
 struct hc_device_data;
-extern int g_root_page_valid;
-extern struct hc_device_data root_page;
+extern struct hc_device_data g_root_page;
 
 enum emmc_user {
 	EMMC_USER_NONE,
@@ -199,13 +198,8 @@ void emmc_user_done();
 
 extern volatile enum emmc_user g_emmc_user;
 
-//TODO: Use functions to update progress
-extern int g_progress_level[];
-extern u8 g_encrypt_key[];
 void command_idle();
-int command_idle_ready();
 
-extern volatile int g_write_test_tx_complete;
 extern volatile int g_read_test_tx_complete;
 #if ENABLE_MMC_STANDBY
 extern volatile int g_emmc_idle_ms;
@@ -217,5 +211,31 @@ enum root_block_sync_state {
 	ROOT_BLOCK_WRITING,
 	ROOT_BLOCK_SYNC_FAILED
 };
+
+struct cmd_state {
+//Public
+	int active_cmd;
+	enum device_state device_state;
+//Private	
+	int cmd_iter_count;
+	int cmd_messages_remaining;
+	enum root_block_sync_state root_block_sync_state;
+	u8 encrypt_key[AES_256_KEY_SIZE] __attribute__((aligned(AES_256_KEY_SIZE)));
+	u8 token_auth_rand_cyphertext[AES_256_KEY_SIZE];
+	u8 token_encrypt_key_cyphertext[AES_256_KEY_SIZE];
+	u32 db_version;
+	int root_page_valid;
+	u8 root_block_version;
+	union state_data_u state_data;
+	int waiting_for_button_press;
+	int waiting_for_long_button_press;
+	int n_progress_components;
+	int progress_maximum[8];
+	int progress_level[8];
+	int progress_check;
+	int progress_target_state;
+};
+
+extern struct cmd_state g_cmd_state;
 
 #endif

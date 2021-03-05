@@ -25,11 +25,24 @@
 extern "C" {
 #endif
 
+#define SENSE_LIST_DEEPTH                           4U
+
+typedef struct _SENSE_ITEM {
+	char Skey;
+	union {
+		struct _ASCs {
+			char ASC;
+			char ASCQ;
+		} b;
+		uint8_t	ASC;
+		char *pData;
+	} w;
+} USBD_SCSI_SenseTypeDef;
+
 #include "usbd_def.h"
 #include "memory_layout.h"
 #include "signetdev_common.h"
-
-#define SENSE_LIST_DEEPTH                           4U
+#include "usbd_msc.h"
 
 /* SCSI Commands */
 #define SCSI_FORMAT_UNIT                            0x04U
@@ -106,38 +119,12 @@ extern  uint8_t Scsi_Sense_Data[];
 extern  uint8_t ReadCapacity10_Data[];
 extern  uint8_t ReadFormatCapacity_Data [];
 
-struct scsi_volume {
-	int nr;
-	u32 flags;
-	u32 region_start;
-	u32 n_regions;
-	u8 volume_name[MAX_VOLUME_NAME_LEN];
-	int started;
-	int visible;
-	int writable;
-};
-
-extern int g_num_scsi_volumes;
-extern int g_scsi_num_regions;
-extern int g_scsi_region_size_blocks;
-extern struct scsi_volume g_scsi_volume[MAX_SCSI_VOLUMES];
-
-void usbd_scsi_init();
+struct USBD_MSC_BOT;
+typedef struct USBD_MSC_BOT USBD_MSC_BOT_HandleTypeDef;
+void usbd_scsi_init(USBD_MSC_BOT_HandleTypeDef *hmsc);
 void usbd_scsi_idle();
 int usbd_scsi_idle_ready();
 void usbd_scsi_device_state_change(enum device_state state);
-
-typedef struct _SENSE_ITEM {
-	char Skey;
-	union {
-		struct _ASCs {
-			char ASC;
-			char ASCQ;
-		} b;
-		uint8_t	ASC;
-		char *pData;
-	} w;
-} USBD_SCSI_SenseTypeDef;
 
 int8_t SCSI_ProcessCmd(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *cmd);
 

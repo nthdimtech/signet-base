@@ -10,37 +10,40 @@
 
 #include "usbd_hid.h"
 
-static const u8 *raw_hid_tx_data = NULL;
-static int raw_hid_tx_seq = 0;
-static int raw_hid_tx_count = 0;
 
-static u8 raw_hid_tx_cmd_packet[HID_CMD_EPIN_SIZE] __attribute__((aligned(16)));
-static u8 raw_hid_tx_event_packet[HID_CMD_EPIN_SIZE] __attribute__((aligned(16)));
+static struct {
+	u8 tx_cmd_packet[HID_CMD_EPIN_SIZE] __attribute__((aligned(16)));
+	u8 tx_event_packet[HID_CMD_EPIN_SIZE] __attribute__((aligned(16)));
+	const u8 *tx_data;
+	int tx_seq;
+	int tx_count;
 
-static u8 event_mask = 0;
-static const u8 *event_data[8];
-static int event_data_len[8];
+
+	u8 event_mask;
+	const u8 *event_data[8];
+	int event_data_len[8];
+} s_raw_hid __attribute__((aligned(16)));
 
 static int maybe_send_raw_hid_event()
 {
-	if (!event_mask)
+	if (!s_raw_hid.event_mask)
 		return 0;
 	if (usb_tx_pending(RAW_HID_TX_ENDPOINT))
 		return 0;
 
 	int i;
 	for (i = 0; i < 8; i++) {
-		if ((event_mask >> i) & 1) {
-			event_mask &= ~(1<<i);
-			raw_hid_tx_event_packet[0] = 0xff;
-			raw_hid_tx_event_packet[RAW_HID_HEADER_SIZE] = i;
-			if (event_data[i]) {
-				raw_hid_tx_event_packet[RAW_HID_HEADER_SIZE + 1] = event_data_len[i];
-				memcpy(raw_hid_tx_event_packet + RAW_HID_HEADER_SIZE + 2, event_data[i], event_data_len[i]);
+		if ((s_raw_hid.event_mask >> i) & 1) {
+			s_raw_hid.event_mask &= ~(1<<i);
+			s_raw_hid.tx_event_packet[0] = 0xff;
+			s_raw_hid.tx_event_packet[RAW_HID_HEADER_SIZE] = i;
+			if (s_raw_hid.event_data[i]) {
+				s_raw_hid.tx_event_packet[RAW_HID_HEADER_SIZE + 1] = s_raw_hid.event_data_len[i];
+				memcpy(s_raw_hid.tx_event_packet + RAW_HID_HEADER_SIZE + 2, s_raw_hid.event_data[i], s_raw_hid.event_data_len[i]);
 			} else {
-				raw_hid_tx_event_packet[RAW_HID_HEADER_SIZE + 1] = 0;
+				s_raw_hid.tx_event_packet[RAW_HID_HEADER_SIZE + 1] = 0;
 			}
-			usb_send_bytes(HID_CMD_EPIN_ADDR, raw_hid_tx_event_packet, RAW_HID_PACKET_SIZE);
+			usb_send_bytes(HID_CMD_EPIN_ADDR, s_raw_hid.tx_event_packet, RAW_HID_PACKET_SIZE);
 			break;
 		}
 	}
@@ -53,20 +56,20 @@ void maybe_send_raw_hid_packet()
 {
 	if (maybe_send_raw_hid_event())
 		return;
-	if (raw_hid_tx_seq != raw_hid_tx_count) {
+	if (s_raw_hid.tx_seq != s_raw_hid.tx_count) {
 		int last = 0;
-		if ((raw_hid_tx_seq + 1) == raw_hid_tx_count) {
+		if ((s_raw_hid.tx_seq + 1) == s_raw_hid.tx_count) {
 			last = 1;
 		}
-		raw_hid_tx_cmd_packet[0] = (last << 7) | raw_hid_tx_seq;
-		memcpy(raw_hid_tx_cmd_packet + RAW_HID_HEADER_SIZE, raw_hid_tx_data + raw_hid_tx_seq * RAW_HID_PAYLOAD_SIZE, RAW_HID_PAYLOAD_SIZE);
-		usb_send_bytes(HID_CMD_EPIN_ADDR, raw_hid_tx_cmd_packet, HID_CMD_EPIN_SIZE);
-		raw_hid_tx_seq++;
+		s_raw_hid.tx_cmd_packet[0] = (last << 7) | s_raw_hid.tx_seq;
+		memcpy(s_raw_hid.tx_cmd_packet + RAW_HID_HEADER_SIZE, s_raw_hid.tx_data + s_raw_hid.tx_seq * RAW_HID_PAYLOAD_SIZE, RAW_HID_PAYLOAD_SIZE);
+		usb_send_bytes(HID_CMD_EPIN_ADDR, s_raw_hid.tx_cmd_packet, HID_CMD_EPIN_SIZE);
+		s_raw_hid.tx_seq++;
 	} else {
-		raw_hid_tx_seq = 0;
-		raw_hid_tx_count = 0;
-		if (raw_hid_tx_data) {
-			raw_hid_tx_data = NULL;
+		s_raw_hid.tx_seq = 0;
+		s_raw_hid.tx_count = 0;
+		if (s_raw_hid.tx_data) {
+			s_raw_hid.tx_data = NULL;
 			cmd_packet_sent();
 		}
 	}
@@ -74,17 +77,17 @@ void maybe_send_raw_hid_packet()
 
 void cmd_packet_send(const u8 *data, u16 len)
 {
-	raw_hid_tx_count = (len + RAW_HID_PAYLOAD_SIZE - 1)/RAW_HID_PAYLOAD_SIZE;
-	raw_hid_tx_seq = 0;
-	raw_hid_tx_data = data;
+	s_raw_hid.tx_count = (len + RAW_HID_PAYLOAD_SIZE - 1)/RAW_HID_PAYLOAD_SIZE;
+	s_raw_hid.tx_seq = 0;
+	s_raw_hid.tx_data = data;
 	maybe_send_raw_hid_packet();
 }
 
 void cmd_event_send(int event_num, const u8 *data, int data_len)
 {
-	event_mask |= 1<<event_num;
-	event_data[event_num]  = data;
-	event_data_len[event_num] = data_len;
+	s_raw_hid.event_mask |= 1<<event_num;
+	s_raw_hid.event_data[event_num]  = data;
+	s_raw_hid.event_data_len[event_num] = data_len;
 	maybe_send_raw_hid_event();
 }
 
@@ -98,7 +101,7 @@ void usb_raw_hid_rx(volatile u8 *data, int count)
 	}
 	for(int i = RAW_HID_HEADER_SIZE; i < RAW_HID_PACKET_SIZE; i++) {
 		u8 d = data[i];
-		cmd_packet_buf[index++] = d;
+		g_cmd_packet_buf[index++] = d;
 	}
 	if (last) {
 		cmd_packet_recv();

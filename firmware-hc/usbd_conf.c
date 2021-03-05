@@ -6,7 +6,6 @@
 
 PCD_HandleTypeDef hpcd;
 __IO uint32_t remotewakeupon = 0;
-uint8_t HID_Buffer[4];
 extern USBD_HandleTypeDef USBD_Device;
 
 void SystemClockConfig_STOP(void);

@@ -5,6 +5,8 @@
 #include "usbd_ioreq.h"
 #include "usbd_multi.h"
 
+#include "main.h"
+
 /** @defgroup MSC_BOT_Private_FunctionPrototypes
   * @{
   */
@@ -22,24 +24,26 @@ void MSC_BOT_Abort(USBD_HandleTypeDef  *pdev);
 * @param  pdev: device instance
 * @retval None
 */
+
+extern uint8_t g_bulkBuffer[];
+
 void MSC_BOT_Init (USBD_HandleTypeDef  *pdev)
 {
 	USBD_MSC_BOT_HandleTypeDef  *hmsc = (USBD_MSC_BOT_HandleTypeDef*)pdev->pClassData[INTERFACE_MSC];
 
+	hmsc->usbBulkBufferFIFO.maxBufferSize = USB_BULK_BUFFER_SIZE;
+	hmsc->usbBulkBufferFIFO.bufferStorage = g_bulkBuffer;
+	hmsc->usbBulkBufferFIFO.bufferCount = USB_BULK_BUFFER_COUNT;
 	hmsc->bot_state = USBD_BOT_IDLE;
 	hmsc->bot_status = USBD_BOT_STATUS_NORMAL;
 
-	hmsc->scsi_sense_tail = 0U;
-	hmsc->scsi_sense_head = 0U;
-
-	((USBD_StorageTypeDef *)pdev->pUserData)->Init(0U);
+	usbd_scsi_init(hmsc);
 
 	USBD_LL_FlushEP(pdev, MSC_EPOUT_ADDR);
 	USBD_LL_FlushEP(pdev, MSC_EPIN_ADDR);
 
 	/* Prapare EP to Receive First BOT Cmd */
-	USBD_LL_PrepareReceive (pdev, MSC_EPOUT_ADDR, (uint8_t *)(void *)&hmsc->cbw,
-	                        USBD_BOT_CBW_LENGTH);
+	USBD_LL_PrepareReceive (pdev, MSC_EPOUT_ADDR, (uint8_t *)(void *)&hmsc->cbw, USBD_BOT_CBW_LENGTH);
 }
 
 /**
@@ -69,7 +73,10 @@ void MSC_BOT_Reset (USBD_HandleTypeDef  *pdev)
 void MSC_BOT_DeInit (USBD_HandleTypeDef  *pdev)
 {
 	USBD_MSC_BOT_HandleTypeDef  *hmsc = (USBD_MSC_BOT_HandleTypeDef*)pdev->pClassData[INTERFACE_MSC];
+	NESTED_ISR_LOCK_NEEDED();
+	NESTED_ISR_LOCK();
 	hmsc->bot_state  = USBD_BOT_IDLE;
+	NESTED_ISR_UNLOCK();
 }
 
 /**

@@ -114,7 +114,6 @@ SOURCES = commands.c \
 	usbd_msc_bot.c \
 	usbd_msc_data.c \
 	usbd_msc_scsi.c \
-	usbd_msc_ops.c \
 	buffer_manager.c \
 	bootloader_state.c \
 	firmware_update_state.c \

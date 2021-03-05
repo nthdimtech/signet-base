@@ -2328,8 +2328,6 @@ static void MMC_DMAReceiveCplt(DMA_HandleTypeDef *hdma)
 	__HAL_MMC_ENABLE_IT(hmmc, (SDMMC_IT_DATAEND));
 }
 
-static int fecount = 0;
-
 /**
   * @brief  DMA MMC communication error callback
   * @param  hdma DMA handle
@@ -2362,7 +2360,7 @@ static void MMC_DMAError(DMA_HandleTypeDef *hdma)
 		HAL_MMC_ErrorCallback(hmmc);
 #endif
 	} else {
-		fecount++;
+		hmmc->FIFOErrorCount++;
 	}
 
 }

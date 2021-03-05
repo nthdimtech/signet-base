@@ -39,25 +39,25 @@ void authenticator_sync_states()
 void authenticator_write_state(AuthenticatorState *state, int backup)
 {
 	if (backup) {
-		root_page.fido2_auth_state_backup = *state;
+		g_root_page.fido2_auth_state_backup = *state;
 	} else {
-		root_page.fido2_auth_state = *state;
+		g_root_page.fido2_auth_state = *state;
 	}
 }
 
 void authenticator_read_state(AuthenticatorState * state)
 {
-	*state = root_page.fido2_auth_state;
+	*state = g_root_page.fido2_auth_state;
 }
 
 void authenticator_read_backup_state(AuthenticatorState * state)
 {
-	*state = root_page.fido2_auth_state_backup;
+	*state = g_root_page.fido2_auth_state_backup;
 }
 
 int authenticator_is_backup_initialized()
 {
-	return root_page.fido2_auth_state_backup.is_initialized;
+	return g_root_page.fido2_auth_state_backup.is_initialized;
 }
 
 uint32_t ctap_atomic_count(int sel)
@@ -85,7 +85,7 @@ uint32_t millis()
 
 void ctap_reset_rk()
 {
-	memset(&root_page.rk_store, 0xff, sizeof(root_page.rk_store));
+	memset(&g_root_page.rk_store, 0xff, sizeof(g_root_page.rk_store));
 }
 
 uint32_t ctap_rk_size()
@@ -96,7 +96,7 @@ uint32_t ctap_rk_size()
 void ctap_store_rk(int index, CTAP_residentKey * rk)
 {
 	if (index < RK_NUM) {
-		memmove(root_page.rk_store.rks + index, rk, sizeof(CTAP_residentKey));
+		memmove(g_root_page.rk_store.rks + index, rk, sizeof(CTAP_residentKey));
 		sync_root_block();
 	} else {
 		assert(0);
@@ -106,7 +106,7 @@ void ctap_store_rk(int index, CTAP_residentKey * rk)
 void ctap_load_rk(int index, CTAP_residentKey * rk)
 {
 	if (index < RK_NUM) {
-		memmove(rk, root_page.rk_store.rks + index, sizeof(CTAP_residentKey));
+		memmove(rk, g_root_page.rk_store.rks + index, sizeof(CTAP_residentKey));
 	} else {
 		assert(0);
 	}
@@ -115,7 +115,7 @@ void ctap_load_rk(int index, CTAP_residentKey * rk)
 void ctap_overwrite_rk(int index, CTAP_residentKey * rk)
 {
 	if (index < RK_NUM) {
-		memmove(root_page.rk_store.rks + index, rk, sizeof(*rk));
+		memmove(g_root_page.rk_store.rks + index, rk, sizeof(*rk));
 		sync_root_block();
 	} else {
 		assert(0);

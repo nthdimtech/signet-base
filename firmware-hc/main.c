@@ -25,19 +25,17 @@ void Error_Handler(void);
 
 
 #include "usbd_core.h"
-#include "usbd_msc_ops.h"
 #include "commands.h"
 
 /* Private variables ---------------------------------------------------------*/
-CRYP_HandleTypeDef hcryp;
+CRYP_HandleTypeDef g_hcryp;
 __ALIGN_BEGIN static const uint32_t pKeyAES[4] __ALIGN_END = {
 	0x00000000,0x00000000,0x00000000,0x00000000
 };
 
-RNG_HandleTypeDef hrng;
-MMC_HandleTypeDef hmmc1;
+MMC_HandleTypeDef g_hmmc1;
 
-UART_HandleTypeDef huart1;
+UART_HandleTypeDef g_huart1;
 
 PCD_HandleTypeDef hpcd_USB_OTG_HS __attribute__((aligned(16)));
 
@@ -97,31 +95,29 @@ static int buttonState()
 	return HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN);
 }
 
-//Used for old read/write test
-volatile int mmcReadComplete = 0;
-volatile int mmcWriteComplete = 0;
+//Multi-purpose transfer buffer. Used for different purposes in different modes
+#define MMC_TEST_BULK_BUFFER_SIZE_REQ (HC_BLOCK_SZ*2)
+#define BULK_BUFFER_SIZE MAX(MMC_TEST_BULK_BUFFER_SIZE_REQ, USB_BULK_BUFFER_SIZE_REQ)
+uint8_t g_bulkBuffer[BULK_BUFFER_SIZE] __attribute__((aligned(16)));
 
 static void MX_DMA_Init(void);
 
 #include "buffer_manager.h"
 
-#define USB_BULK_BUFFER_SIZE (16384)
-#define USB_BULK_BUFFER_COUNT (4)
-
-static uint8_t g_usbBulkBuffer[USB_BULK_BUFFER_SIZE * USB_BULK_BUFFER_COUNT] __attribute__((aligned(16)));
-struct bufferFIFO usbBulkBufferFIFO;
-
 static int g_ms_last_pressed = 0;
-static int g_blink_state = 0;
-static int g_blink_start = 0;
-static int g_blink_period = 0;
-static int g_blink_duration = 0;
-static int g_button_state = 0;
-static int g_pause_start;
 
-static int g_timer_target;
+static struct {
+	int blink_state;
+	int blink_start;
+	int blink_period;
+	int blink_duration;
+	int blink_paused;
+	int pause_start;
+	uint8_t timeout_event_secs;
+} s_blink_state;
 
-static int g_press_pending = 0;
+static int s_button_state;
+static int s_timer_target;
 
 __weak void blink_timeout()
 {
@@ -163,13 +159,13 @@ void assert_lit(int cond, int l1, int l2)
 void timer_start(int ms)
 {
 	int ms_count = HAL_GetTick();
-	g_timer_target = ms_count + ms;
+	s_timer_target = ms_count + ms;
 	BEGIN_WORK(TIMER_WORK);
 }
 
 void timer_stop()
 {
-	g_timer_target = 0;
+	s_timer_target = 0;
 	END_WORK(TIMER_WORK);
 }
 
@@ -204,28 +200,24 @@ static void busy_blink(int ms_off, int ms_on)
 	}
 }
 
-static int g_blink_paused = 0;
-
-static uint8_t g_timeout_event_secs;
-
 void blink_idle()
 {
 	int ms_count = HAL_GetTick();
-	if (g_blink_period > 0 && !g_blink_paused) {
-		int next_blink_state = ((ms_count - g_blink_start)/(g_blink_period/2)) % 2;
-		if (next_blink_state != g_blink_state) {
+	if (s_blink_state.blink_period > 0 && !s_blink_state.blink_paused) {
+		int next_blink_state = ((ms_count - s_blink_state.blink_start)/(s_blink_state.blink_period/2)) % 2;
+		if (next_blink_state != s_blink_state.blink_state) {
 			if (next_blink_state) {
 				led_off();
 			} else {
 				led_on();
 			}
 		}
-		g_blink_state = next_blink_state;
-		if (g_blink_duration) {
-			int timeout_event_msecs = g_blink_duration - (ms_count - g_blink_start);
+		s_blink_state.blink_state = next_blink_state;
+		if (s_blink_state.blink_duration) {
+			int timeout_event_msecs = s_blink_state.blink_duration - (ms_count - s_blink_state.blink_start);
 			int next_timeout_event_secs = (timeout_event_msecs+999)/1000;
-			if ((timeout_event_msecs <= 0) && (g_blink_duration > 0)) {
-				g_blink_period = 0;
+			if ((timeout_event_msecs <= 0) && (s_blink_state.blink_duration > 0)) {
+				s_blink_state.blink_period = 0;
 				END_WORK(BLINK_WORK);
 				led_off();
 #ifdef ENABLE_FIDO2
@@ -233,10 +225,10 @@ void blink_idle()
 #endif
 				blink_timeout();
 			}
-			if (next_timeout_event_secs != g_timeout_event_secs) {
-				g_timeout_event_secs = next_timeout_event_secs;
-				if (g_device_state != DS_DISCONNECTED && g_device_state != DS_RESET) {
-					cmd_event_send(2, &g_timeout_event_secs, sizeof(g_timeout_event_secs));
+			if (next_timeout_event_secs != s_blink_state.timeout_event_secs) {
+				s_blink_state.timeout_event_secs = next_timeout_event_secs;
+				if (g_cmd_state.device_state != DS_DISCONNECTED && g_cmd_state.device_state != DS_RESET) {
+					cmd_event_send(2, &s_blink_state.timeout_event_secs, sizeof(s_blink_state.timeout_event_secs));
 				}
 			}
 		}
@@ -246,10 +238,10 @@ void blink_idle()
 void start_blinking(int period, int duration)
 {
 	int ms_count = HAL_GetTick();
-	g_blink_start = ms_count;
-	g_blink_period = period;
-	g_blink_duration = duration;
-	g_timeout_event_secs = (g_blink_duration + 999)/1000;
+	s_blink_state.blink_start = ms_count;
+	s_blink_state.blink_period = period;
+	s_blink_state.blink_duration = duration;
+	s_blink_state.timeout_event_secs = (s_blink_state.blink_duration + 999)/1000;
 	led_on();
 	BEGIN_WORK(BLINK_WORK);
 }
@@ -258,31 +250,31 @@ void pause_blinking()
 {
 	int ms_count = HAL_GetTick();
 	led_off();
-	g_blink_paused = 1;
-	g_pause_start = ms_count;
+	s_blink_state.blink_paused = 1;
+	s_blink_state.pause_start = ms_count;
 }
 
 void resume_blinking()
 {
 	int ms_count = HAL_GetTick();
-	if (g_blink_paused) {
-		g_blink_start += (ms_count - g_pause_start);
-		g_blink_paused = 0;
+	if (s_blink_state.blink_paused) {
+		s_blink_state.blink_start += (ms_count - s_blink_state.pause_start);
+		s_blink_state.blink_paused = 0;
 		blink_idle();
 	}
 }
 
 void stop_blinking()
 {
-	g_blink_period = 0;
-	g_blink_paused = 0;
+	s_blink_state.blink_period = 0;
+	s_blink_state.blink_paused = 0;
 	led_off();
 	END_WORK(BLINK_WORK);
 }
 
 int is_blinking()
 {
-	return g_blink_period > 0;
+	return s_blink_state.blink_period > 0;
 }
 
 
@@ -312,7 +304,6 @@ void BUTTON_HANDLER()
 {
 	int ms_count = HAL_GetTick();
 	g_ms_last_pressed = ms_count;
-	g_press_pending = 1;
 	BEGIN_WORK(BUTTON_PRESS_WORK);
 	EXTI->PR = (1 << BUTTON_PIN_NUM);
 }
@@ -369,15 +360,15 @@ static int is_memtest_root_page()
 static int emmc_compare_test(const u8 *write_block, u8 *read_block, int blink_off, int blink_on)
 {
 	int blink_total = blink_off + blink_on;
-	int nr_sub_blocks = hmmc1.MmcCard.BlockNbr;
+	int nr_sub_blocks = g_hmmc1.MmcCard.BlockNbr;
 	int nr_blocks = nr_sub_blocks/(HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ);
 	for (int i = 0; i < nr_blocks; i++) {
 		unsigned int cardState;
 		do {
-			cardState = HAL_MMC_GetCardState(&hmmc1);
+			cardState = HAL_MMC_GetCardState(&g_hmmc1);
 		} while (cardState != HAL_MMC_CARD_TRANSFER);
 		int ms_start = HAL_GetTick();
-		HAL_MMC_WriteBlocks_DMA_Initial(&hmmc1,
+		HAL_MMC_WriteBlocks_DMA_Initial(&g_hmmc1,
 						write_block,
 						BLK_SIZE,
 						i*(BLK_SIZE/MSC_MEDIA_PACKET),
@@ -393,8 +384,8 @@ static int emmc_compare_test(const u8 *write_block, u8 *read_block, int blink_of
 				return 2;
 			}
 			command_idle();
-			if (g_write_test_tx_complete) {
-				g_write_test_tx_complete = 0;
+			if (HAS_WORK(WRITE_TEST_TX_WORK)) {
+				END_WORK(WRITE_TEST_TX_WORK);
 				break;
 			}
 		}
@@ -402,10 +393,10 @@ static int emmc_compare_test(const u8 *write_block, u8 *read_block, int blink_of
 	for (int i = 0; i < nr_blocks; i++) {
 		unsigned int cardState;
 		do {
-			cardState = HAL_MMC_GetCardState(&hmmc1);
+			cardState = HAL_MMC_GetCardState(&g_hmmc1);
 		} while (cardState != HAL_MMC_CARD_TRANSFER);
 		int ms_start = HAL_GetTick();
-		HAL_MMC_ReadBlocks_DMA(&hmmc1,
+		HAL_MMC_ReadBlocks_DMA(&g_hmmc1,
 					read_block,
 					i*(BLK_SIZE/MSC_MEDIA_PACKET),
 					BLK_SIZE/MSC_MEDIA_PACKET);
@@ -420,8 +411,8 @@ static int emmc_compare_test(const u8 *write_block, u8 *read_block, int blink_of
 				return 4;
 			}
 			command_idle();
-			if (g_read_test_tx_complete) {
-				g_read_test_tx_complete = 0;
+			if (HAS_WORK(READ_TEST_TX_WORK)) {
+				END_WORK(READ_TEST_TX_WORK);
 				break;
 			}
 		}
@@ -512,12 +503,9 @@ int main (void)
 	HAL_NVIC_SetPriority(BUTTON_IRQ, HIGH_INT_PRIORITY, 0);
 	HAL_NVIC_EnableIRQ(BUTTON_IRQ);
 
-	usbBulkBufferFIFO.maxBufferSize = USB_BULK_BUFFER_SIZE;
-	usbBulkBufferFIFO.bufferStorage = g_usbBulkBuffer;
-	usbBulkBufferFIFO.bufferCount = USB_BULK_BUFFER_COUNT;
-
 	HAL_Delay(5);
 
+	db3_init();
 	cmd_init();
 
 	int memory_test_mode = 0;
@@ -525,11 +513,10 @@ int main (void)
 	if (is_erased_root_page()) {
 		int press_count = 0;
 		while(1) {
-			if (g_press_pending) {
-				g_press_pending = 0;
+			if (HAS_WORK(BUTTON_PRESS_WORK)) {
 				END_WORK(BUTTON_PRESS_WORK);
-				if (!g_button_state) {
-					g_button_state = 1;
+				if (!s_button_state) {
+					s_button_state = 1;
 					press_count++;
 					led_on();
 					BEGIN_WORK(BUTTON_PRESSING_WORK);
@@ -537,8 +524,8 @@ int main (void)
 			}
 			int current_button_state = buttonState() ? 0 : 1;
 			int ms_count = HAL_GetTick();
-			if (!current_button_state && g_button_state && (ms_count - g_ms_last_pressed) > 100) {
-				g_button_state = 0;
+			if (!current_button_state && s_button_state && (ms_count - g_ms_last_pressed) > 100) {
+				s_button_state = 0;
 				led_off();
 				END_WORK(BUTTON_PRESSING_WORK);
 				if (press_count == 5) {
@@ -547,14 +534,14 @@ int main (void)
 					busy_blink_once(100);
 				}
 			}
-			if (g_button_state && ((ms_count - g_ms_last_pressed) > 2000)) {
-				g_button_state = 0;
+			if (s_button_state && ((ms_count - g_ms_last_pressed) > 2000)) {
+				s_button_state = 0;
 				END_WORK(BUTTON_PRESSING_WORK);
 				break;
 			}
 		}
-		memset(usbBulkBufferFIFO.bufferStorage, 0x80, BLK_SIZE);
-		write_root_block(usbBulkBufferFIFO.bufferStorage, BLK_SIZE);
+		memset(g_bulkBuffer, 0x80, BLK_SIZE);
+		write_root_block(g_bulkBuffer, BLK_SIZE);
 		do {
 			flash_idle();
 		} while(!is_flash_idle());
@@ -564,11 +551,11 @@ int main (void)
 		emmc_user_queue(EMMC_USER_TEST);
 
 		for (int i = 0; i < HC_BLOCK_SZ; i += 2) {
-			usbBulkBufferFIFO.bufferStorage[i + 0] = 0xaa;
-			usbBulkBufferFIFO.bufferStorage[i + 1] = 0x55;
+			g_bulkBuffer[i + 0] = 0xaa;
+			g_bulkBuffer[i + 1] = 0x55;
 		}
-		int rc = emmc_compare_test(usbBulkBufferFIFO.bufferStorage,
-				usbBulkBufferFIFO.bufferStorage + HC_BLOCK_SZ,
+		int rc = emmc_compare_test(g_bulkBuffer,
+				g_bulkBuffer + HC_BLOCK_SZ,
 				4900, 100);
 	        if (rc)	{
 			busy_blink(rc * 1000, rc * 1000);
@@ -629,11 +616,8 @@ int main (void)
 		busy_blink(400, 100);
 #endif
 
-	usbd_scsi_init();
-
 	USBD_Init(&USBD_Device, &Multi_Desc, 0);
 	USBD_RegisterClass(&USBD_Device, USBD_MULTI_CLASS);
-	USBD_MSC_RegisterStorage(&USBD_Device, &USBD_MSC_Template_fops);
 	USBD_Start(&USBD_Device);
 
 	int work_led_off_ms = 0;
@@ -681,7 +665,7 @@ int main (void)
 			}
 			work_led_state = 0;
 		}
-		if (!(g_work_to_do & BLINK_WORK)) {
+		if (!HAS_WORK(BLINK_WORK)) {
 			if (work_led_state || (!work_led_state && ms_count < work_led_off_ms)) {
 				led_on();
 			} else {
@@ -690,9 +674,9 @@ int main (void)
 			}
 		}
 
-		if (ms_count > g_timer_target && g_timer_target != 0) {
+		if (ms_count > s_timer_target && s_timer_target != 0) {
 			timer_timeout();
-			g_timer_target = 0;
+			s_timer_target = 0;
 			END_WORK(TIMER_WORK);
 		}
 #if ENABLE_MMC_STANDBY
@@ -712,10 +696,9 @@ int main (void)
 		usbd_scsi_idle();
 		int current_button_state = buttonState() ? 0 : 1;
 
-		if (g_press_pending) {
-			g_press_pending = 0;
+		if (HAS_WORK(BUTTON_PRESS_WORK)) {
 			END_WORK(BUTTON_PRESS_WORK);
-			if (!g_button_state) {
+			if (!s_button_state) {
 				switch (device_subsystem_owner()) {
 				case SIGNET_SUBSYSTEM:
 					button_press();
@@ -731,17 +714,17 @@ int main (void)
 				default:
 					break;
 				}
-				g_button_state = 1;
+				s_button_state = 1;
 				BEGIN_WORK(BUTTON_PRESSING_WORK);
 			}
 		}
-		if (!current_button_state && g_button_state && (ms_count - g_ms_last_pressed) > 100) {
+		if (!current_button_state && s_button_state && (ms_count - g_ms_last_pressed) > 100) {
 			button_release();
-			g_button_state = 0;
+			s_button_state = 0;
 			END_WORK(BUTTON_PRESSING_WORK);
 		}
-		if (g_button_state && ((ms_count - g_ms_last_pressed) > 2000)) {
-			g_button_state = 0;
+		if (s_button_state && ((ms_count - g_ms_last_pressed) > 2000)) {
+			s_button_state = 0;
 			END_WORK(BUTTON_PRESSING_WORK);
 			switch (device_subsystem_owner()) {
 			case SIGNET_SUBSYSTEM:
@@ -832,13 +815,13 @@ static void SystemClock_Config(void)
 static void MX_AES_Init(void)
 {
 #ifdef BOOT_MODE_B
-	hcryp.Instance = AES;
-	hcryp.Init.DataType = CRYP_DATATYPE_32B;
-	hcryp.Init.KeySize = CRYP_KEYSIZE_128B;
-	hcryp.Init.pKey = (uint32_t *)pKeyAES;
-	hcryp.Init.Algorithm = CRYP_AES_CBC;
-	hcryp.Init.DataWidthUnit = CRYP_DATAWIDTHUNIT_WORD;
-	if (HAL_CRYP_Init(&hcryp) != HAL_OK) {
+	g_hcryp.Instance = AES;
+	g_hcryp.Init.DataType = CRYP_DATATYPE_32B;
+	g_hcryp.Init.KeySize = CRYP_KEYSIZE_128B;
+	g_hcryp.Init.pKey = (uint32_t *)pKeyAES;
+	g_hcryp.Init.Algorithm = CRYP_AES_CBC;
+	g_hcryp.Init.DataWidthUnit = CRYP_DATAWIDTHUNIT_WORD;
+	if (HAL_CRYP_Init(&g_hcryp) != HAL_OK) {
 		Error_Handler();
 	}
 #endif
@@ -851,17 +834,17 @@ static void MX_AES_Init(void)
   */
 static void MX_SDMMC1_MMC_Init(void)
 {
-	hmmc1.Instance = SDMMC1;
-	hmmc1.Init.ClockEdge = SDMMC_CLOCK_EDGE_RISING;
-	hmmc1.Init.ClockBypass = SDMMC_CLOCK_BYPASS_ENABLE;
-	hmmc1.Init.ClockPowerSave = SDMMC_CLOCK_POWER_SAVE_DISABLE;
-	hmmc1.Init.BusWide = SDMMC_BUS_WIDE_1B;
-	hmmc1.Init.HardwareFlowControl = SDMMC_HARDWARE_FLOW_CONTROL_ENABLE;
-	hmmc1.Init.ClockDiv = 0;
-	if (HAL_MMC_Init(&hmmc1) != HAL_OK) {
+	g_hmmc1.Instance = SDMMC1;
+	g_hmmc1.Init.ClockEdge = SDMMC_CLOCK_EDGE_RISING;
+	g_hmmc1.Init.ClockBypass = SDMMC_CLOCK_BYPASS_ENABLE;
+	g_hmmc1.Init.ClockPowerSave = SDMMC_CLOCK_POWER_SAVE_DISABLE;
+	g_hmmc1.Init.BusWide = SDMMC_BUS_WIDE_1B;
+	g_hmmc1.Init.HardwareFlowControl = SDMMC_HARDWARE_FLOW_CONTROL_ENABLE;
+	g_hmmc1.Init.ClockDiv = 0;
+	if (HAL_MMC_Init(&g_hmmc1) != HAL_OK) {
 		Error_Handler();
 	}
-	if (HAL_MMC_ConfigWideBusOperation(&hmmc1, SDMMC_BUS_WIDE_8B) != HAL_OK) {
+	if (HAL_MMC_ConfigWideBusOperation(&g_hmmc1, SDMMC_BUS_WIDE_8B) != HAL_OK) {
 		Error_Handler();
 	}
 }
@@ -886,17 +869,17 @@ static void MX_DMA_Init(void)
 #ifdef USE_UART
 static void MX_USART1_UART_Init(void)
 {
-	huart1.Instance = USART1;
-	huart1.Init.BaudRate = 115200;
-	huart1.Init.WordLength = UART_WORDLENGTH_8B;
-	huart1.Init.StopBits = UART_STOPBITS_1;
-	huart1.Init.Parity = UART_PARITY_NONE;
-	huart1.Init.Mode = UART_MODE_TX_RX;
-	huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-	huart1.Init.OverSampling = UART_OVERSAMPLING_16;
-	huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-	huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-	if (HAL_UART_Init(&huart1) != HAL_OK) {
+	g_huart1.Instance = USART1;
+	g_huart1.Init.BaudRate = 115200;
+	g_huart1.Init.WordLength = UART_WORDLENGTH_8B;
+	g_huart1.Init.StopBits = UART_STOPBITS_1;
+	g_huart1.Init.Parity = UART_PARITY_NONE;
+	g_huart1.Init.Mode = UART_MODE_TX_RX;
+	g_huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+	g_huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+	g_huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+	g_huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+	if (HAL_UART_Init(&g_huart1) != HAL_OK) {
 		Error_Handler();
 	}
 }

@@ -7,12 +7,18 @@
 #include "config.h"
 
 enum flash_state {
-	FLASH_IDLE,
+	FLASH_IDLE = 0,
 	FLASH_ERASING,
 	FLASH_WRITING
 };
 
-enum flash_state flash_state = FLASH_IDLE;
+static struct {
+	enum flash_state state;
+	int erase_sector;
+	u32 write_dest;
+	const u8 *write_src;
+	int write_length;
+} s_flash;
 
 __weak void flash_write_complete(u32 error)
 {
@@ -20,17 +26,12 @@ __weak void flash_write_complete(u32 error)
 
 int is_flash_idle()
 {
-	if (flash_state == FLASH_IDLE) {
+	if (s_flash.state == FLASH_IDLE) {
 		return 1;
 	} else {
 		return 0;
 	}
 }
-
-static int flash_erase_sector;
-static u32 flash_write_dest;
-static const u8 *flash_write_src;
-static int flash_write_length;
 
 u32 flash_sector_to_addr(int x)
 {
@@ -66,7 +67,7 @@ void flash_unlock()
 
 int flash_writing()
 {
-	switch (flash_state) {
+	switch (s_flash.state) {
 	case FLASH_IDLE:
 		return 0;
 	default:
@@ -117,7 +118,7 @@ enum hc_boot_mode flash_get_boot_mode()
 
 int flash_idle_ready()
 {
-	return (flash_state != FLASH_IDLE) ? 1 : 0;
+	return (s_flash.state != FLASH_IDLE) ? 1 : 0;
 }
 
 void flash_idle()
@@ -126,55 +127,55 @@ void flash_idle()
 	FLASH_EraseInitTypeDef et;
 	int status;
 
-	switch (flash_state) {
+	switch (s_flash.state) {
 	case FLASH_IDLE:
 		break;
 	case FLASH_ERASING:
 		HAL_FLASH_Unlock();
 		et.TypeErase = FLASH_TYPEERASE_SECTORS;
-		et.Sector = flash_erase_sector;
+		et.Sector = s_flash.erase_sector;
 		et.NbSectors = 1;
 		et.VoltageRange = FLASH_VOLTAGE_RANGE_3;
 		status = HAL_FLASHEx_Erase(&et, &bs);
 		assert(status == HAL_OK);
 		if (status != HAL_OK) {
-			flash_state = FLASH_IDLE;
+			s_flash.state = FLASH_IDLE;
 			END_WORK(FLASH_WORK);
 			HAL_FLASH_Lock();
 			flash_write_complete(status);
-		} else if (flash_write_length) {
-			flash_state = FLASH_WRITING;
+		} else if (s_flash.write_length) {
+			s_flash.state = FLASH_WRITING;
 		} else {
-			flash_state = FLASH_IDLE;
+			s_flash.state = FLASH_IDLE;
 			END_WORK(FLASH_WORK);
 			HAL_FLASH_Lock();
 			flash_write_complete(0);
 		}
 		break;
 	case FLASH_WRITING:
-		for (int i = 0; i < 16 && flash_write_length > 0; i++) {
+		for (int i = 0; i < 16 && s_flash.write_length > 0; i++) {
 #ifdef VCC_1_8
-			status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE, flash_write_dest, *flash_write_src);
-			flash_write_length--;
-			flash_write_src++;
-			flash_write_dest++;
+			status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE, s_flash.write_dest, *s_flash.write_src);
+			s_flash.write_length--;
+			s_flash.write_src++;
+			s_flash.write_dest++;
 #else
-			status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, flash_write_dest, *((u32 *)flash_write_src));
+			status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, s_flash.write_dest, *((u32 *)s_flash.write_src));
 			assert(status == HAL_OK);
-			flash_write_length-=4;
-			flash_write_src+=4;
-			flash_write_dest+=4;
+			s_flash.write_length-=4;
+			s_flash.write_src+=4;
+			s_flash.write_dest+=4;
 #endif
 			if (status != HAL_OK) {
-				flash_state = FLASH_IDLE;
+				s_flash.state = FLASH_IDLE;
 				END_WORK(FLASH_WORK);
 				HAL_FLASH_Lock();
 				flash_write_complete(status);
 				return;
 			}
 		}
-		if (flash_write_length == 0) {
-			flash_state = FLASH_IDLE;
+		if (s_flash.write_length == 0) {
+			s_flash.state = FLASH_IDLE;
 			END_WORK(FLASH_WORK);
 			HAL_FLASH_Lock();
 			flash_write_complete(0);
@@ -185,13 +186,13 @@ void flash_idle()
 
 int flash_write (u8 *dest, const u8 *src, int count)
 {
-	if (flash_state == FLASH_IDLE) {
-		flash_write_dest = (u32)dest;
-		flash_write_src = src;
-		flash_write_length = count;
-		assert((flash_write_length & 3) == 0);
+	if (s_flash.state == FLASH_IDLE) {
+		s_flash.write_dest = (u32)dest;
+		s_flash.write_src = src;
+		s_flash.write_length = count;
+		assert((s_flash.write_length & 3) == 0);
 		HAL_FLASH_Unlock();
-		flash_state = FLASH_WRITING;
+		s_flash.state = FLASH_WRITING;
 		BEGIN_WORK(FLASH_WORK);
 		return 1;
 	} else {
@@ -202,13 +203,13 @@ int flash_write (u8 *dest, const u8 *src, int count)
 
 void flash_write_page (u8 *dest, const u8 *src, int count)
 {
-	if (flash_state == FLASH_IDLE) {
-		flash_write_dest = (u32)dest;
-		flash_write_src = src;
-		flash_write_length = count;
-		assert((flash_write_length & 3) == 0);
-		flash_erase_sector = flash_addr_to_sector((u32)dest);
-		flash_state = FLASH_ERASING;
+	if (s_flash.state == FLASH_IDLE) {
+		s_flash.write_dest = (u32)dest;
+		s_flash.write_src = src;
+		s_flash.write_length = count;
+		assert((s_flash.write_length & 3) == 0);
+		s_flash.erase_sector = flash_addr_to_sector((u32)dest);
+		s_flash.state = FLASH_ERASING;
 		BEGIN_WORK(FLASH_WORK);
 	} else {
 		assert(0);

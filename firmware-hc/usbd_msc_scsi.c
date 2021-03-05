@@ -8,7 +8,6 @@
 #include "usbd_multi.h"
 #include "memory_layout.h"
 #include "main.h"
-extern struct bufferFIFO usbBulkBufferFIFO;
 
 static int8_t SCSI_TestUnitReady(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params);
 static int8_t SCSI_Inquiry(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params);
@@ -26,44 +25,109 @@ static int8_t SCSI_CheckAddressRange (USBD_HandleTypeDef *pdev, uint8_t lun,
 
 static int8_t SCSI_ProcessRead (USBD_HandleTypeDef *pdev, uint8_t lun);
 static int8_t SCSI_ProcessWrite (USBD_HandleTypeDef *pdev, uint8_t lun);
+extern USBD_HandleTypeDef *g_pdev;
+extern MMC_HandleTypeDef g_hmmc1;
 
-int g_num_scsi_volumes;
-int g_scsi_num_regions;
-int g_scsi_region_size_blocks;
-struct scsi_volume g_scsi_volume[MAX_SCSI_VOLUMES];
-extern USBD_HandleTypeDef  *g_pdev;
-extern MMC_HandleTypeDef hmmc1;
-static volatile int mmcStageIdx;
-static volatile int mmcReadLen;
-static u8 *mmcBufferRead;
-static const u8 *mmcBufferWrite;
-static volatile int mmcBlockAddr = -1;
-static volatile int mmcDataToTransfer;
-static volatile int mmcSubDataToTransfer;
-static volatile int mmcBlocksToTransfer;
-static volatile int mmcDataTransferred;
+//MMC buffer fifo state
+volatile static struct {
+	int StageIdx;
+	int ReadLen;
+	u8 *BufferRead;
+	const u8 *BufferWrite;
+	int BlockAddr;
+	int DataToTransfer;
+	int SubDataToTransfer;
+	int BlocksToTransfer;
+	int DataTransferred;
+} s_mmc;
+
 
 #ifdef BOOT_MODE_B
 
-static int g_cryptStageIdx;
-static int g_cryptTxLen;
-int g_cryptDataToTransfer;
-extern CRYP_HandleTypeDef hcryp;
-static u8 g_scsi_cur_aes_iv[AES_BLK_SIZE];
-static u32 g_scsi_cur_aes_sector;
-static u32 g_scsi_num_aes_sector;
-static u32 g_scsi_aes_encrypt;
-static u32 *g_scsi_aes_read;
-static u32 *g_scsi_aes_write;
-static CRYP_ConfigTypeDef g_scsi_aes_crypt_conf;
+extern CRYP_HandleTypeDef g_hcryp;
+
+//Crypt buffer fifo state
+static struct {
+	int stageIdx;
+	int txLen;
+	int dataToTransfer;
+	u8 cur_aes_iv[AES_BLK_SIZE];
+	u32 cur_aes_sector;
+	u32 num_aes_sector;
+	u32 aes_encrypt;
+	u32 *aes_read;
+	u32 *aes_write;
+	CRYP_ConfigTypeDef aes_crypt_conf;
+} s_scsi_crypt;
+
 static void set_crypt_config();
 
 #endif
 
+/* USB Mass storage Standard Inquiry Data */
+static uint8_t SCSI_InquiryData[] = {//36
+	0x00, //Device connected
+	0x80, //Removable
+	0x02, //Version
+	0x02, //SCSI-3
+	(STANDARD_INQUIRY_DATA_LEN - 5), //Remaining data
+	0x00, //
+	0x00, // No special flags
+	0x00, //
+	'N', 'T', 'H', 'D', 'I', 'M', ' ', ' ', /* Manufacturer : 8 bytes */
+	'S', 'i', 'g', 'n', 'e', 't', ' ', 'H', /* Product      : 16 Bytes */
+	'C', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+	'0', '.', '0','1',                      /* Version      : 4 Bytes */
+};
+
+static int8_t SCSI_IsWriteProtected (USBD_MSC_BOT_HandleTypeDef *hmsc, uint8_t lun)
+{
+	if (lun < hmsc->num_scsi_volumes) {
+		if (hmsc->scsi_volume[lun].writable)
+			return 0;
+		else
+			return 1;
+	} else {
+		return 1;
+	}
+}
+
+static int8_t SCSI_GetCapacity(USBD_MSC_BOT_HandleTypeDef *hmsc, uint8_t lun, uint32_t *block_num, uint16_t *block_size)
+{
+	if (lun < hmsc->num_scsi_volumes && hmsc->scsi_volume[lun].visible) {
+		*block_num = (u32)(hmsc->scsi_volume[lun].n_regions * hmsc->scsi_region_size_blocks);
+		*block_size = (uint16_t)g_hmmc1.MmcCard.BlockSize;
+		return 0;
+	} else {
+		return -1;
+	}
+}
+
+static int8_t SCSI_IsReady (USBD_MSC_BOT_HandleTypeDef *hmsc, uint8_t lun)
+{
+	if (lun < hmsc->num_scsi_volumes) {
+#ifdef BOOT_MODE_B
+		if (hmsc->scsi_volume[lun].visible)
+			return 0;
+		else
+			return 1;
+#else
+		if (hmsc->scsi_volume[lun].visible && !(hmsc->scsi_volume[lun].flags & HC_VOLUME_FLAG_ENCRYPTED)) {
+			return 0;
+		} else {
+			return 1;
+		}
+#endif
+	} else {
+		return 1;
+	}
+}
+
 void usbd_scsi_device_state_change(enum device_state state)
 {
-	for (int i = 0; i < g_num_scsi_volumes; i++) {
-		struct scsi_volume *v = g_scsi_volume + i;
+	USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*) g_pdev->pClassData[INTERFACE_MSC];
+	for (int i = 0; i < hmsc->num_scsi_volumes; i++) {
+		struct scsi_volume *v = hmsc->scsi_volume + i;
 		if (!v->flags & HC_VOLUME_FLAG_VALID) {
 			v->visible = 0;
 			v->writable = 0;
@@ -116,31 +180,33 @@ void usbd_scsi_device_state_change(enum device_state state)
 	}
 }
 
-void usbd_scsi_init()
+void usbd_scsi_init(USBD_MSC_BOT_HandleTypeDef  *hmsc)
 {
-	u32 nr_blocks  = hmmc1.MmcCard.BlockNbr - (EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ));
-	g_scsi_region_size_blocks = (STORAGE_REGION_SIZE)/hmmc1.MmcCard.BlockSize;
-	g_num_scsi_volumes = 2;
-	g_scsi_num_regions = nr_blocks / g_scsi_region_size_blocks;
+	hmsc->scsi_sense_tail = 0U;
+	hmsc->scsi_sense_head = 0U;
+	u32 nr_blocks  = g_hmmc1.MmcCard.BlockNbr - (EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ));
+	hmsc->scsi_region_size_blocks = (STORAGE_REGION_SIZE)/g_hmmc1.MmcCard.BlockSize;
+	hmsc->num_scsi_volumes = 2;
+	hmsc->scsi_num_regions = nr_blocks / hmsc->scsi_region_size_blocks;
 
-	g_scsi_volume[0].nr = 2;
-	g_scsi_volume[0].flags = HC_VOLUME_FLAG_VALID;
-	g_scsi_volume[0].region_start = 0;
-	g_scsi_volume[0].n_regions = (8192/32);
-	g_scsi_volume[0].started = 0;
-	g_scsi_volume[0].visible = 1;
-	g_scsi_volume[0].writable = 1;
+	hmsc->scsi_volume[0].nr = 2;
+	hmsc->scsi_volume[0].flags = HC_VOLUME_FLAG_VALID;
+	hmsc->scsi_volume[0].region_start = 0;
+	hmsc->scsi_volume[0].n_regions = (8192/32);
+	hmsc->scsi_volume[0].started = 0;
+	hmsc->scsi_volume[0].visible = 1;
+	hmsc->scsi_volume[0].writable = 1;
 
-	g_scsi_volume[1].nr = 2;
-	g_scsi_volume[1].flags = HC_VOLUME_FLAG_VALID |
+	hmsc->scsi_volume[1].nr = 2;
+	hmsc->scsi_volume[1].flags = HC_VOLUME_FLAG_VALID |
 		HC_VOLUME_FLAG_ENCRYPTED |
 		HC_VOLUME_FLAG_HIDDEN |
 		HC_VOLUME_FLAG_VISIBLE_ON_UNLOCK;
-	g_scsi_volume[1].region_start = g_scsi_volume[0].n_regions;
-	g_scsi_volume[1].n_regions = g_scsi_num_regions - g_scsi_volume[0].n_regions;
-	g_scsi_volume[1].started = 0;
-	g_scsi_volume[1].visible = 0;
-	g_scsi_volume[1].writable = 1;
+	hmsc->scsi_volume[1].region_start = hmsc->scsi_volume[0].n_regions;
+	hmsc->scsi_volume[1].n_regions = hmsc->scsi_num_regions - hmsc->scsi_volume[0].n_regions;
+	hmsc->scsi_volume[1].started = 0;
+	hmsc->scsi_volume[1].visible = 0;
+	hmsc->scsi_volume[1].writable = 1;
 }
 
 int8_t SCSI_ProcessCmd(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *cmd)
@@ -213,7 +279,7 @@ static int8_t SCSI_TestUnitReady(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t
 		return -1;
 	}
 
-	if(((USBD_StorageTypeDef *)pdev->pUserData)->IsReady(lun) != 0) {
+	if(SCSI_IsReady(hmsc, lun) != 0) {
 		SCSI_SenseCode(pdev, lun, NOT_READY, MEDIUM_NOT_PRESENT, 0);
 		hmsc->bot_data_length = 0U;
 		hmsc->bot_state = USBD_BOT_NO_DATA;
@@ -238,7 +304,7 @@ static int8_t  SCSI_Inquiry(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *par
 			hmsc->bot_data[len] = MSC_Page00_Inquiry_Data[len];
 		}
 	} else {
-		pPage = (uint8_t *)(void *)&((USBD_StorageTypeDef *)pdev->pUserData)->pInquiry[0 * STANDARD_INQUIRY_DATA_LEN];
+		pPage = SCSI_InquiryData + (0 * STANDARD_INQUIRY_DATA_LEN);
 		len = (uint16_t)pPage[4] + 5U;
 
 		if (params[4] <= len) {
@@ -261,7 +327,7 @@ static int8_t SCSI_ReadCapacity10(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_
 {
 	USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*) pdev->pClassData[INTERFACE_MSC];
 
-	if(((USBD_StorageTypeDef *)pdev->pUserData)->GetCapacity(lun, &hmsc->scsi_blk_nbr, &hmsc->scsi_blk_size) != 0) {
+	if (SCSI_GetCapacity(hmsc, lun, &hmsc->scsi_blk_nbr, &hmsc->scsi_blk_size) != 0) {
 		SCSI_SenseCode(pdev, lun, NOT_READY, MEDIUM_NOT_PRESENT, 0);
 		USBD_LL_StallEP(pdev, MSC_EPIN_ADDR);
 		hmsc->bot_data_length = 0U;
@@ -300,7 +366,7 @@ static int8_t SCSI_ReadFormatCapacity(USBD_HandleTypeDef  *pdev, uint8_t lun, ui
 		bot_data[i] = 0U;
 	}
 
-	if(((USBD_StorageTypeDef *)pdev->pUserData)->GetCapacity(lun, &blk_nbr, &blk_size) != 0U) {
+	if(SCSI_GetCapacity(hmsc, lun, &blk_nbr, &blk_size) != 0U) {
 		SCSI_SenseCode(pdev, lun, NOT_READY, MEDIUM_NOT_PRESENT, 0);
 		USBD_LL_StallEP(pdev, MSC_EPIN_ADDR);
 		hmsc->bot_data_length = 0U;
@@ -388,7 +454,7 @@ static int8_t SCSI_RequestSense (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t
 
 void SCSI_SenseCode(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t sKey, uint8_t ASC, uint8_t ASCQ)
 {
-	USBD_MSC_BOT_HandleTypeDef  *hmsc = (USBD_MSC_BOT_HandleTypeDef*)pdev->pClassData[INTERFACE_MSC];
+	USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*)pdev->pClassData[INTERFACE_MSC];
 
 	hmsc->scsi_sense[hmsc->scsi_sense_tail].Skey  = sKey;
 	hmsc->scsi_sense[hmsc->scsi_sense_tail].w.b.ASC = ASC;
@@ -437,7 +503,7 @@ void readProcessingComplete(struct bufferFIFO *bf, u32 errorStatus, u32 errorSta
 {
 	USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*) g_pdev->pClassData[INTERFACE_MSC];
 	if (errorStatus == HAL_OK) {
-		assert(mmcDataToTransfer == 0);
+		assert(s_mmc.DataToTransfer == 0);
 		MSC_BOT_SendCSW (g_pdev, USBD_CSW_CMD_PASSED);
 	} else {
 		//TODO: Do we really need to reset bDataResidue?
@@ -447,29 +513,28 @@ void readProcessingComplete(struct bufferFIFO *bf, u32 errorStatus, u32 errorSta
 	}
 }
 
-int g_usb_transmitting = 0;
-
 static int8_t SCSI_ProcessRead (USBD_HandleTypeDef  *pdev, uint8_t lun)
 {
-	if (g_usb_transmitting) {
-		g_usb_transmitting = 0;
+	USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*)pdev->pClassData[INTERFACE_MSC];
+	if (hmsc->usb_transmitting) {
+		hmsc->usb_transmitting = 0;
 		USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*)pdev->pClassData[INTERFACE_MSC];
 		uint32_t len = MIN(hmsc->scsi_blk_len, hmsc->writeLen);
 		hmsc->scsi_blk_addr += len;
 		hmsc->scsi_blk_len -= len;
 		hmsc->csw.dDataResidue -= len;
 		if (hmsc->scsi_blk_len == 0) {
-			bufferFIFO_stallStage(&usbBulkBufferFIFO, hmsc->stageIdx);
+			bufferFIFO_stallStage(&hmsc->usbBulkBufferFIFO, hmsc->stageIdx);
 		}
-		bufferFIFO_processingComplete(&usbBulkBufferFIFO, hmsc->stageIdx, len, 0, HAL_OK);
+		bufferFIFO_processingComplete(&hmsc->usbBulkBufferFIFO, hmsc->stageIdx, len, 0, HAL_OK);
 	}
 	return 0;
 }
 
 static void processUSBReadBuffer(struct bufferFIFO *bf, int readSize, u32 readData, const uint8_t *bufferRead, uint8_t *bufferWrite, int stageIdx)
 {
-	g_usb_transmitting = 1;
 	USBD_MSC_BOT_HandleTypeDef  *hmsc = (USBD_MSC_BOT_HandleTypeDef*) g_pdev->pClassData[INTERFACE_MSC];
+	hmsc->usb_transmitting = 1;
 	hmsc->stageIdx = stageIdx;
 	hmsc->writeBuffer = bufferWrite;
 	hmsc->writeLen = readSize;
@@ -479,14 +544,14 @@ static void processUSBReadBuffer(struct bufferFIFO *bf, int readSize, u32 readDa
 static void processMMCReadBuffer(struct bufferFIFO *bf, int readLen, u32 readData, const uint8_t *bufferRead, uint8_t *bufferWrite, int stageIdx)
 {
 	uint32_t len;
-	if (mmcDataToTransfer <= bf->maxBufferSize) {
-		len = mmcDataToTransfer;
+	if (s_mmc.DataToTransfer <= bf->maxBufferSize) {
+		len = s_mmc.DataToTransfer;
 	} else {
 		len = bf->maxBufferSize;
 	}
-	mmcBufferRead = bufferWrite;
-	mmcStageIdx = stageIdx;
-	mmcReadLen = len;
+	s_mmc.BufferRead = bufferWrite;
+	s_mmc.StageIdx = stageIdx;
+	s_mmc.ReadLen = len;
 	emmc_user_queue(EMMC_USER_STORAGE);
 }
 
@@ -494,48 +559,49 @@ static void processMMCReadBuffer(struct bufferFIFO *bf, int readLen, u32 readDat
 
 static void set_crypt_config()
 {
-	derive_iv(g_scsi_cur_aes_sector, g_scsi_cur_aes_iv);
-	g_scsi_aes_crypt_conf.DataType = CRYP_DATATYPE_32B;
-	g_scsi_aes_crypt_conf.KeySize = CRYP_KEYSIZE_128B;
-	g_scsi_aes_crypt_conf.pKey = (u32 *)g_encrypt_key;
-	g_scsi_aes_crypt_conf.pInitVect = (u32 *)g_scsi_cur_aes_iv;
-	g_scsi_aes_crypt_conf.Algorithm = CRYP_AES_CBC;
-	g_scsi_aes_crypt_conf.DataWidthUnit = CRYP_DATAWIDTHUNIT_WORD;
-	HAL_CRYP_SetConfig(&hcryp, &g_scsi_aes_crypt_conf);
+	derive_iv(s_scsi_crypt.cur_aes_sector, s_scsi_crypt.cur_aes_iv);
+	s_scsi_crypt.aes_crypt_conf.DataType = CRYP_DATATYPE_32B;
+	s_scsi_crypt.aes_crypt_conf.KeySize = CRYP_KEYSIZE_128B;
+	s_scsi_crypt.aes_crypt_conf.pKey = (u32 *)g_cmd_state.encrypt_key;
+	s_scsi_crypt.aes_crypt_conf.pInitVect = (u32 *)s_scsi_crypt.cur_aes_iv;
+	s_scsi_crypt.aes_crypt_conf.Algorithm = CRYP_AES_CBC;
+	s_scsi_crypt.aes_crypt_conf.DataWidthUnit = CRYP_DATAWIDTHUNIT_WORD;
+	HAL_CRYP_SetConfig(&g_hcryp, &s_scsi_crypt.aes_crypt_conf);
 }
 
 static void processDecryptReadBuffer(struct bufferFIFO *bf,
 		int readLen, u32 readData,
 		const uint8_t *bufferRead, uint8_t *bufferWrite, int stageIdx)
 {
-	g_cryptStageIdx = stageIdx;
-	g_cryptTxLen = readLen;
+	s_scsi_crypt.stageIdx = stageIdx;
+	s_scsi_crypt.txLen = readLen;
 	assert((readLen % 512) == 0);
-	g_scsi_num_aes_sector = readLen / 512;
-	g_scsi_aes_read = (u32 *)bufferRead;
-	g_scsi_aes_write = (u32 *)bufferWrite;
-	g_scsi_aes_encrypt = 0;
+	s_scsi_crypt.num_aes_sector = readLen / 512;
+	s_scsi_crypt.aes_read = (u32 *)bufferRead;
+	s_scsi_crypt.aes_write = (u32 *)bufferWrite;
+	s_scsi_crypt.aes_encrypt = 0;
 	set_crypt_config();
-	HAL_CRYP_Decrypt_DMA(&hcryp, g_scsi_aes_read, 512/4, g_scsi_aes_write);
+	HAL_CRYP_Decrypt_DMA(&g_hcryp, s_scsi_crypt.aes_read, 512/4, s_scsi_crypt.aes_write);
 }
 
 #endif
 
-void emmc_user_read_storage_rx_complete(MMC_HandleTypeDef *hmmc1)
+void emmc_user_read_storage_rx_complete(MMC_HandleTypeDef *hmmc)
 {
-	u32 rc = hmmc1->ErrorCode;
+	USBD_MSC_BOT_HandleTypeDef  *hmsc = (USBD_MSC_BOT_HandleTypeDef*) g_pdev->pClassData[INTERFACE_MSC];
+	u32 rc = hmmc->ErrorCode;
 	if (rc == HAL_OK) {
-		mmcDataToTransfer -= mmcReadLen;
-		mmcDataTransferred += mmcReadLen;
-		mmcBlockAddr += mmcReadLen/512;
-		mmcBlocksToTransfer -= mmcReadLen/512;
+		s_mmc.DataToTransfer -= s_mmc.ReadLen;
+		s_mmc.DataTransferred += s_mmc.ReadLen;
+		s_mmc.BlockAddr += s_mmc.ReadLen/512;
+		s_mmc.BlocksToTransfer -= s_mmc.ReadLen/512;
 
-		if (mmcDataToTransfer == 0) {
-			bufferFIFO_stallStage(&usbBulkBufferFIFO, mmcStageIdx);
+		if (s_mmc.DataToTransfer == 0) {
+			bufferFIFO_stallStage(&hmsc->usbBulkBufferFIFO, s_mmc.StageIdx);
 		}
 	}
 	emmc_user_done();
-	bufferFIFO_processingComplete(&usbBulkBufferFIFO, mmcStageIdx, mmcReadLen, 0, rc);
+	bufferFIFO_processingComplete(&hmsc->usbBulkBufferFIFO, s_mmc.StageIdx, s_mmc.ReadLen, 0, rc);
 }
 
 static int8_t SCSI_Read10(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *params)
@@ -550,7 +616,7 @@ static int8_t SCSI_Read10(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *params
 			return -1;
 		}
 
-		if(((USBD_StorageTypeDef *)pdev->pUserData)->IsReady(lun) != 0) {
+		if(SCSI_IsReady(hmsc, lun) != 0) {
 			SCSI_SenseCode(pdev, lun, NOT_READY, MEDIUM_NOT_PRESENT, 0);
 			hmsc->bot_data_length = 0U;
 			hmsc->bot_state = USBD_BOT_NO_DATA;
@@ -579,33 +645,33 @@ static int8_t SCSI_Read10(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *params
 			hmsc->bot_state = USBD_BOT_NO_DATA;
 			return -1;
 		}
-		uint32_t len = MIN(hmsc->scsi_blk_len, usbBulkBufferFIFO.maxBufferSize);
-		mmcDataToTransfer = hmsc->scsi_blk_len;
-		mmcBlocksToTransfer = blk_len;
-		mmcBlockAddr = blk_addr;
-		mmcDataTransferred = 0;
+		uint32_t len = MIN(hmsc->scsi_blk_len, hmsc->usbBulkBufferFIFO.maxBufferSize);
+		s_mmc.DataToTransfer = hmsc->scsi_blk_len;
+		s_mmc.BlocksToTransfer = blk_len;
+		s_mmc.BlockAddr = blk_addr;
+		s_mmc.DataTransferred = 0;
 #ifdef BOOT_MODE_B
-		if (g_scsi_volume[lun].flags & HC_VOLUME_FLAG_ENCRYPTED) {
-			g_cryptDataToTransfer = hmsc->scsi_blk_len;
-			g_scsi_cur_aes_sector = blk_addr;
-			usbBulkBufferFIFO.numStages = 3;
-			usbBulkBufferFIFO.processStage[0] = processMMCReadBuffer;
-			usbBulkBufferFIFO.processStage[1] = processDecryptReadBuffer;
-			usbBulkBufferFIFO.processStage[2] = processUSBReadBuffer;
-			usbBulkBufferFIFO.processingComplete = readProcessingComplete;
+		if (hmsc->scsi_volume[lun].flags & HC_VOLUME_FLAG_ENCRYPTED) {
+			s_scsi_crypt.dataToTransfer = hmsc->scsi_blk_len;
+			s_scsi_crypt.cur_aes_sector = blk_addr;
+			hmsc->usbBulkBufferFIFO.numStages = 3;
+			hmsc->usbBulkBufferFIFO.processStage[0] = processMMCReadBuffer;
+			hmsc->usbBulkBufferFIFO.processStage[1] = processDecryptReadBuffer;
+			hmsc->usbBulkBufferFIFO.processStage[2] = processUSBReadBuffer;
+			hmsc->usbBulkBufferFIFO.processingComplete = readProcessingComplete;
 		} else {
-			usbBulkBufferFIFO.numStages = 2;
-			usbBulkBufferFIFO.processStage[0] = processMMCReadBuffer;
-			usbBulkBufferFIFO.processStage[1] = processUSBReadBuffer;
-			usbBulkBufferFIFO.processingComplete = readProcessingComplete;
+			hmsc->usbBulkBufferFIFO.numStages = 2;
+			hmsc->usbBulkBufferFIFO.processStage[0] = processMMCReadBuffer;
+			hmsc->usbBulkBufferFIFO.processStage[1] = processUSBReadBuffer;
+			hmsc->usbBulkBufferFIFO.processingComplete = readProcessingComplete;
 		}
 #else
-		usbBulkBufferFIFO.numStages = 2;
-		usbBulkBufferFIFO.processStage[0] = processMMCReadBuffer;
-		usbBulkBufferFIFO.processStage[1] = processUSBReadBuffer;
-		usbBulkBufferFIFO.processingComplete = readProcessingComplete;
+		hmsc->usbBulkBufferFIFO.numStages = 2;
+		hmsc->usbBulkBufferFIFO.processStage[0] = processMMCReadBuffer;
+		hmsc->usbBulkBufferFIFO.processStage[1] = processUSBReadBuffer;
+		hmsc->usbBulkBufferFIFO.processingComplete = readProcessingComplete;
 #endif
-		bufferFIFO_start(&usbBulkBufferFIFO, len);
+		bufferFIFO_start(&hmsc->usbBulkBufferFIFO, len);
 		return 0;
 	} else {
 		return SCSI_ProcessRead(pdev, lun);
@@ -621,42 +687,42 @@ void emmc_user_storage_start()
 
 		//TODO: Need timeout and error checking here
 		do {
-			cardState = HAL_MMC_GetCardState(&hmmc1);
+			cardState = HAL_MMC_GetCardState(&g_hmmc1);
 		} while (cardState != HAL_MMC_CARD_TRANSFER);
 
-		u32 blockAddrAdj = mmcBlockAddr +
+		u32 blockAddrAdj = s_mmc.BlockAddr +
 			(EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ)) +
-			(g_scsi_volume[lun].region_start * g_scsi_region_size_blocks);
+			(hmsc->scsi_volume[lun].region_start * hmsc->scsi_region_size_blocks);
 
-		u32 rc = HAL_MMC_ReadBlocks_DMA(&hmmc1, mmcBufferRead,
+		u32 rc = HAL_MMC_ReadBlocks_DMA(&g_hmmc1, s_mmc.BufferRead,
 				blockAddrAdj,
-				mmcReadLen/512);
+				s_mmc.ReadLen/512);
 		if (rc != HAL_OK) {
-			if (!hmmc1.ErrorCode) {
-				hmmc1.ErrorCode = rc;
+			if (!g_hmmc1.ErrorCode) {
+				g_hmmc1.ErrorCode = rc;
 			}
-			emmc_user_read_storage_rx_complete(&hmmc1);
+			emmc_user_read_storage_rx_complete(&g_hmmc1);
 		}
 	} else if (hmsc->bot_state == USBD_BOT_DATA_OUT) {
 		int lun = hmsc->cbw.bLUN;
 
 		//TODO: Need timeout and error checking here
 		do {
-			cardState = HAL_MMC_GetCardState(&hmmc1);
+			cardState = HAL_MMC_GetCardState(&g_hmmc1);
 		} while (cardState != HAL_MMC_CARD_TRANSFER);
 
-		u32 blockAddrAdj = mmcBlockAddr +
+		u32 blockAddrAdj = s_mmc.BlockAddr +
 			(EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ)) +
-			(g_scsi_volume[lun].region_start * g_scsi_region_size_blocks);
+			(hmsc->scsi_volume[lun].region_start * hmsc->scsi_region_size_blocks);
 
-		u32 rc = HAL_MMC_WriteBlocks_DMA_Initial(&hmmc1, mmcBufferWrite, mmcReadLen,
+		u32 rc = HAL_MMC_WriteBlocks_DMA_Initial(&g_hmmc1, s_mmc.BufferWrite, s_mmc.ReadLen,
 				blockAddrAdj,
-				mmcReadLen/512);
+				s_mmc.ReadLen/512);
 		if (rc != HAL_OK) {
-			if (!hmmc1.ErrorCode) {
-				hmmc1.ErrorCode = rc;
+			if (!g_hmmc1.ErrorCode) {
+				g_hmmc1.ErrorCode = rc;
 			}
-			emmc_user_write_storage_tx_complete(&hmmc1);
+			emmc_user_write_storage_tx_complete(&g_hmmc1);
 		}
 	}
 }
@@ -665,7 +731,7 @@ void writeProcessingComplete(struct bufferFIFO *bf, u32 errorStatus, u32 errorSt
 {
 	USBD_MSC_BOT_HandleTypeDef  *hmsc = (USBD_MSC_BOT_HandleTypeDef*) g_pdev->pClassData[INTERFACE_MSC];
 	if (errorStatus == 0) {
-		assert(mmcDataToTransfer == 0);
+		assert(s_mmc.DataToTransfer == 0);
 		MSC_BOT_SendCSW (g_pdev, USBD_CSW_CMD_PASSED);
 	} else {
 		//TODO: Do we really need to reset bDataResidue?
@@ -692,48 +758,36 @@ void processUSBWriteBuffer(struct bufferFIFO *bf, int readSize, u32 readData, co
 
 #ifdef BOOT_MODE_B
 
-static int g_cryptOutInt = 0;
-
 void HAL_CRYP_OutCpltCallback(CRYP_HandleTypeDef *hcryp)
 {
-	g_cryptOutInt = 1;
-	BEGIN_WORK(USBD_SCSI_WORK);
+	BEGIN_WORK(USBD_SCSI_CRYPT_WORK);
 }
 
 #endif
-
-int usbd_scsi_idle_ready()
-{
-#ifdef BOOT_MODE_B
-	return g_cryptOutInt;
-#else
-	return 0;
-#endif
-}
 
 void usbd_scsi_idle()
 {
+	USBD_MSC_BOT_HandleTypeDef  *hmsc = (USBD_MSC_BOT_HandleTypeDef*) g_pdev->pClassData[INTERFACE_MSC];
 #ifdef BOOT_MODE_B
-	if (g_cryptOutInt) {
-		g_cryptOutInt = 0;
-		END_WORK(USBD_SCSI_WORK);
-		g_scsi_cur_aes_sector++;
-		g_scsi_num_aes_sector--;
-		g_scsi_aes_read += 512/4;
-		g_scsi_aes_write += 512/4;
-		if (!g_scsi_num_aes_sector) {
-			g_cryptDataToTransfer -= g_cryptTxLen;
-			if (g_cryptDataToTransfer == 0) {
-				bufferFIFO_stallStage(&usbBulkBufferFIFO, g_cryptStageIdx);
+	if (HAS_WORK(USBD_SCSI_CRYPT_WORK)) {
+		END_WORK(USBD_SCSI_CRYPT_WORK);
+		s_scsi_crypt.cur_aes_sector++;
+		s_scsi_crypt.num_aes_sector--;
+		s_scsi_crypt.aes_read += 512/4;
+		s_scsi_crypt.aes_write += 512/4;
+		if (!s_scsi_crypt.num_aes_sector) {
+			s_scsi_crypt.dataToTransfer -= s_scsi_crypt.txLen;
+			if (s_scsi_crypt.dataToTransfer == 0) {
+				bufferFIFO_stallStage(&hmsc->usbBulkBufferFIFO, s_scsi_crypt.stageIdx);
 			}
-			u32 rc = hmmc1.ErrorCode;
-			bufferFIFO_processingComplete(&usbBulkBufferFIFO, g_cryptStageIdx, g_cryptTxLen, 0, rc);
+			u32 rc = g_hmmc1.ErrorCode;
+			bufferFIFO_processingComplete(&hmsc->usbBulkBufferFIFO, s_scsi_crypt.stageIdx, s_scsi_crypt.txLen, 0, rc);
 		} else {
 			set_crypt_config();
-			if (g_scsi_aes_encrypt) {
-				HAL_CRYP_Encrypt_DMA(&hcryp, g_scsi_aes_read, 512/4, g_scsi_aes_write);
+			if (s_scsi_crypt.aes_encrypt) {
+				HAL_CRYP_Encrypt_DMA(&g_hcryp, s_scsi_crypt.aes_read, 512/4, s_scsi_crypt.aes_write);
 			} else {
-				HAL_CRYP_Decrypt_DMA(&hcryp, g_scsi_aes_read, 512/4, g_scsi_aes_write);
+				HAL_CRYP_Decrypt_DMA(&g_hcryp, s_scsi_crypt.aes_read, 512/4, s_scsi_crypt.aes_write);
 			}
 		}
 	}
@@ -743,43 +797,42 @@ void usbd_scsi_idle()
 #ifdef BOOT_MODE_B
 void processEncryptWriteBuffer(struct bufferFIFO *bf, int readLen, u32 readData, const uint8_t *bufferRead, uint8_t *bufferWrite, int stageIdx)
 {
-	g_cryptStageIdx = stageIdx;
-	g_cryptTxLen = readLen;
+	s_scsi_crypt.stageIdx = stageIdx;
+	s_scsi_crypt.txLen = readLen;
 
 	assert((readLen % 512) == 0);
-	g_scsi_num_aes_sector = readLen / 512;
-	g_scsi_aes_read = (u32 *)bufferRead;
-	g_scsi_aes_write = (u32 *)bufferWrite;
-	g_scsi_aes_encrypt = 1;
+	s_scsi_crypt.num_aes_sector = readLen / 512;
+	s_scsi_crypt.aes_read = (u32 *)bufferRead;
+	s_scsi_crypt.aes_write = (u32 *)bufferWrite;
+	s_scsi_crypt.aes_encrypt = 1;
 	set_crypt_config();
-	HAL_CRYP_Encrypt_DMA(&hcryp, g_scsi_aes_read, 512/4, g_scsi_aes_write);
+	HAL_CRYP_Encrypt_DMA(&g_hcryp, s_scsi_crypt.aes_read, 512/4, s_scsi_crypt.aes_write);
 }
 #endif
 
 void processMMCWriteBuffer(struct bufferFIFO *bf, int readLen, u32 readData, const uint8_t *bufferRead, uint8_t *bufferWrite, int stageIdx)
 {
-	mmcStageIdx = stageIdx;
-	mmcReadLen = readLen;
-	mmcBufferWrite = bufferRead;
+	s_mmc.StageIdx = stageIdx;
+	s_mmc.ReadLen = readLen;
+	s_mmc.BufferWrite = bufferRead;
 	emmc_user_queue(EMMC_USER_STORAGE);
 }
 
-int mmcShortWriteCount = 0;
-
-void emmc_user_write_storage_tx_complete(MMC_HandleTypeDef *hmmc1)
+void emmc_user_write_storage_tx_complete(MMC_HandleTypeDef *hmmc)
 {
-	u32 rc = hmmc1->ErrorCode;
+	USBD_MSC_BOT_HandleTypeDef  *hmsc = (USBD_MSC_BOT_HandleTypeDef*) g_pdev->pClassData[INTERFACE_MSC];
+	u32 rc = hmmc->ErrorCode;
 	if (rc == HAL_OK) {
-		mmcDataToTransfer -= mmcReadLen;
-		mmcDataTransferred += mmcReadLen;
-		mmcBlockAddr += mmcReadLen/512;
-		mmcBlocksToTransfer -= mmcReadLen/512;
-		if (mmcDataToTransfer == 0) {
-			bufferFIFO_stallStage(&usbBulkBufferFIFO, mmcStageIdx);
+		s_mmc.DataToTransfer -= s_mmc.ReadLen;
+		s_mmc.DataTransferred += s_mmc.ReadLen;
+		s_mmc.BlockAddr += s_mmc.ReadLen/512;
+		s_mmc.BlocksToTransfer -= s_mmc.ReadLen/512;
+		if (s_mmc.DataToTransfer == 0) {
+			bufferFIFO_stallStage(&hmsc->usbBulkBufferFIFO, s_mmc.StageIdx);
 		}
 	}
 	emmc_user_done();
-	bufferFIFO_processingComplete(&usbBulkBufferFIFO, mmcStageIdx, mmcReadLen, 0, rc);
+	bufferFIFO_processingComplete(&hmsc->usbBulkBufferFIFO, s_mmc.StageIdx, s_mmc.ReadLen, 0, rc);
 }
 
 static int8_t SCSI_Write10 (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *params)
@@ -796,7 +849,7 @@ static int8_t SCSI_Write10 (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *par
 		}
 
 		/* Check whether Media is ready */
-		if(((USBD_StorageTypeDef *)pdev->pUserData)->IsReady(lun) != 0) {
+		if(SCSI_IsReady(hmsc, lun) != 0) {
 			SCSI_SenseCode(pdev, lun, NOT_READY, MEDIUM_NOT_PRESENT, 0);
 			hmsc->bot_data_length = 0U;
 			hmsc->bot_state = USBD_BOT_NO_DATA;
@@ -804,7 +857,7 @@ static int8_t SCSI_Write10 (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *par
 		}
 
 		/* Check If media is write-protected */
-		if(((USBD_StorageTypeDef *)pdev->pUserData)->IsWriteProtected(lun) != 0) {
+		if(SCSI_IsWriteProtected(hmsc, lun) != 0) {
 			SCSI_SenseCode(pdev, lun, NOT_READY, WRITE_PROTECTED, 0);
 			hmsc->bot_data_length = 0U;
 			hmsc->bot_state = USBD_BOT_NO_DATA;
@@ -840,33 +893,33 @@ static int8_t SCSI_Write10 (USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t *par
 		hmsc->bot_state = USBD_BOT_DATA_OUT;
 
 		/* Prepare EP to receive first data packet */
-		uint32_t len = MIN(hmsc->scsi_blk_len, usbBulkBufferFIFO.maxBufferSize);
-		mmcDataToTransfer = hmsc->scsi_blk_len;
-		mmcBlocksToTransfer = blk_len;
-		mmcBlockAddr = blk_addr;
-		mmcDataTransferred = 0;
+		uint32_t len = MIN(hmsc->scsi_blk_len, hmsc->usbBulkBufferFIFO.maxBufferSize);
+		s_mmc.DataToTransfer = hmsc->scsi_blk_len;
+		s_mmc.BlocksToTransfer = blk_len;
+		s_mmc.BlockAddr = blk_addr;
+		s_mmc.DataTransferred = 0;
 #ifdef BOOT_MODE_B
-		if (g_scsi_volume[lun].flags & HC_VOLUME_FLAG_ENCRYPTED) {
-			g_cryptDataToTransfer = hmsc->scsi_blk_len;
-			g_scsi_cur_aes_sector = blk_addr;
-			usbBulkBufferFIFO.numStages = 3;
-			usbBulkBufferFIFO.processStage[0] = processUSBWriteBuffer;
-			usbBulkBufferFIFO.processStage[1] = processEncryptWriteBuffer;
-			usbBulkBufferFIFO.processStage[2] = processMMCWriteBuffer;
-			usbBulkBufferFIFO.processingComplete = writeProcessingComplete;
+		if (hmsc->scsi_volume[lun].flags & HC_VOLUME_FLAG_ENCRYPTED) {
+			s_scsi_crypt.dataToTransfer = hmsc->scsi_blk_len;
+			s_scsi_crypt.cur_aes_sector = blk_addr;
+			hmsc->usbBulkBufferFIFO.numStages = 3;
+			hmsc->usbBulkBufferFIFO.processStage[0] = processUSBWriteBuffer;
+			hmsc->usbBulkBufferFIFO.processStage[1] = processEncryptWriteBuffer;
+			hmsc->usbBulkBufferFIFO.processStage[2] = processMMCWriteBuffer;
+			hmsc->usbBulkBufferFIFO.processingComplete = writeProcessingComplete;
 		} else {
-			usbBulkBufferFIFO.numStages = 2;
-			usbBulkBufferFIFO.processStage[0] = processUSBWriteBuffer;
-			usbBulkBufferFIFO.processStage[1] = processMMCWriteBuffer;
-			usbBulkBufferFIFO.processingComplete = writeProcessingComplete;
+			hmsc->usbBulkBufferFIFO.numStages = 2;
+			hmsc->usbBulkBufferFIFO.processStage[0] = processUSBWriteBuffer;
+			hmsc->usbBulkBufferFIFO.processStage[1] = processMMCWriteBuffer;
+			hmsc->usbBulkBufferFIFO.processingComplete = writeProcessingComplete;
 		}
 #else
-		usbBulkBufferFIFO.numStages = 2;
-		usbBulkBufferFIFO.processStage[0] = processUSBWriteBuffer;
-		usbBulkBufferFIFO.processStage[1] = processMMCWriteBuffer;
-		usbBulkBufferFIFO.processingComplete = writeProcessingComplete;
+		hmsc->usbBulkBufferFIFO.numStages = 2;
+		hmsc->usbBulkBufferFIFO.processStage[0] = processUSBWriteBuffer;
+		hmsc->usbBulkBufferFIFO.processStage[1] = processMMCWriteBuffer;
+		hmsc->usbBulkBufferFIFO.processingComplete = writeProcessingComplete;
 #endif
-		bufferFIFO_start(&usbBulkBufferFIFO, len);
+		bufferFIFO_start(&hmsc->usbBulkBufferFIFO, len);
 	} else { /* Write Process ongoing */
 		return SCSI_ProcessWrite(pdev, lun);
 	}
@@ -935,8 +988,8 @@ static int8_t SCSI_ProcessWrite (USBD_HandleTypeDef  *pdev, uint8_t lun)
 	hmsc->scsi_blk_len -= len;
 	hmsc->csw.dDataResidue -= len;
 	if (hmsc->scsi_blk_len == 0) {
-		bufferFIFO_stallStage(&usbBulkBufferFIFO, hmsc->stageIdx);
+		bufferFIFO_stallStage(&hmsc->usbBulkBufferFIFO, hmsc->stageIdx);
 	}
-	bufferFIFO_processingComplete(&usbBulkBufferFIFO, hmsc->stageIdx, len, 0, HAL_OK);
+	bufferFIFO_processingComplete(&hmsc->usbBulkBufferFIFO, hmsc->stageIdx, len, 0, HAL_OK);
 	return 0;
 }

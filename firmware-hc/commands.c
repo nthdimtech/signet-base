@@ -33,24 +33,13 @@
 //
 
 //Command code of the currently executing command or -1 if no command is executing
-int active_cmd = -1;
-static int cmd_iter_count = 0;
-static int cmd_messages_remaining = 0;
-static int g_write_db_tx_complete = 0;
-static int g_read_db_tx_complete = 0;
-static u32 g_db_transfer_error = 0;
+
 static int g_uninitialized_wiped = 0;
-static int g_mmc_tx_cplt = 0;
-static int g_mmc_tx_dma_cplt = 0;
-static int g_mmc_rx_cplt = 0;
 
 #if ENABLE_MMC_STANDBY
 volatile int g_emmc_idle_ms = -1;
 #endif
 
-static enum root_block_sync_state g_root_block_sync_state = ROOT_BLOCK_SYNCED;
-
-enum device_state g_device_state = DS_DISCONNECTED;
 
 static enum command_subsystem s_device_system_owner = NO_SUBSYSTEM;
 static int s_ctap_subsystem_waiting = 0;
@@ -58,50 +47,36 @@ static int s_signet_subsystem_waiting = 0;
 static int s_subsystem_release_requested = 1;
 
 // Incoming buffer for next command request
-u8 cmd_packet_buf[CMD_PACKET_BUF_SIZE] __attribute__((aligned(16)));
+u8 g_cmd_packet_buf[CMD_PACKET_BUF_SIZE] __attribute__((aligned(16)));
+
+struct cmd_state g_cmd_state;
 
 //Paramaters and temporary state for the command currently being
 //executed
-union cmd_data_u cmd_data;
+union cmd_data_u g_cmd_data;
 
-u8 g_encrypt_key[AES_256_KEY_SIZE] __attribute__((aligned(16)));
+struct hc_device_data g_root_page;
 
-u8 token_auth_rand_cyphertext[AES_256_KEY_SIZE];
-u8 token_encrypt_key_cyphertext[AES_256_KEY_SIZE];
-
-u8 g_root_block_version;
-u8 g_db_version;
-
-static union state_data_u state_data;
+extern struct cmd_state g_cmd_state __attribute__((aligned(16)));
 
 static void long_button_press_disconnected();
 static void button_press_disconnected();
 static void button_release_disconnected();
 
-int g_root_page_valid = 0;
-struct hc_device_data root_page;
 
 extern struct hc_device_data _crypt_data1;
 extern struct hc_device_data _crypt_data2;
 
 struct hc_device_data *_root_page = NULL;
 
-static int n_progress_components = 0;
-int g_progress_level[8];
-static int progress_maximum[8];
-static int g_progress_check = 0;
-static int g_progress_target_state = DS_DISCONNECTED;
-static int waiting_for_button_press = 0;
-static int waiting_for_long_button_press = 0;
-
 //
 // Read/write database blocks
 //
-extern MMC_HandleTypeDef hmmc1;
+extern MMC_HandleTypeDef g_hmmc1;
 
 volatile enum emmc_user g_emmc_user = EMMC_USER_NONE;
 
-int g_emmc_user_ready[EMMC_NUM_USER];
+int s_emmc_user_ready[EMMC_NUM_USER];
 
 enum db_action {
 	DB_ACTION_NONE,
@@ -109,13 +84,13 @@ enum db_action {
 	DB_ACTION_WRITE
 };
 
-static enum db_action g_db_action = DB_ACTION_NONE;
-
-static int g_db_read_idx;
-static u8 *g_db_read_dest;
-
-static int g_db_write_idx;
-static const u8 *g_db_write_src;
+static struct {
+	enum db_action action;
+	int read_idx;
+	u8 *read_dest;
+	int write_idx;
+	const u8 *write_src;
+} s_db_action;
 
 #include "usbd_msc_scsi.h"
 #include "usbd_msc.h"
@@ -132,11 +107,9 @@ u32 compute_device_data_crc(struct hc_device_data *d);
 
 static void release_device(enum command_subsystem system);
 
-extern MMC_HandleTypeDef hmmc1;
-
 static void subsystem_idle_check()
 {
-	if (active_cmd == -1 && n_progress_components == 0) {
+	if (g_cmd_state.active_cmd == -1 && g_cmd_state.n_progress_components == 0) {
 		release_device_request(SIGNET_SUBSYSTEM);
 	}
 }
@@ -149,14 +122,14 @@ void emmc_user_db_start()
 {
 	HAL_StatusTypeDef rc;
 	HAL_MMC_CardStateTypeDef cardState;
-	switch (g_db_action) {
+	switch (s_db_action.action) {
 	case DB_ACTION_READ: {
-		int idx = g_db_read_idx;
-		u8 *dest = g_db_read_dest;
+		int idx = s_db_action.read_idx;
+		u8 *dest = s_db_action.read_dest;
 		do {
-			cardState = HAL_MMC_GetCardState(&hmmc1);
+			cardState = HAL_MMC_GetCardState(&g_hmmc1);
 		} while (cardState != HAL_MMC_CARD_TRANSFER);
-		rc = HAL_MMC_ReadBlocks_DMA(&hmmc1,
+		rc = HAL_MMC_ReadBlocks_DMA(&g_hmmc1,
 		                       dest,
 				       (idx - MIN_DATA_BLOCK + EMMC_DB_FIRST_BLOCK)*(HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ),
 		                       BLK_SIZE/MSC_MEDIA_PACKET);
@@ -166,13 +139,13 @@ void emmc_user_db_start()
 	}
 	break;
 	case DB_ACTION_WRITE: {
-		int idx = g_db_write_idx;
-		const u8 *src = g_db_write_src;
+		int idx = s_db_action.write_idx;
+		const u8 *src = s_db_action.write_src;
 		do {
-			cardState = HAL_MMC_GetCardState(&hmmc1);
+			cardState = HAL_MMC_GetCardState(&g_hmmc1);
 		} while (cardState != HAL_MMC_CARD_TRANSFER);
 		
-		rc = HAL_MMC_WriteBlocks_DMA_Initial(&hmmc1,
+		rc = HAL_MMC_WriteBlocks_DMA_Initial(&g_hmmc1,
 		                                src,
 		                                BLK_SIZE,
 						(idx - MIN_DATA_BLOCK + EMMC_DB_FIRST_BLOCK)*(HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ),
@@ -187,61 +160,47 @@ void emmc_user_db_start()
 	}
 }
 
-int command_idle_ready()
-{
-	return g_read_db_tx_complete | g_write_db_tx_complete | g_mmc_tx_cplt | g_mmc_rx_cplt;
-}
-
-volatile int g_write_test_tx_complete = 0;
-volatile int g_read_test_tx_complete = 0;
-
 void command_idle()
 {
-	if (g_read_db_tx_complete) {
-		g_read_db_tx_complete = 0;
+	if (HAS_WORK(READ_DB_TX_CPLT_WORK)) {
+		u32 rc = g_hmmc1.ErrorCode;
 		END_WORK(READ_DB_TX_CPLT_WORK);
 		emmc_user_done();
-		//TODO: handle errors
-		read_block_complete(0);
+		read_block_complete(rc);
 	}
-	if (g_write_db_tx_complete) {
-		g_write_db_tx_complete = 0;
+	if (HAS_WORK(WRITE_DB_TX_WORK)) {
+		u32 rc = g_hmmc1.ErrorCode;
 		END_WORK(WRITE_DB_TX_WORK);
 		emmc_user_done();
-		//TODO: handle errors
-		write_block_complete(0);
+		write_block_complete(rc);
 	}
-	if (g_mmc_tx_cplt) {
-		g_mmc_tx_cplt = 0;
+	if (HAS_WORK(MMC_TX_CPLT_WORK)) {
 		END_WORK(MMC_TX_CPLT_WORK);
 		switch (g_emmc_user) {
 		case EMMC_USER_STORAGE:
-			emmc_user_write_storage_tx_complete(&hmmc1);
+			emmc_user_write_storage_tx_complete(&g_hmmc1);
 			break;
 		case EMMC_USER_DB:
-			g_write_db_tx_complete = 1;
 			BEGIN_WORK(WRITE_DB_TX_WORK);
 			break;
 		case EMMC_USER_TEST:
-			g_write_test_tx_complete = 1;
+			BEGIN_WORK(WRITE_TEST_TX_WORK);
 			break;
 		default:
 			assert(0);
 		}
 	}
-	if (g_mmc_rx_cplt) {
-		g_mmc_rx_cplt = 0;
+	if (HAS_WORK(MMC_RX_CPLT_WORK)) {
 		END_WORK(MMC_RX_CPLT_WORK);
 		switch (g_emmc_user) {
 		case EMMC_USER_STORAGE:
-			emmc_user_read_storage_rx_complete(&hmmc1);
+			emmc_user_read_storage_rx_complete(&g_hmmc1);
 			break;
 		case EMMC_USER_DB:
-			g_read_db_tx_complete = 1;
 			BEGIN_WORK(READ_DB_TX_CPLT_WORK);
 			break;
 		case EMMC_USER_TEST:
-			g_read_test_tx_complete = 1;
+			BEGIN_WORK(READ_TEST_TX_WORK);
 			break;
 		default:
 			assert(0);
@@ -252,12 +211,12 @@ void command_idle()
 #if ENABLE_MMC_STANDBY
 static void emmc_user_standby_start()
 {
-	SDMMC_CmdSelDesel(hmmc1.Instance, (uint32_t)(((uint32_t)hmmc1.MmcCard.RelCardAdd) << 16));
+	SDMMC_CmdSelDesel(g_hmmc1.Instance, (uint32_t)(((uint32_t)g_hmmc1.MmcCard.RelCardAdd) << 16));
 }
 
 static void emmc_user_standby_end()
 {
-	SDMMC_CmdSelDesel(hmmc1.Instance, (uint32_t)(((uint32_t)hmmc1.MmcCard.RelCardAdd) << 16));
+	SDMMC_CmdSelDesel(g_hmmc1.Instance, (uint32_t)(((uint32_t)g_hmmc1.MmcCard.RelCardAdd) << 16));
 }
 #endif
 
@@ -275,22 +234,22 @@ static void emmc_user_schedule()
 		g_emmc_idle_ms = HAL_GetTick();
 		BEGIN_WORK(MMC_IDLE_WORK);
 #endif
-		if (g_emmc_user_ready[EMMC_USER_DB]) {
+		if (s_emmc_user_ready[EMMC_USER_DB]) {
 			g_emmc_user = EMMC_USER_DB;
-			g_emmc_user_ready[g_emmc_user] = 0;
+			s_emmc_user_ready[g_emmc_user] = 0;
 			emmc_user_db_start();
-		} else if (g_emmc_user_ready[EMMC_USER_STORAGE]) {
+		} else if (s_emmc_user_ready[EMMC_USER_STORAGE]) {
 			g_emmc_user = EMMC_USER_STORAGE;
-			g_emmc_user_ready[g_emmc_user] = 0;
+			s_emmc_user_ready[g_emmc_user] = 0;
 			emmc_user_storage_start();
-		} else if (g_emmc_user_ready[EMMC_USER_TEST]) {
+		} else if (s_emmc_user_ready[EMMC_USER_TEST]) {
 			g_emmc_user = EMMC_USER_TEST;
-			g_emmc_user_ready[g_emmc_user] = 0;
+			s_emmc_user_ready[g_emmc_user] = 0;
 		}
 #if ENABLE_MMC_STANDBY
-		else if (g_emmc_user_ready[EMMC_USER_STANDBY]) {
+		else if (s_emmc_user_ready[EMMC_USER_STANDBY]) {
 			g_emmc_user = EMMC_USER_STANDBY;
-			g_emmc_user_ready[EMMC_USER_STANDBY] = 0;
+			s_emmc_user_ready[EMMC_USER_STANDBY] = 0;
 			emmc_user_standby_start();
 		}
 #endif
@@ -305,8 +264,8 @@ void emmc_user_done()
 
 void emmc_user_queue(enum emmc_user user)
 {
-	assert(!g_emmc_user_ready[user]);
-	g_emmc_user_ready[user] = 1;
+	assert(!s_emmc_user_ready[user]);
+	s_emmc_user_ready[user] = 1;
 	emmc_user_schedule();
 }
 
@@ -316,9 +275,9 @@ void read_data_block (int idx, u8 *dest)
 		memcpy(dest, (u8 *)_root_page, BLK_SIZE);
 		read_block_complete(0);
 	} else {
-		g_db_action = DB_ACTION_READ;
-		g_db_read_idx = idx;
-		g_db_read_dest = dest;
+		s_db_action.action = DB_ACTION_READ;
+		s_db_action.read_idx = idx;
+		s_db_action.read_dest = dest;
 		emmc_user_queue(EMMC_USER_DB);
 	}
 }
@@ -331,16 +290,15 @@ void write_data_block (int idx, const u8 *src)
 	if (idx == ROOT_DATA_BLOCK) {
 		write_root_block(src, BLK_SIZE);
 	} else {
-		g_db_action = DB_ACTION_WRITE;
-		g_db_write_idx = idx;
-		g_db_write_src = src;
+		s_db_action.action = DB_ACTION_WRITE;
+		s_db_action.write_idx = idx;
+		s_db_action.write_src = src;
 		emmc_user_queue(EMMC_USER_DB);
 	}
 }
 
-void HAL_MMC_RxCpltCallback(MMC_HandleTypeDef *hmmc1)
+void HAL_MMC_RxCpltCallback(MMC_HandleTypeDef *g_hmmc1)
 {
-	g_mmc_rx_cplt = 1;
 	BEGIN_WORK(MMC_RX_CPLT_WORK);
 }
 
@@ -352,19 +310,15 @@ void HAL_MMC_Failed(MMC_HandleTypeDef *hmmc)
 	switch (g_emmc_user) {
 	case EMMC_USER_STORAGE:
 		if (hmsc->bot_state == USBD_BOT_DATA_OUT) {
-			g_mmc_tx_cplt = 1;
 			BEGIN_WORK(MMC_TX_CPLT_WORK);
 		} else if (hmsc->bot_state == USBD_BOT_DATA_IN) {
-			g_mmc_rx_cplt = 1;
 			BEGIN_WORK(MMC_RX_CPLT_WORK);
 		}
 		break;
 	case EMMC_USER_DB:
-		if (g_db_action == DB_ACTION_READ) {
-			g_mmc_rx_cplt = 1;
+		if (s_db_action.action == DB_ACTION_READ) {
 			BEGIN_WORK(MMC_RX_CPLT_WORK);
-		} else if (g_db_action == DB_ACTION_WRITE) {
-			g_mmc_tx_cplt = 1;
+		} else if (s_db_action.action == DB_ACTION_WRITE) {
 			BEGIN_WORK(MMC_TX_CPLT_WORK);
 		}	
 		break;
@@ -384,9 +338,8 @@ void HAL_MMC_AbortCallback(MMC_HandleTypeDef *hmmc)
 	HAL_MMC_Failed(hmmc);
 }
 
-void HAL_MMC_TxCpltCallback(MMC_HandleTypeDef *hmmc1)
+void HAL_MMC_TxCpltCallback(MMC_HandleTypeDef *hmmc)
 {
-	g_mmc_tx_cplt = 1;
 	BEGIN_WORK(MMC_TX_CPLT_WORK);
 }
 
@@ -396,36 +349,36 @@ void HAL_MMC_TxCpltCallback(MMC_HandleTypeDef *hmmc1)
 
 void sync_root_block()
 {
-	g_root_block_sync_state = ROOT_BLOCK_MODIFIED;
+	g_cmd_state.root_block_sync_state = ROOT_BLOCK_MODIFIED;
 	BEGIN_WORK(SYNC_ROOT_BLOCK_WORK);
 }
 
 int sync_root_block_pending()
 {
-	return (g_root_block_sync_state != ROOT_BLOCK_SYNCED) ? 1 : 0;
+	return (g_cmd_state.root_block_sync_state != ROOT_BLOCK_SYNCED) ? 1 : 0;
 }
 
 int sync_root_block_writing()
 {
-	return (g_root_block_sync_state == ROOT_BLOCK_WRITING) ? 1 : 0;
+	return (g_cmd_state.root_block_sync_state == ROOT_BLOCK_WRITING) ? 1 : 0;
 }
 
 int sync_root_block_error()
 {
-	return (g_root_block_sync_state == ROOT_BLOCK_SYNC_FAILED) ? 1 : 0;
+	return (g_cmd_state.root_block_sync_state == ROOT_BLOCK_SYNC_FAILED) ? 1 : 0;
 }
 
 void sync_root_block_immediate()
 {
-	g_root_block_sync_state = ROOT_BLOCK_WRITING;
-	write_root_block((const u8 *)&root_page, sizeof(root_page));
+	g_cmd_state.root_block_sync_state = ROOT_BLOCK_WRITING;
+	write_root_block((const u8 *)&g_root_page, sizeof(g_root_page));
 }
 
 void write_root_block(const u8 *data, int sz)
 {
 	struct hc_device_data *d = (struct hc_device_data *)data;
 
-	if (g_root_page_valid) {
+	if (g_cmd_state.root_page_valid) {
 		d->data_iteration = _root_page->data_iteration + 1;
 	} else {
 		d->data_iteration = 0;
@@ -446,19 +399,38 @@ void delete_cmd_complete();
 void get_data_cmd_complete();
 void set_data_cmd_complete();
 void initialize_cmd_complete();
+
 void enter_progressing_state (enum device_state state, int _n_progress_components, int *_progress_maximum)
 {
-	g_device_state = state;
-	usbd_scsi_device_state_change(g_device_state);
-	g_progress_check = 0;
-	n_progress_components = _n_progress_components;
+	g_cmd_state.device_state = state;
+	usbd_scsi_device_state_change(g_cmd_state.device_state);
+	g_cmd_state.progress_check = 0;
+	g_cmd_state.n_progress_components = _n_progress_components;
 	int i;
-	for (i = 0; i < n_progress_components; i++) {
-		g_progress_level[i] = 0;
-		progress_maximum[i] = _progress_maximum[i];
+	for (i = 0; i < g_cmd_state.n_progress_components; i++) {
+		g_cmd_state.progress_level[i] = 0;
+		g_cmd_state.progress_maximum[i] = _progress_maximum[i];
 	}
 	get_progress_check();
 	subsystem_idle_check();
+}
+
+int get_state_max_progress(enum device_state state, int idx)
+{
+	if (g_cmd_state.device_state == state) {
+		return g_cmd_state.progress_maximum[idx];
+	} else {
+		return -1;
+	}
+}
+
+void update_state_progress(enum device_state state, int idx, int level, int maximum)
+{
+	if (g_cmd_state.device_state == state) {
+		g_cmd_state.progress_level[idx] = level;
+		g_cmd_state.progress_maximum[idx] = maximum;
+		get_progress_check();
+	}
 }
 
 void enter_state (enum device_state state)
@@ -468,25 +440,25 @@ void enter_state (enum device_state state)
 
 void begin_button_press_wait()
 {
-	waiting_for_button_press = 1;
+	g_cmd_state.waiting_for_button_press = 1;
 	start_blinking(500, 10000);
 }
 
 void begin_long_button_press_wait()
 {
-	waiting_for_long_button_press = 1;
+	g_cmd_state.waiting_for_long_button_press = 1;
 	start_blinking(1000, 10000);
 }
 
 void end_button_press_wait()
 {
-	waiting_for_button_press = 0;
+	g_cmd_state.waiting_for_button_press = 0;
 	stop_blinking();
 }
 
 void end_long_button_press_wait()
 {
-	waiting_for_long_button_press = 0;
+	g_cmd_state.waiting_for_long_button_press = 0;
 	stop_blinking();
 }
 
@@ -494,28 +466,28 @@ int get_total_progress()
 {
 	int total = 0;
 	int i;
-	for (i = 0; i < n_progress_components; i++) {
-		total += g_progress_level[i];
+	for (i = 0; i < g_cmd_state.n_progress_components; i++) {
+		total += g_cmd_state.progress_level[i];
 	}
-	return total;;
+	return total;
 }
 
 int get_total_progress_maximum()
 {
 	int total = 0;
 	int i;
-	for (i = 0; i < n_progress_components; i++) {
-		total += progress_maximum[i];
+	for (i = 0; i < g_cmd_state.n_progress_components; i++) {
+		total += g_cmd_state.progress_maximum[i];
 	}
 	return total;
 }
 
 void get_progress_check ()
 {
-	if (active_cmd == GET_PROGRESS) {
+	if (g_cmd_state.active_cmd == GET_PROGRESS) {
 		int total_progress = get_total_progress();
 		int total_progress_maximum = get_total_progress_maximum();
-		if (g_progress_target_state == g_device_state && total_progress > g_progress_check) {
+		if (g_cmd_state.progress_target_state == g_cmd_state.device_state && total_progress > g_cmd_state.progress_check) {
 			u8 resp[4*(8+1)] = {
 				total_progress & 0xff,
 				total_progress >> 8,
@@ -523,38 +495,38 @@ void get_progress_check ()
 				               total_progress_maximum >> 8,
 			};
 			int i;
-			for (i = 0; i < n_progress_components; i++) {
+			for (i = 0; i < g_cmd_state.n_progress_components; i++) {
 				int j = i + 1;
-				resp[j * 4] = g_progress_level[i] & 0xff;
-				resp[j * 4 + 1] = g_progress_level[i] >> 8;
-				resp[j * 4 + 2] = progress_maximum[i] & 0xff;
-				resp[j * 4 + 3] = progress_maximum[i] >> 8;
+				resp[j * 4] = g_cmd_state.progress_level[i] & 0xff;
+				resp[j * 4 + 1] = g_cmd_state.progress_level[i] >> 8;
+				resp[j * 4 + 2] = g_cmd_state.progress_maximum[i] & 0xff;
+				resp[j * 4 + 3] = g_cmd_state.progress_maximum[i] >> 8;
 			}
-			finish_command(OKAY, resp, (n_progress_components + 1) * 4);
-		} else if (g_progress_target_state != g_device_state) {
+			finish_command(OKAY, resp, (g_cmd_state.n_progress_components + 1) * 4);
+		} else if (g_cmd_state.progress_target_state != g_cmd_state.device_state) {
 			finish_command_resp(INVALID_STATE);
 		}
 	}
 }
 
-u8 cmd_resp[CMD_PACKET_BUF_SIZE] __attribute__((aligned(16)));
+static u8 s_cmd_resp[CMD_PACKET_BUF_SIZE] __attribute__((aligned(16)));
 
 void finish_command_multi (enum command_responses resp, int messages_remaining, const u8 *payload, int payload_len)
 {
 	int full_length = payload_len + CMD_PACKET_HEADER_SIZE;
-	cmd_resp[0] = full_length & 0xff;
-	cmd_resp[1] = (full_length >> 8) & 0xff;
-	cmd_resp[2] = resp;
-	cmd_resp[3] = messages_remaining & 0xff;
-	cmd_resp[4] = (messages_remaining >> 8) & 0xff;
-	cmd_resp[5] = g_device_state;
+	s_cmd_resp[0] = full_length & 0xff;
+	s_cmd_resp[1] = (full_length >> 8) & 0xff;
+	s_cmd_resp[2] = resp;
+	s_cmd_resp[3] = messages_remaining & 0xff;
+	s_cmd_resp[4] = (messages_remaining >> 8) & 0xff;
+	s_cmd_resp[5] = g_cmd_state.device_state;
 	if (payload) {
-		memcpy(cmd_resp + CMD_PACKET_HEADER_SIZE, payload, payload_len);
+		memcpy(s_cmd_resp + CMD_PACKET_HEADER_SIZE, payload, payload_len);
 	}
-	if (!messages_remaining && !cmd_messages_remaining) {
-		active_cmd = -1;
+	if (!messages_remaining && !g_cmd_state.cmd_messages_remaining) {
+		g_cmd_state.active_cmd = -1;
 	}
-	cmd_packet_send(cmd_resp, full_length);
+	cmd_packet_send(s_cmd_resp, full_length);
 	subsystem_idle_check();
 }
 
@@ -571,15 +543,15 @@ void finish_command_resp (enum command_responses resp)
 void derive_iv(u32 id, u8 *iv)
 {
 	memset(iv, 0, AES_BLK_SIZE);
-	switch (root_page.format) {
+	switch (g_root_page.format) {
 	case ROOT_BLOCK_FORMAT_CURRENT:
-		memcpy(iv, root_page.device_id, (DEVICE_ID_LEN > AES_BLK_SIZE) ? AES_BLK_SIZE : DEVICE_ID_LEN);
+		memcpy(iv, g_root_page.device_id, (DEVICE_ID_LEN > AES_BLK_SIZE) ? AES_BLK_SIZE : DEVICE_ID_LEN);
 		break;
 	default:
 		assert(0);
 		break;
 	}
-	switch (root_page.db_format) {
+	switch (g_root_page.db_format) {
 	case DB_FORMAT_CURRENT:
 		((u32 *)(iv + AES_BLK_SIZE - 4))[0] += (u32)(id);
 		break;
@@ -596,18 +568,18 @@ void derive_iv(u32 id, u8 *iv)
 static void finalize_root_page_check()
 {
 	__disable_irq();
-	if (cmd_data.init_data.root_block_finalized) {
+	if (g_cmd_data.init_data.root_block_finalized) {
 		__enable_irq();
 		return;
 	}
 
-	if (!cmd_data.init_data.signet_data_updated && rand_avail() >= cmd_data.init_data.signet_random_data_needed) {
+	if (!g_cmd_data.init_data.signet_data_updated && rand_avail() >= g_cmd_data.init_data.signet_random_data_needed) {
 		for (int i = 0; i < (INIT_RAND_DATA_SZ/4); i++) {
-			((u32 *)cmd_data.init_data.rand)[i] ^= rand_get();
+			((u32 *)g_cmd_data.init_data.rand)[i] ^= rand_get();
 		}
-		root_page.format = ROOT_BLOCK_FORMAT_CURRENT;
-		root_page.db_format = DB_FORMAT_CURRENT;
-		u8 *random = cmd_data.init_data.rand;
+		g_root_page.format = ROOT_BLOCK_FORMAT_CURRENT;
+		g_root_page.db_format = DB_FORMAT_CURRENT;
+		u8 *random = g_cmd_data.init_data.rand;
 
 		u8 *device_id = random;
 		random += DEVICE_ID_LEN;
@@ -616,44 +588,44 @@ static void finalize_root_page_check()
 		u8 *keystore_key = random;
 		random += AES_256_KEY_SIZE;
 
-		memcpy(root_page.device_id, device_id, DEVICE_ID_LEN);
-		memcpy(root_page.auth_random_cleartext, auth_rand_data, AUTH_RANDOM_DATA_LEN);
-		signet_aes_256_encrypt_cbc(cmd_data.init_data.passwd, AUTH_RANDOM_DATA_LEN/AES_BLK_SIZE, NULL,
-					   auth_rand_data, root_page.profile_auth_data[0].auth_random_cyphertext);
-		signet_aes_256_encrypt_cbc(cmd_data.init_data.passwd, HC_KEYSTORE_KEY_SIZE/AES_BLK_SIZE, NULL,
-					   keystore_key, root_page.profile_auth_data[0].keystore_key_cyphertext);
-		memcpy(root_page.profile_auth_data[0].salt, cmd_data.init_data.salt, HC_HASH_FN_SALT_SZ);
-		memcpy(root_page.profile_auth_data[0].hash_function_params, cmd_data.init_data.hashfn, HC_HASH_FUNCTION_PARAMS_LENGTH);
-		cmd_data.init_data.signet_data_updated = 1;
+		memcpy(g_root_page.device_id, device_id, DEVICE_ID_LEN);
+		memcpy(g_root_page.auth_random_cleartext, auth_rand_data, AUTH_RANDOM_DATA_LEN);
+		signet_aes_256_encrypt_cbc(g_cmd_data.init_data.passwd, AUTH_RANDOM_DATA_LEN/AES_BLK_SIZE, NULL,
+					   auth_rand_data, g_root_page.profile_auth_data[0].auth_random_cyphertext);
+		signet_aes_256_encrypt_cbc(g_cmd_data.init_data.passwd, HC_KEYSTORE_KEY_SIZE/AES_BLK_SIZE, NULL,
+					   keystore_key, g_root_page.profile_auth_data[0].keystore_key_cyphertext);
+		memcpy(g_root_page.profile_auth_data[0].salt, g_cmd_data.init_data.salt, HC_HASH_FN_SALT_SZ);
+		memcpy(g_root_page.profile_auth_data[0].hash_function_params, g_cmd_data.init_data.hashfn, HC_HASH_FUNCTION_PARAMS_LENGTH);
+		g_cmd_data.init_data.signet_data_updated = 1;
 	}
 
-	if (cmd_data.init_data.signet_data_updated && !cmd_data.init_data.ctap_data_updated &&
-			(cmd_data.init_data.ctap_random_data_needed == 0 || rand_avail() >= cmd_data.init_data.ctap_random_data_needed)) {
-		if (!g_root_page_valid || g_device_state != DS_UNINITIALIZED) {
-			if (cmd_data.init_data.ctap_random_data_needed == 0) {
+	if (g_cmd_data.init_data.signet_data_updated && !g_cmd_data.init_data.ctap_data_updated &&
+			(g_cmd_data.init_data.ctap_random_data_needed == 0 || rand_avail() >= g_cmd_data.init_data.ctap_random_data_needed)) {
+		if (!g_cmd_state.root_page_valid || g_cmd_state.device_state != DS_UNINITIALIZED) {
+			if (g_cmd_data.init_data.ctap_random_data_needed == 0) {
 				crypto_random_init();
 				rand_set_rewind_point();
 				if (ctap_reset()) {
 					rand_clear_rewind_point();
-					cmd_data.init_data.ctap_data_updated = 1;
+					g_cmd_data.init_data.ctap_data_updated = 1;
 				} else {
 					rand_rewind();
-					cmd_data.init_data.rand_avail_init = rand_avail();
-					cmd_data.init_data.ctap_random_data_needed = crypto_random_get_requested()/4;
-					cmd_data.init_data.random_data_needed = cmd_data.init_data.ctap_random_data_needed;
+					g_cmd_data.init_data.rand_avail_init = rand_avail();
+					g_cmd_data.init_data.ctap_random_data_needed = crypto_random_get_requested()/4;
+					g_cmd_data.init_data.random_data_needed = g_cmd_data.init_data.ctap_random_data_needed;
 				}
 			} else {
 				ctap_reset();
 				rand_clear_rewind_point();
-				cmd_data.init_data.ctap_data_updated = 1;
+				g_cmd_data.init_data.ctap_data_updated = 1;
 			}
 		} else {
-			cmd_data.init_data.ctap_data_updated = 1;
+			g_cmd_data.init_data.ctap_data_updated = 1;
 		}
 	}
-	if (cmd_data.init_data.signet_data_updated && cmd_data.init_data.ctap_data_updated) {
+	if (g_cmd_data.init_data.signet_data_updated && g_cmd_data.init_data.ctap_data_updated) {
 		sync_root_block();
-		cmd_data.init_data.root_block_finalized = 1;
+		g_cmd_data.init_data.root_block_finalized = 1;
 	}
 	__enable_irq();
 }
@@ -671,21 +643,19 @@ void login_cmd_iter();
 void cmd_rand_update()
 {
 	int avail;
-	switch (g_device_state) {
+	switch (g_cmd_state.device_state) {
 	case DS_INITIALIZING:
 		finalize_root_page_check();
 		avail = rand_avail();
-		if (avail <= cmd_data.init_data.random_data_needed) {
-			cmd_data.init_data.random_data_gathered = (avail - cmd_data.init_data.rand_avail_init) + 1;
-			g_progress_level[1] = cmd_data.init_data.random_data_gathered;
-			progress_maximum[1] = cmd_data.init_data.random_data_needed - cmd_data.init_data.rand_avail_init;
-			get_progress_check();
+		if (avail <= g_cmd_data.init_data.random_data_needed) {
+			g_cmd_data.init_data.random_data_gathered = (avail - g_cmd_data.init_data.rand_avail_init) + 1;
+			update_state_progress(DS_INITIALIZING, 1, g_cmd_data.init_data.random_data_gathered, g_cmd_data.init_data.random_data_needed - g_cmd_data.init_data.rand_avail_init);
 		}
 		break;
 	default:
 		break;
 	}
-	switch (active_cmd) {
+	switch (g_cmd_state.active_cmd) {
 	case GET_RAND_BITS:
 		get_rand_bits_cmd_check();
 		break;
@@ -697,18 +667,16 @@ void cmd_rand_update()
 
 #endif
 
-extern int block_read_cache_updating;
-
 static void read_block_complete(u32 rc)
 {
 #ifdef BOOT_MODE_B
 	if (db3_read_block_complete(rc))
 		return;
 #endif
-	switch (active_cmd) {
+	switch (g_cmd_state.active_cmd) {
 	case READ_BLOCK_HC:
 		//TODO: Handle error
-		finish_command(OKAY, cmd_data.read_block.block, BLK_SIZE);
+		finish_command(OKAY, g_cmd_data.read_block.block, BLK_SIZE);
 		return;
 	default:
 		break;
@@ -720,22 +688,22 @@ static void read_block_complete(u32 rc)
 static void initializing_iter(u32 rc)
 {
 	//TODO: handle errors
-	cmd_data.init_data.blocks_written++;
-	g_progress_level[0] = cmd_data.init_data.blocks_written;
-	if (g_progress_level[0] > progress_maximum[0]) g_progress_level[0] = progress_maximum[0];
-	g_progress_level[1] = cmd_data.init_data.random_data_gathered;
+	g_cmd_data.init_data.blocks_written++;
+	g_cmd_state.progress_level[0] = g_cmd_data.init_data.blocks_written;
+	if (g_cmd_state.progress_level[0] > g_cmd_state.progress_maximum[0]) g_cmd_state.progress_level[0] = g_cmd_state.progress_maximum[0];
+	g_cmd_state.progress_level[1] = g_cmd_data.init_data.random_data_gathered;
 	get_progress_check();
 
-	if (cmd_data.init_data.blocks_written < NUM_DATA_BLOCKS) {
-		struct block *blk = db3_initialize_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (struct block *)cmd_data.init_data.block);
-		write_data_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (u8 *)blk);
-	} else if (cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS) {
+	if (g_cmd_data.init_data.blocks_written < NUM_DATA_BLOCKS) {
+		struct block *blk = db3_initialize_block(g_cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (struct block *)g_cmd_data.init_data.block);
+		write_data_block(g_cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (u8 *)blk);
+	} else if (g_cmd_data.init_data.blocks_written == NUM_DATA_BLOCKS) {
 		finalize_root_page_check();
 	} else {
-		g_root_block_version = ROOT_BLOCK_FORMAT_CURRENT;
-		g_db_version = DB_FORMAT_CURRENT;
-		g_root_page_valid = 1;
-		db3_startup_scan(cmd_data.init_data.block, &cmd_data.init_data.blk_info);
+		g_cmd_state.root_block_version = ROOT_BLOCK_FORMAT_CURRENT;
+		g_cmd_state.db_version = DB_FORMAT_CURRENT;
+		g_cmd_state.root_page_valid = 1;
+		db3_startup_scan(g_cmd_data.init_data.block, &g_cmd_data.init_data.blk_info);
 	}
 }
 #endif
@@ -743,11 +711,11 @@ static void initializing_iter(u32 rc)
 static void write_block_complete(u32 rc)
 {
 #ifdef BOOT_MODE_B
-	if (g_root_block_sync_state == ROOT_BLOCK_WRITING) {
+	if (g_cmd_state.root_block_sync_state == ROOT_BLOCK_WRITING) {
 		if (rc) {
-			g_root_block_sync_state = ROOT_BLOCK_SYNC_FAILED;
+			g_cmd_state.root_block_sync_state = ROOT_BLOCK_SYNC_FAILED;
 		} else {
-			g_root_block_sync_state = ROOT_BLOCK_SYNCED;
+			g_cmd_state.root_block_sync_state = ROOT_BLOCK_SYNCED;
 		}
 		END_WORK(SYNC_ROOT_BLOCK_WORK);
 		if (s_subsystem_release_requested) {
@@ -757,28 +725,28 @@ static void write_block_complete(u32 rc)
 	}
 	if (db3_write_block_complete(rc))
 		return;
-	switch (g_device_state) {
+	switch (g_cmd_state.device_state) {
 	case DS_INITIALIZING:
 		initializing_iter(rc);
 		break;
 	case DS_WIPING:
 		//TODO: handle errors
-		cmd_data.wipe_data.block_idx++;
-		g_progress_level[0] = cmd_data.wipe_data.block_idx;
+		g_cmd_data.wipe_data.block_idx++;
+		g_cmd_state.progress_level[0] = g_cmd_data.wipe_data.block_idx;
 		get_progress_check();
-		if (cmd_data.wipe_data.block_idx == NUM_STORAGE_BLOCKS) {
+		if (g_cmd_data.wipe_data.block_idx == NUM_STORAGE_BLOCKS) {
 			g_uninitialized_wiped = 1;
 			enter_state(DS_UNINITIALIZED);
 		} else {
-			memset(cmd_data.wipe_data.block, 0, BLK_SIZE);
-			write_data_block(cmd_data.wipe_data.block_idx, cmd_data.wipe_data.block);
+			memset(g_cmd_data.wipe_data.block, 0, BLK_SIZE);
+			write_data_block(g_cmd_data.wipe_data.block_idx, g_cmd_data.wipe_data.block);
 		}
 		break;
 	default:
 		break;
 	}
 #endif
-	switch (active_cmd) {
+	switch (g_cmd_state.active_cmd) {
 	case WRITE_CLEARTEXT_PASSWORD:
 	case CHANGE_MASTER_PASSWORD:
 	case WRITE_BLOCK_HC:
@@ -809,14 +777,14 @@ void flash_write_complete(u32 error) //*
 
 void flash_write_failed()
 {
-	if (active_cmd != -1) {
+	if (g_cmd_state.active_cmd != -1) {
 		finish_command_resp(WRITE_FAILED);
 	}
 }
 
 void blink_timeout()
 {
-	if (waiting_for_button_press || waiting_for_long_button_press) {
+	if (g_cmd_state.waiting_for_button_press || g_cmd_state.waiting_for_long_button_press) {
 		end_button_press_wait();
 		end_long_button_press_wait();
 		finish_command_resp(BUTTON_PRESS_TIMEOUT);
@@ -826,7 +794,7 @@ void blink_timeout()
 void cmd_packet_sent()
 {
 #ifdef BOOT_MODE_B
-	switch(active_cmd) {
+	switch(g_cmd_state.active_cmd) {
 	case READ_ALL_UIDS:
 		read_all_uids_cmd_complete();
 		break;
@@ -836,9 +804,9 @@ void cmd_packet_sent()
 
 void long_button_press()
 {
-	if (waiting_for_long_button_press) {
+	if (g_cmd_state.waiting_for_long_button_press) {
 		end_long_button_press_wait();
-		switch(active_cmd) {
+		switch(g_cmd_state.active_cmd) {
 #ifdef BOOT_MODE_B
 		case READ_ALL_UIDS:
 			read_all_uids_cmd_iter();
@@ -853,17 +821,17 @@ void long_button_press()
 #ifdef BOOT_MODE_B
 		case WIPE: {
 			finish_command_resp(OKAY);
-			cmd_data.wipe_data.block_idx = ROOT_DATA_BLOCK;
-			memset(cmd_data.wipe_data.block, 0, BLK_SIZE);
-			write_data_block(cmd_data.wipe_data.block_idx,
-					cmd_data.wipe_data.block);
+			g_cmd_data.wipe_data.block_idx = ROOT_DATA_BLOCK;
+			memset(g_cmd_data.wipe_data.block, 0, BLK_SIZE);
+			write_data_block(g_cmd_data.wipe_data.block_idx,
+					g_cmd_data.wipe_data.block);
 			int temp[] = {NUM_STORAGE_BLOCKS};
 			enter_progressing_state(DS_WIPING, 1, temp);
 		}
 		break;
 		case BACKUP_DEVICE:
 			finish_command_resp(OKAY);
-			state_data.backup.prev_state = g_device_state;
+			g_cmd_state.state_data.backup.prev_state = g_cmd_state.device_state;
 			enter_state(DS_BACKING_UP_DEVICE);
 			break;
 		case RESTORE_DEVICE:
@@ -874,16 +842,16 @@ void long_button_press()
 			initialize_cmd_complete();
 			break;
 		case CHANGE_MASTER_PASSWORD:
-			switch (root_page.format) {
+			switch (g_root_page.format) {
 			case ROOT_BLOCK_FORMAT_CURRENT:
-				signet_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, AUTH_RANDOM_DATA_LEN/AES_BLK_SIZE, NULL,
-				                           root_page.auth_random_cleartext,
-							   root_page.profile_auth_data[0].auth_random_cyphertext);
-				signet_aes_256_encrypt_cbc(cmd_data.change_master_password.new_key, HC_KEYSTORE_KEY_SIZE/AES_BLK_SIZE, NULL,
-				                           cmd_data.change_master_password.keystore_key,
-							   root_page.profile_auth_data[0].keystore_key_cyphertext);
-				memcpy(root_page.profile_auth_data[0].salt, cmd_data.change_master_password.salt, HC_HASH_FN_SALT_SZ);
-				memcpy(root_page.profile_auth_data[0].hash_function_params, cmd_data.change_master_password.hashfn, HC_HASH_FUNCTION_PARAMS_LENGTH);
+				signet_aes_256_encrypt_cbc(g_cmd_data.change_master_password.new_key, AUTH_RANDOM_DATA_LEN/AES_BLK_SIZE, NULL,
+				                           g_root_page.auth_random_cleartext,
+							   g_root_page.profile_auth_data[0].auth_random_cyphertext);
+				signet_aes_256_encrypt_cbc(g_cmd_data.change_master_password.new_key, HC_KEYSTORE_KEY_SIZE/AES_BLK_SIZE, NULL,
+				                           g_cmd_data.change_master_password.keystore_key,
+							   g_root_page.profile_auth_data[0].keystore_key_cyphertext);
+				memcpy(g_root_page.profile_auth_data[0].salt, g_cmd_data.change_master_password.salt, HC_HASH_FN_SALT_SZ);
+				memcpy(g_root_page.profile_auth_data[0].hash_function_params, g_cmd_data.change_master_password.hashfn, HC_HASH_FUNCTION_PARAMS_LENGTH);
 				break;
 			default:
 				finish_command_resp(UNKNOWN_DB_FORMAT);
@@ -893,16 +861,16 @@ void long_button_press()
 			break;
 #endif
 		}
-	} else if (g_device_state == DS_DISCONNECTED) {
+	} else if (g_cmd_state.device_state == DS_DISCONNECTED) {
 		long_button_press_disconnected();
 	}
 }
 
 void button_release()
 {
-	if (waiting_for_long_button_press) {
+	if (g_cmd_state.waiting_for_long_button_press) {
 		resume_blinking();
-	} else if (g_device_state == DS_DISCONNECTED) {
+	} else if (g_cmd_state.device_state == DS_DISCONNECTED) {
 		//
 		// HC_TODO: Not supported yet. Need to add cleartext
 		// password data to root block
@@ -926,16 +894,16 @@ int attempt_login_256 (const u8 *auth_key, const u8 *auth_rand, const u8 *auth_r
 
 void login_cmd_iter ()
 {
-	if (cmd_data.login.authenticated) {
+	if (g_cmd_data.login.authenticated) {
 		if (rand_avail() >= (AES_256_KEY_SIZE/4)) {
 			for (int i = 0; i < (AES_256_KEY_SIZE/4); i++) {
-				cmd_data.login.token[i] = rand_get();
+				g_cmd_data.login.token[i] = rand_get();
 			}
-			signet_aes_256_encrypt_cbc((u8 *)cmd_data.login.token, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-			                           root_page.auth_random_cleartext, token_auth_rand_cyphertext);
-			signet_aes_256_encrypt_cbc((u8 *)cmd_data.login.token, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
-			                           g_encrypt_key, token_encrypt_key_cyphertext);
-			finish_command(OKAY, (u8 *)cmd_data.login.gen_token, AES_256_KEY_SIZE);
+			signet_aes_256_encrypt_cbc((u8 *)g_cmd_data.login.token, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
+			                           g_root_page.auth_random_cleartext, g_cmd_state.token_auth_rand_cyphertext);
+			signet_aes_256_encrypt_cbc((u8 *)g_cmd_data.login.token, AES_256_KEY_SIZE/AES_BLK_SIZE, NULL,
+			                           g_cmd_state.encrypt_key, g_cmd_state.token_encrypt_key_cyphertext);
+			finish_command(OKAY, (u8 *)g_cmd_data.login.gen_token, AES_256_KEY_SIZE);
 			enter_state(DS_LOGGED_IN);
 		}
 	}
@@ -995,10 +963,10 @@ static void button_release_disconnected()
 static void long_button_press_disconnected()
 {
 #ifndef SIGNET_HC
-	switch (root_page.signature[0]) {
+	switch (g_root_page.signature[0]) {
 	case 2: {
 		int index = cleartext_pass_index;
-		struct cleartext_pass *p = root_page.header.v2.cleartext_passwords + index;
+		struct cleartext_pass *p = g_root_page.header.v2.cleartext_passwords + index;
 		if (p->format != 0xff && p->format && (p->scancode_entries*2) <= 126) {
 			cleartext_pass_index = -1;
 			generate_backspaces(cleartext_type_buf, index+1);
@@ -1017,7 +985,7 @@ static void long_button_press_disconnected()
 
 void button_press_unprompted()
 {
-	switch (g_device_state) {
+	switch (g_cmd_state.device_state) {
 	case DS_DISCONNECTED:
 		//
 		// HC_TODO: Not supported yet. Need to add cleartext
@@ -1034,36 +1002,36 @@ void button_press_unprompted()
 
 void button_press()
 {
-	if (waiting_for_button_press) {
+	if (g_cmd_state.waiting_for_button_press) {
 		end_button_press_wait();
-		switch(active_cmd) {
+		switch(g_cmd_state.active_cmd) {
 #ifndef SIGNET_HC
 		case READ_CLEARTEXT_PASSWORD: {
-			int idx = cmd_data.read_cleartext_password.idx;
-			struct cleartext_pass *p = root_page.header.v2.cleartext_passwords;
+			int idx = g_cmd_data.read_cleartext_password.idx;
+			struct cleartext_pass *p = g_root_page.header.v2.cleartext_passwords;
 			finish_command(OKAY, (u8 *)(p + idx), CLEARTEXT_PASS_SIZE);
 		}
 		break;
 		case WRITE_CLEARTEXT_PASSWORD: {
-			int idx = cmd_data.write_cleartext_password.idx;
-			struct cleartext_pass *p = root_page.header.v2.cleartext_passwords;
-			memcpy(p + idx, cmd_data.write_cleartext_password.data, CLEARTEXT_PASS_SIZE);
-			flash_write_page(ID_BLK(0), (u8 *)&root_page, sizeof(root_page));
+			int idx = g_cmd_data.write_cleartext_password.idx;
+			struct cleartext_pass *p = g_root_page.header.v2.cleartext_passwords;
+			memcpy(p + idx, g_cmd_data.write_cleartext_password.data, CLEARTEXT_PASS_SIZE);
+			flash_write_page(ID_BLK(0), (u8 *)&g_root_page, sizeof(g_root_page));
 		}
 		break;
 #endif
 #ifdef BOOT_MODE_B
 		case LOGIN:
-			switch (root_page.format) {
+			switch (g_root_page.format) {
 			case ROOT_BLOCK_FORMAT_CURRENT: {
-				int rc = attempt_login_256(cmd_data.login.password,
-				                           root_page.auth_random_cleartext,
-				                           root_page.profile_auth_data[0].auth_random_cyphertext,
-				                           root_page.profile_auth_data[0].keystore_key_cyphertext,
-				                           g_encrypt_key);
+				int rc = attempt_login_256(g_cmd_data.login.password,
+				                           g_root_page.auth_random_cleartext,
+				                           g_root_page.profile_auth_data[0].auth_random_cyphertext,
+				                           g_root_page.profile_auth_data[0].keystore_key_cyphertext,
+				                           g_cmd_state.encrypt_key);
 				if (rc) {
-					if (cmd_data.login.gen_token) {
-						cmd_data.login.authenticated = 1;
+					if (g_cmd_data.login.gen_token) {
+						g_cmd_data.login.authenticated = 1;
 						login_cmd_iter();
 					} else {
 						finish_command_resp(OKAY);
@@ -1081,13 +1049,13 @@ void button_press()
 			break;
 		case LOGIN_TOKEN: {
 			int rc;
-			switch (root_page.format) {
+			switch (g_root_page.format) {
 			case ROOT_BLOCK_FORMAT_CURRENT:
-				rc = attempt_login_256((u8 *)cmd_data.login_token.token,
-				                       root_page.auth_random_cleartext,
-				                       token_auth_rand_cyphertext,
-				                       token_encrypt_key_cyphertext,
-				                       g_encrypt_key);
+				rc = attempt_login_256((u8 *)g_cmd_data.login_token.token,
+				                       g_root_page.auth_random_cleartext,
+				                       g_cmd_state.token_auth_rand_cyphertext,
+				                       g_cmd_state.token_encrypt_key_cyphertext,
+				                       g_cmd_state.encrypt_key);
 				if (rc) {
 					finish_command_resp(OKAY);
 					enter_state(DS_LOGGED_IN);
@@ -1109,17 +1077,17 @@ void button_press()
 			finish_command_resp(OKAY);
 			break;
 		}
-	} else if (waiting_for_long_button_press) {
+	} else if (g_cmd_state.waiting_for_long_button_press) {
 		pause_blinking();
 	}
 }
 
 void usb_keyboard_typing_done()
 {
-	if (active_cmd == TYPE) {
+	if (g_cmd_state.active_cmd == TYPE) {
 		finish_command_resp(OKAY);
 	}
-	if (g_device_state == DS_DISCONNECTED) {
+	if (g_cmd_state.device_state == DS_DISCONNECTED) {
 		cleartext_pass_typing = 0;
 	}
 }
@@ -1127,8 +1095,6 @@ void usb_keyboard_typing_done()
 //
 // Command functions. These are called in response to incoming command packets
 //
-
-extern int test_state;
 
 void initialize_cmd(u8 *data, int data_len)
 {
@@ -1139,31 +1105,31 @@ void initialize_cmd(u8 *data, int data_len)
 
 	u8 *d = data;
 
-	memcpy(cmd_data.init_data.passwd, d, AES_256_KEY_SIZE); d += AES_256_KEY_SIZE;
-	memcpy(cmd_data.init_data.hashfn, d, AES_BLK_SIZE); d += AES_BLK_SIZE;
-	memcpy(cmd_data.init_data.salt, d, SALT_SZ_V2); d += SALT_SZ_V2;
-	memcpy(cmd_data.init_data.rand, d, INIT_RAND_DATA_SZ); d += INIT_RAND_DATA_SZ;
-	cmd_data.init_data.started = 0;
+	memcpy(g_cmd_data.init_data.passwd, d, AES_256_KEY_SIZE); d += AES_256_KEY_SIZE;
+	memcpy(g_cmd_data.init_data.hashfn, d, AES_BLK_SIZE); d += AES_BLK_SIZE;
+	memcpy(g_cmd_data.init_data.salt, d, SALT_SZ_V2); d += SALT_SZ_V2;
+	memcpy(g_cmd_data.init_data.rand, d, INIT_RAND_DATA_SZ); d += INIT_RAND_DATA_SZ;
+	g_cmd_data.init_data.started = 0;
 	begin_long_button_press_wait();
 }
 
 void initialize_cmd_complete()
 {
-	cmd_data.init_data.started = 1;
-	cmd_data.init_data.blocks_written = 0;
-	cmd_data.init_data.random_data_gathered = 0;
-	cmd_data.init_data.root_block_finalized = 0;
+	g_cmd_data.init_data.started = 1;
+	g_cmd_data.init_data.blocks_written = 0;
+	g_cmd_data.init_data.random_data_gathered = 0;
+	g_cmd_data.init_data.root_block_finalized = 0;
 
-	struct block *blk = db3_initialize_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (struct block *)cmd_data.init_data.block);
-	write_data_block(cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (u8 *)blk);
+	struct block *blk = db3_initialize_block(g_cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (struct block *)g_cmd_data.init_data.block);
+	write_data_block(g_cmd_data.init_data.blocks_written + MIN_DATA_BLOCK, (u8 *)blk);
 	finish_command_resp(OKAY);
-	cmd_data.init_data.rand_avail_init = rand_avail();
-	cmd_data.init_data.random_data_needed = INIT_RAND_DATA_SZ/4;
-	cmd_data.init_data.signet_random_data_needed = cmd_data.init_data.random_data_needed;
-	cmd_data.init_data.ctap_random_data_needed = 0;
-	cmd_data.init_data.signet_data_updated = 0;
-	cmd_data.init_data.ctap_data_updated = (g_root_page_valid && g_device_state == DS_UNINITIALIZED);
-	int p = cmd_data.init_data.random_data_needed - cmd_data.init_data.rand_avail_init;
+	g_cmd_data.init_data.rand_avail_init = rand_avail();
+	g_cmd_data.init_data.random_data_needed = INIT_RAND_DATA_SZ/4;
+	g_cmd_data.init_data.signet_random_data_needed = g_cmd_data.init_data.random_data_needed;
+	g_cmd_data.init_data.ctap_random_data_needed = 0;
+	g_cmd_data.init_data.signet_data_updated = 0;
+	g_cmd_data.init_data.ctap_data_updated = (g_cmd_state.root_page_valid && g_cmd_state.device_state == DS_UNINITIALIZED);
+	int p = g_cmd_data.init_data.random_data_needed - g_cmd_data.init_data.rand_avail_init;
 	if (p < 0) p = 0;
 	int temp[] = {NUM_DATA_BLOCKS, p, 1};
 	enter_progressing_state(DS_INITIALIZING, 3, temp);
@@ -1176,11 +1142,11 @@ void wipe_cmd()
 
 void get_progress_cmd(u8 *data, int data_len)
 {
-	g_progress_check = data[0] | (data[1] << 8);
+	g_cmd_state.progress_check = data[0] | (data[1] << 8);
 	data += 2;
-	g_progress_target_state = data[0] | (data[1] << 8);
+	g_cmd_state.progress_target_state = data[0] | (data[1] << 8);
 	data += 2;
-	if (g_progress_target_state != g_device_state) {
+	if (g_cmd_state.progress_target_state != g_cmd_state.device_state) {
 		finish_command_resp(INVALID_STATE);
 	} else {
 		get_progress_check();
@@ -1208,8 +1174,8 @@ void read_block_cmd (u8 *data, int data_len)
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	cmd_data.read_block.block_idx = idx;
-	read_data_block(cmd_data.read_block.block_idx, cmd_data.read_block.block);
+	g_cmd_data.read_block.block_idx = idx;
+	read_data_block(g_cmd_data.read_block.block_idx, g_cmd_data.read_block.block);
 }
 
 void write_block_cmd(u8 *data, int data_len)
@@ -1218,14 +1184,14 @@ void write_block_cmd(u8 *data, int data_len)
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	cmd_data.write_block.block_idx = *((u16 *)data);
+	g_cmd_data.write_block.block_idx = *((u16 *)data);
 	data += 2;
-	memcpy(cmd_data.write_block.block, data, BLK_SIZE);
-	if (cmd_data.write_block.block_idx >= NUM_STORAGE_BLOCKS) {
+	memcpy(g_cmd_data.write_block.block, data, BLK_SIZE);
+	if (g_cmd_data.write_block.block_idx >= NUM_STORAGE_BLOCKS) {
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	write_data_block(cmd_data.write_block.block_idx, cmd_data.write_block.block);
+	write_data_block(g_cmd_data.write_block.block_idx, g_cmd_data.write_block.block);
 }
 
 void erase_block_cmd(u8 *data, int data_len)
@@ -1240,8 +1206,8 @@ void erase_block_cmd(u8 *data, int data_len)
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	memset(cmd_data.erase_block.block, 0, BLK_SIZE);
-	write_data_block(idx, cmd_data.erase_block.block);
+	memset(g_cmd_data.erase_block.block, 0, BLK_SIZE);
+	write_data_block(idx, g_cmd_data.erase_block.block);
 }
 
 void get_device_capacity_cmd(u8 *data, int data_len)
@@ -1270,16 +1236,16 @@ void change_master_password_cmd(u8 *data, int data_len)
 	u8 *new_key = data + AES_256_KEY_SIZE;
 	u8 *hashfn = data + (AES_256_KEY_SIZE * 2);
 	u8 *salt = data + (AES_256_KEY_SIZE * 2) + HASH_FN_SZ;
-	memcpy(cmd_data.change_master_password.hashfn, hashfn,HC_HASH_FUNCTION_PARAMS_LENGTH);
-	memcpy(cmd_data.change_master_password.salt, salt, HC_HASH_FN_SALT_SZ);
-	memcpy(cmd_data.change_master_password.new_key, new_key, HC_KEYSTORE_KEY_SIZE);
-	switch (root_page.format) {
+	memcpy(g_cmd_data.change_master_password.hashfn, hashfn,HC_HASH_FUNCTION_PARAMS_LENGTH);
+	memcpy(g_cmd_data.change_master_password.salt, salt, HC_HASH_FN_SALT_SZ);
+	memcpy(g_cmd_data.change_master_password.new_key, new_key, HC_KEYSTORE_KEY_SIZE);
+	switch (g_root_page.format) {
 	case ROOT_BLOCK_FORMAT_CURRENT: {
 		int rc = attempt_login_256(old_key,
-					   root_page.auth_random_cleartext,
-					   root_page.profile_auth_data[0].auth_random_cyphertext,
-					   root_page.profile_auth_data[0].keystore_key_cyphertext,
-					   cmd_data.change_master_password.keystore_key);
+					   g_root_page.auth_random_cleartext,
+					   g_root_page.profile_auth_data[0].auth_random_cyphertext,
+					   g_root_page.profile_auth_data[0].keystore_key_cyphertext,
+					   g_cmd_data.change_master_password.keystore_key);
 		if (!rc) {
 			finish_command_resp(BAD_PASSWORD);
 			return;
@@ -1297,17 +1263,17 @@ void cmd_disconnect()
 	//Cancel commands waiting for button press
 	end_button_press_wait();
 	end_long_button_press_wait();
-	active_cmd = -1;
+	g_cmd_state.active_cmd = -1;
 	enter_state(DS_DISCONNECTED);
 }
 
 void get_rand_bits_cmd_check()
 {
-	if (rand_avail() >= cmd_data.get_rand_bits.sz) {
-		for (int i = 0; i < ((cmd_data.get_rand_bits.sz + 3)/4); i++) {
-			((u32 *)cmd_data.get_rand_bits.block)[i] ^= rand_get();
+	if (rand_avail() >= g_cmd_data.get_rand_bits.sz) {
+		for (int i = 0; i < ((g_cmd_data.get_rand_bits.sz + 3)/4); i++) {
+			((u32 *)g_cmd_data.get_rand_bits.block)[i] ^= rand_get();
 		}
-		finish_command(OKAY, cmd_data.get_rand_bits.block, cmd_data.get_rand_bits.sz);
+		finish_command(OKAY, g_cmd_data.get_rand_bits.block, g_cmd_data.get_rand_bits.sz);
 	}
 }
 
@@ -1318,28 +1284,28 @@ void get_rand_bits_cmd(u8 *data, int data_len)
 		return;
 	}
 	int sz = data[0] + (data[1] << 8);
-	cmd_data.get_rand_bits.sz = sz;
-	if (cmd_data.get_rand_bits.sz >= BLK_SIZE) {
+	g_cmd_data.get_rand_bits.sz = sz;
+	if (g_cmd_data.get_rand_bits.sz >= BLK_SIZE) {
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	memset(cmd_data.get_rand_bits.block, 0, (sz + 3)/4);
+	memset(g_cmd_data.get_rand_bits.block, 0, (sz + 3)/4);
 	get_rand_bits_cmd_check();
 }
 
 void login_cmd (u8 *data, int data_len)
 {
-	cmd_data.login.gen_token = 0;
-	cmd_data.login.authenticated = 0;
+	g_cmd_data.login.gen_token = 0;
+	g_cmd_data.login.authenticated = 0;
 
 	if (data_len < AES_256_KEY_SIZE) {
 		finish_command_resp(INVALID_INPUT);
 	} else {
-		memcpy(cmd_data.login.password, data, AES_256_KEY_SIZE);
+		memcpy(g_cmd_data.login.password, data, AES_256_KEY_SIZE);
 		data += AES_256_KEY_SIZE;
 		data_len -= AES_256_KEY_SIZE;
 		if (data_len > 0) {
-			cmd_data.login.gen_token = data[0];
+			g_cmd_data.login.gen_token = data[0];
 		}
 		begin_button_press_wait();
 	}
@@ -1350,7 +1316,7 @@ void login_token_cmd(u8 *data, int data_len)
 	if (data_len != AES_256_KEY_SIZE) {
 		finish_command_resp(INVALID_INPUT);
 	} else {
-		memcpy(cmd_data.login_token.token, data, AES_256_KEY_SIZE);
+		memcpy(g_cmd_data.login_token.token, data, AES_256_KEY_SIZE);
 		begin_button_press_wait();
 	}
 }
@@ -1510,8 +1476,8 @@ void write_cleartext_password(u8 *data, int data_len)
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	cmd_data.write_cleartext_password.idx = idx;
-	memcpy(cmd_data.write_cleartext_password.data, data, data_len);
+	g_cmd_data.write_cleartext_password.idx = idx;
+	memcpy(g_cmd_data.write_cleartext_password.data, data, data_len);
 	begin_button_press_wait();
 }
 
@@ -1528,14 +1494,14 @@ void read_cleartext_password(u8 *data, int data_len)
 		finish_command_resp(INVALID_INPUT);
 		return;
 	}
-	cmd_data.read_cleartext_password.idx = idx;
+	g_cmd_data.read_cleartext_password.idx = idx;
 	begin_button_press_wait();
 }
 
 void read_cleartext_password_names()
 {
-	u8 *block = cmd_data.read_cleartext_password_names.block;
-	struct cleartext_pass *p = root_page.header.v2.cleartext_passwords;
+	u8 *block = g_cmd_data.read_cleartext_password_names.block;
+	struct cleartext_pass *p = g_root_page.header.v2.cleartext_passwords;
 	int i;
 	int j = 0;
 	for (i = 0; i < NUM_CLEARTEXT_PASS; i++) {
@@ -1554,7 +1520,7 @@ void read_cleartext_password_names()
 
 int logged_in_state(int cmd, u8 *data, int data_len)
 {
-	switch (active_cmd) {
+	switch (g_cmd_state.active_cmd) {
 	case GET_PROGRESS:
 		get_progress_cmd(data, data_len);
 		break;
@@ -1597,10 +1563,10 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 			finish_command_resp(INVALID_INPUT);
 			return 0;
 		}
-		if (active_cmd == UPDATE_UID) {
+		if (g_cmd_state.active_cmd == UPDATE_UID) {
 			update_uid_cmd(uid, data, data_len, sz, 1 /* short press */);
 		} else {
-			if (!cmd_iter_count) {
+			if (!g_cmd_state.cmd_iter_count) {
 				update_uid_cmd(uid, data, data_len, sz, 2 /* long press */);
 			} else {
 				update_uid_cmd(uid, data, data_len, sz, 0 /* no press */);
@@ -1619,17 +1585,17 @@ int logged_in_state(int cmd, u8 *data, int data_len)
 	break;
 	case TYPE: {
 		int n_chars = data_len >> 1;
-		if (n_chars * 4 > sizeof(cmd_data.type_data.chars)) {
+		if (n_chars * 4 > sizeof(g_cmd_data.type_data.chars)) {
 			finish_command_resp(INVALID_INPUT);
 			break;
 		}
 		for (int i = 0; i < n_chars; i++) {
-			(cmd_data.type_data.chars + i * 4)[0] = data[i*2 + 0];
-			(cmd_data.type_data.chars + i * 4)[1] = data[i*2 + 1];
-			(cmd_data.type_data.chars + i * 4)[2] = 0;
-			(cmd_data.type_data.chars + i * 4)[3] = 0;
+			(g_cmd_data.type_data.chars + i * 4)[0] = data[i*2 + 0];
+			(g_cmd_data.type_data.chars + i * 4)[1] = data[i*2 + 1];
+			(g_cmd_data.type_data.chars + i * 4)[2] = 0;
+			(g_cmd_data.type_data.chars + i * 4)[3] = 0;
 		}
-		usb_keyboard_type(cmd_data.type_data.chars, n_chars);
+		usb_keyboard_type(g_cmd_data.type_data.chars, n_chars);
 	}
 	break;
 	case BUTTON_WAIT:
@@ -1667,7 +1633,7 @@ int backing_up_device_state (int cmd, u8 *data, int data_len)
 		read_block_cmd(data, data_len);
 		break;
 	case BACKUP_DEVICE_DONE:
-		enter_state(state_data.backup.prev_state);
+		enter_state(g_cmd_state.state_data.backup.prev_state);
 		finish_command_resp(OKAY);
 		break;
 	default:
@@ -1698,7 +1664,7 @@ int restoring_device_state(int cmd, u8 *data, int data_len)
 void startup_cmd_iter(u32 rc)
 {
 	u32 command_response;
-	u8 *resp = cmd_data.startup.resp;
+	u8 *resp = g_cmd_data.startup.resp;
 
 	if (rc) {
 		command_response = OKAY;
@@ -1707,63 +1673,63 @@ void startup_cmd_iter(u32 rc)
 		command_response = WRITE_FAILED;
 	}
 
-	memset(cmd_data.startup.resp, 0, sizeof(cmd_data.startup.resp));
+	memset(g_cmd_data.startup.resp, 0, sizeof(g_cmd_data.startup.resp));
 	resp[0] = SIGNET_HC_MAJOR_VERSION;
 	resp[1] = SIGNET_HC_MINOR_VERSION;
 	resp[2] = SIGNET_HC_STEP_VERSION;
-	resp[3] = g_device_state;
+	resp[3] = g_cmd_state.device_state;
 	resp[4] = 0;
 	resp[5] = 0;
 	resp[6] = (u8)flash_get_boot_mode();
 	resp[7] = 0;
 #ifdef BOOT_MODE_B
-	if (!g_root_page_valid) {
+	if (!g_cmd_state.root_page_valid) {
 		g_uninitialized_wiped = 0;
 		if (command_response == OKAY) {
 			enter_state(DS_UNINITIALIZED);
 		}
-		resp[3] = g_device_state;
-		finish_command(command_response, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
+		resp[3] = g_cmd_state.device_state;
+		finish_command(command_response, g_cmd_data.startup.resp, sizeof(g_cmd_data.startup.resp));
 		return;
 	}
 	if (rc) {
-		finish_command(command_response, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
+		finish_command(command_response, g_cmd_data.startup.resp, sizeof(g_cmd_data.startup.resp));
 		return;
 	}
-	g_root_block_version = root_page.format;
-	switch (root_page.format) {
+	g_cmd_state.root_block_version = g_root_page.format;
+	switch (g_root_page.format) {
 	case ROOT_BLOCK_FORMAT_CURRENT:
-		memcpy(resp + STARTUP_RESP_INFO_SIZE, root_page.profile_auth_data[0].hash_function_params, HC_HASH_FUNCTION_PARAMS_LENGTH);
-		memcpy(resp + STARTUP_RESP_INFO_SIZE + HC_HASH_FUNCTION_PARAMS_LENGTH, root_page.profile_auth_data[0].salt, HC_HASH_FN_SALT_SZ);
-		g_db_version = root_page.db_format;
-		resp[4] = g_root_block_version;
-		resp[5] = g_db_version;
-		resp[7] = root_page.upgrade_state;
+		memcpy(resp + STARTUP_RESP_INFO_SIZE, g_root_page.profile_auth_data[0].hash_function_params, HC_HASH_FUNCTION_PARAMS_LENGTH);
+		memcpy(resp + STARTUP_RESP_INFO_SIZE + HC_HASH_FUNCTION_PARAMS_LENGTH, g_root_page.profile_auth_data[0].salt, HC_HASH_FN_SALT_SZ);
+		g_cmd_state.db_version = g_root_page.db_format;
+		resp[4] = g_cmd_state.root_block_version;
+		resp[5] = g_cmd_state.db_version;
+		resp[7] = g_root_page.upgrade_state;
 		break;
 	default:
 		g_uninitialized_wiped = 0;
 		enter_state(DS_UNINITIALIZED);
-		resp[3] = g_device_state;
-		finish_command(UNKNOWN_DB_FORMAT, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
+		resp[3] = g_cmd_state.device_state;
+		finish_command(UNKNOWN_DB_FORMAT, g_cmd_data.startup.resp, sizeof(g_cmd_data.startup.resp));
 		return;
 	}
 
-	switch (g_db_version) {
+	switch (g_cmd_state.db_version) {
 	case DB_FORMAT_CURRENT:
 	case DB_FORMAT_2:
-		db3_startup_scan(cmd_data.startup.block, &cmd_data.startup.blk_info);
+		db3_startup_scan(g_cmd_data.startup.block, &g_cmd_data.startup.blk_info);
 		break;
 	default:
 		g_uninitialized_wiped = 0;
 		enter_state(DS_UNINITIALIZED);
-		resp[3] = g_device_state;
-		finish_command(UNKNOWN_DB_FORMAT, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
+		resp[3] = g_cmd_state.device_state;
+		finish_command(UNKNOWN_DB_FORMAT, g_cmd_data.startup.resp, sizeof(g_cmd_data.startup.resp));
 		return;
 	}
 #else
 	enter_state(DS_BOOTLOADER);
-	resp[3] = g_device_state;
-	finish_command(command_response, cmd_data.startup.resp, sizeof(cmd_data.startup.resp));
+	resp[3] = g_cmd_state.device_state;
+	finish_command(command_response, g_cmd_data.startup.resp, sizeof(g_cmd_data.startup.resp));
 #endif
 }
 
@@ -1774,25 +1740,33 @@ u32 compute_device_data_crc(struct hc_device_data *d)
 
 void cmd_init()
 {
+	g_cmd_state.active_cmd = -1;
+	g_cmd_state.root_block_sync_state = ROOT_BLOCK_SYNCED;
+	g_cmd_state.device_state = DS_DISCONNECTED;
+	cmd_root_block_scan();
+}
+
+void cmd_root_block_scan()
+{
 	u32 crc1 = compute_device_data_crc(&_crypt_data1);
 	u32 crc2 = compute_device_data_crc(&_crypt_data2);
 	_root_page = &_crypt_data1;
 	if (crc1 == _crypt_data1.crc) {
 		if (crc2 == _crypt_data2.crc) {
 			if (_crypt_data1.data_iteration > _crypt_data2.data_iteration) {
-				g_root_page_valid = 1;
+				g_cmd_state.root_page_valid = 1;
 				_root_page = &_crypt_data1;
 			} else {
-				g_root_page_valid = 1;
+				g_cmd_state.root_page_valid = 1;
 				_root_page = &_crypt_data2;
 			}
 		} else {
-			g_root_page_valid = 1;
+			g_cmd_state.root_page_valid = 1;
 			_root_page = &_crypt_data1;
 		}
 	} else {
 		if (crc2 == _crypt_data2.crc) {
-			g_root_page_valid = 1;
+			g_cmd_state.root_page_valid = 1;
 			_root_page = &_crypt_data2;
 		} else {
 			//We set page one as current but not valid
@@ -1801,22 +1775,22 @@ void cmd_init()
 		}
 	}
 	if (_root_page) {
-		memcpy(&root_page, (u8 *)_root_page, sizeof(root_page));
-		g_root_page_valid = 1;
+		memcpy(&g_root_page, (u8 *)_root_page, sizeof(g_root_page));
+		g_cmd_state.root_page_valid = 1;
 	} else {
-		memset(&root_page, 0, sizeof(root_page));
-		g_root_page_valid = 0;
+		memset(&g_root_page, 0, sizeof(g_root_page));
+		g_cmd_state.root_page_valid = 0;
 	}
 }
 
 void startup_cmd (u8 *data, int data_len)
 {
-	if (g_device_state != DS_DISCONNECTED) {
+	if (g_cmd_state.device_state != DS_DISCONNECTED) {
 		stop_blinking();
 		end_button_press_wait();
 		end_long_button_press_wait();
 	}
-	cmd_init();
+	cmd_root_block_scan();
 	startup_cmd_iter(0);
 }
 
@@ -1864,7 +1838,7 @@ int release_device_request(enum command_subsystem system)
 		__enable_irq();
 		return 0;
 	}
-	if (g_root_block_sync_state != ROOT_BLOCK_SYNCED) {
+	if (g_cmd_state.root_block_sync_state != ROOT_BLOCK_SYNCED) {
 		//Wait until the root block is synchronized to release the device
 		s_subsystem_release_requested = 1;
 		__enable_irq();
@@ -1901,14 +1875,14 @@ static void release_device(enum command_subsystem system)
 
 void cmd_packet_recv()
 {
-	u8 *data = cmd_packet_buf;
+	u8 *data = g_cmd_packet_buf;
 	int data_len = data[0] + (data[1] << 8) - CMD_PACKET_HEADER_SIZE;
 	int next_active_cmd = data[2];
 	int messages_remaining = data[3] + (data[4] << 8);
-	int prev_active_cmd = active_cmd;
+	int prev_active_cmd = g_cmd_state.active_cmd;
 	data += CMD_PACKET_HEADER_SIZE;
 
-	int waiting_for_a_button_press = waiting_for_button_press | waiting_for_long_button_press;
+	int waiting_for_a_button_press = g_cmd_state.waiting_for_button_press | g_cmd_state.waiting_for_long_button_press;
 
 	if (next_active_cmd == DISCONNECT) {
 		cmd_disconnect();
@@ -1928,10 +1902,10 @@ void cmd_packet_recv()
 		USBD_HID_rx_resume(INTERFACE_CMD);
 		return;
 	}
-	if (active_cmd != next_active_cmd) {
-		cmd_iter_count = 0;
+	if (g_cmd_state.active_cmd != next_active_cmd) {
+		g_cmd_state.cmd_iter_count = 0;
 	}
-	active_cmd = next_active_cmd;
+	g_cmd_state.active_cmd = next_active_cmd;
 	if (restart_signet_command() == 0) {
 		USBD_HID_rx_resume(INTERFACE_CMD);
 	}
@@ -1939,32 +1913,32 @@ void cmd_packet_recv()
 
 static int restart_signet_command()
 {
-	u8 *data = cmd_packet_buf;
+	u8 *data = g_cmd_packet_buf;
 	int data_len = data[0] + (data[1] << 8) - CMD_PACKET_HEADER_SIZE;
 	int messages_remaining = data[3] + (data[4] << 8);
 	data += CMD_PACKET_HEADER_SIZE;
 	if (!request_device(SIGNET_SUBSYSTEM)) {
 		return 1;
 	}
-	cmd_messages_remaining = messages_remaining;
+	g_cmd_state.cmd_messages_remaining = messages_remaining;
 
-	if (active_cmd == STARTUP) {
+	if (g_cmd_state.active_cmd == STARTUP) {
 		startup_cmd(data, data_len);
 		return 0;
 	}
 
 	//Always allow the GET_DEVICE_STATE command. It's easiest to handle it here
-	if (active_cmd == GET_DEVICE_STATE) {
-		u8 resp[] = {g_device_state};
+	if (g_cmd_state.active_cmd == GET_DEVICE_STATE) {
+		u8 resp[] = {g_cmd_state.device_state};
 		finish_command(OKAY, resp, sizeof(resp));
 		return 0;
 	}
 	int ret = -1;
 
-	if (active_cmd == CANCEL_BUTTON_PRESS) {
+	if (g_cmd_state.active_cmd == CANCEL_BUTTON_PRESS) {
 		//If we didn't handle button cancelation press above, it could
 		//be a sign of a bug
-		active_cmd = -1;
+		g_cmd_state.active_cmd = -1;
 		subsystem_idle_check();
 		return 0;
 	}
@@ -1976,41 +1950,41 @@ static int restart_signet_command()
 		return 0;
 	}
 
-	switch (g_device_state) {
+	switch (g_cmd_state.device_state) {
 	case DS_DISCONNECTED:
 		break;
 #ifdef BOOT_MODE_B
 	case DS_UNINITIALIZED:
-		ret = uninitialized_state(active_cmd, data, data_len);
+		ret = uninitialized_state(g_cmd_state.active_cmd, data, data_len);
 		break;
 	case DS_INITIALIZING:
-		ret = initializing_state(active_cmd, data, data_len);
+		ret = initializing_state(g_cmd_state.active_cmd, data, data_len);
 		break;
 	case DS_WIPING:
-		ret = wiping_state(active_cmd, data, data_len);
+		ret = wiping_state(g_cmd_state.active_cmd, data, data_len);
 		break;
 	case DS_BACKING_UP_DEVICE:
-		ret = backing_up_device_state(active_cmd, data, data_len);
+		ret = backing_up_device_state(g_cmd_state.active_cmd, data, data_len);
 		break;
 	case DS_RESTORING_DEVICE:
-		ret = restoring_device_state(active_cmd, data, data_len);
+		ret = restoring_device_state(g_cmd_state.active_cmd, data, data_len);
 		break;
 #endif
 	case DS_FIRMWARE_UPDATE:
-		ret = firmware_update_state(active_cmd, data, data_len);
+		ret = firmware_update_state(g_cmd_state.active_cmd, data, data_len);
 		break;
 	case DS_ERASING_PAGES:
-		ret = erasing_pages_state(active_cmd, data, data_len);
+		ret = erasing_pages_state(g_cmd_state.active_cmd, data, data_len);
 		break;
 	case DS_BOOTLOADER:
-		ret = bootloader_state(active_cmd, data, data_len);
+		ret = bootloader_state(g_cmd_state.active_cmd, data, data_len);
 		break;
 #ifdef BOOT_MODE_B
 	case DS_LOGGED_OUT:
-		ret = logged_out_state(active_cmd, data, data_len);
+		ret = logged_out_state(g_cmd_state.active_cmd, data, data_len);
 		break;
 	case DS_LOGGED_IN:
-		ret = logged_in_state(active_cmd, data, data_len);
+		ret = logged_in_state(g_cmd_state.active_cmd, data, data_len);
 		break;
 #endif
 	default:
@@ -2020,13 +1994,13 @@ static int restart_signet_command()
 		finish_command_resp(INVALID_STATE);
 	}
 	if (messages_remaining) {
-		cmd_iter_count++;
+		g_cmd_state.cmd_iter_count++;
 	}
 #ifdef TESTING_MODE
-	if (waiting_for_button_press) {
+	if (g_cmd_state.waiting_for_button_press) {
 		button_press();
 	}
-	if (waiting_for_long_button_press) {
+	if (g_cmd_state.waiting_for_long_button_press) {
 		long_button_press();
 	}
 #endif

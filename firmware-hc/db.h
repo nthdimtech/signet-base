@@ -22,6 +22,7 @@ void update_uid_cmd_complete();
 void db3_startup_scan(u8 *block_read, struct block_info *blk_info_temp);
 struct block *db3_initialize_block(int block_num, struct block *block_temp);
 
+void db3_init();
 int db3_read_block_complete(u32 rc);
 int db3_write_block_complete(u32 rc);
 

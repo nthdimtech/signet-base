@@ -330,8 +330,7 @@ static USBD_HID_HandleTypeDef s_fidoHIDClassData __attribute__((aligned(16)));
 static USBD_HID_HandleTypeDef s_keyboardHIDClassData __attribute__((aligned(16)));
 static USBD_MSC_BOT_HandleTypeDef s_SCSIMSCClassData __attribute__((aligned(16)));
 
-static uint8_t  USBD_Multi_Init (USBD_HandleTypeDef *pdev, uint8_t cfgidx)
-{
+static uint8_t  USBD_Multi_Init (USBD_HandleTypeDef *pdev, uint8_t cfgidx){
 	/* Open EP IN */
 	g_pdev = pdev;
 	pdev->pClassData[INTERFACE_MSC] = &s_SCSIMSCClassData;
@@ -339,6 +338,7 @@ static uint8_t  USBD_Multi_Init (USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 	pdev->ep_out[MSC_EPOUT_ADDR & 0xFU].is_used = 1U;
 	USBD_LL_OpenEP(pdev, MSC_EPIN_ADDR, USBD_EP_TYPE_BULK, MSC_MAX_HS_PACKET);
 	pdev->ep_in[MSC_EPIN_ADDR & 0xFU].is_used = 1U;
+
 	MSC_BOT_Init(pdev);
 
 	pdev->pClassData[INTERFACE_CMD] = &s_cmdHIDClassData;

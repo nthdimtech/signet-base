@@ -39,13 +39,15 @@ int is_ctap_initialized();
 #define MMC_RX_CPLT_WORK (1<<4)
 #define READ_DB_TX_CPLT_WORK (1<<5)
 #define FLASH_WORK (1<<6)
-#define USBD_SCSI_WORK (1<<7)
+#define USBD_SCSI_CRYPT_WORK (1<<7)
 #define SYNC_ROOT_BLOCK_WORK (1<<8)
 #define BUTTON_PRESS_WORK (1<<9)
 #define BUTTON_PRESSING_WORK (1<<10)
 #define TIMER_WORK (1<<11)
 #define BLINK_WORK (1<<12)
 #define WORK_STATUS_WORK (1<<13)
+#define WRITE_TEST_TX_WORK (1<<14)
+#define READ_TEST_TX_WORK (1<<15)
 
 #if ENABLE_MMC_STANDBY
 #define MMC_IDLE_WORK (1<<15)
@@ -71,5 +73,7 @@ extern volatile int g_work_to_do;
 		g_work_to_do &= ~w;\
 		__enable_irq();\
 	} while (0)
+
+#define HAS_WORK(w) ((g_work_to_do & (w)) != 0)
 
 #endif

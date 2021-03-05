@@ -141,6 +141,8 @@ typedef struct
 
 	uint32_t                     CID[4];           /*!< MMC card identification number table */
 
+	uint32_t	             FIFOErrorCount;
+
 #if defined (USE_HAL_MMC_REGISTER_CALLBACKS) && (USE_HAL_MMC_REGISTER_CALLBACKS == 1U)
 	void (* TxCpltCallback)                 (struct __MMC_HandleTypeDef *hmmc);
 	void (* RxCpltCallback)                 (struct __MMC_HandleTypeDef *hmmc);
