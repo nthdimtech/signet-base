@@ -443,7 +443,9 @@ int main (void)
 
 	MX_DMA_Init();
 	MX_AES_Init();
+#if ENABLE_MMC
 	MX_SDMMC1_MMC_Init();
+#endif
 #endif
 
 	//TODO: move this elsewhere
@@ -505,11 +507,13 @@ int main (void)
 
 	HAL_Delay(5);
 
+#ifdef BOOT_MODE_B
 	db3_init();
+#endif
 	cmd_init();
-
+#if ENABLE_MEMORY_TEST
 	int memory_test_mode = 0;
-
+#endif
 	if (is_erased_root_page()) {
 		int press_count = 0;
 		while(1) {
@@ -547,6 +551,7 @@ int main (void)
 		} while(!is_flash_idle());
 		busy_blink(300,300);
 	}
+#if ENABLE_MEMORY_TEST
 	else if (is_memtest_root_page()) {
 		emmc_user_queue(EMMC_USER_TEST);
 
@@ -562,6 +567,7 @@ int main (void)
 		}
 		memory_test_mode = 1;
 	}
+#endif
 
 #ifdef ENABLE_FIDO2
     	crypto_ecc256_init();
@@ -612,8 +618,10 @@ int main (void)
 		rand_rewind();
 	}
 
+#if ENABLE_MEMORY_TEST
 	if (memory_test_mode)
 		busy_blink(400, 100);
+#endif
 #endif
 
 	USBD_Init(&USBD_Device, &Multi_Desc, 0);

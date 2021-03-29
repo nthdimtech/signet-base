@@ -94,6 +94,7 @@ static int8_t SCSI_IsWriteProtected (USBD_MSC_BOT_HandleTypeDef *hmsc, uint8_t l
 
 static int8_t SCSI_GetCapacity(USBD_MSC_BOT_HandleTypeDef *hmsc, uint8_t lun, uint32_t *block_num, uint16_t *block_size)
 {
+#if ENABLE_MMC
 	if (lun < hmsc->num_scsi_volumes && hmsc->scsi_volume[lun].visible) {
 		*block_num = (u32)(hmsc->scsi_volume[lun].n_regions * hmsc->scsi_region_size_blocks);
 		*block_size = (uint16_t)g_hmmc1.MmcCard.BlockSize;
@@ -101,6 +102,11 @@ static int8_t SCSI_GetCapacity(USBD_MSC_BOT_HandleTypeDef *hmsc, uint8_t lun, ui
 	} else {
 		return -1;
 	}
+#else
+	*block_num = (u32)(hmsc->scsi_volume[lun].n_regions * hmsc->scsi_region_size_blocks);
+	*block_size = 512;
+	return 0;
+#endif
 }
 
 static int8_t SCSI_IsReady (USBD_MSC_BOT_HandleTypeDef *hmsc, uint8_t lun)
@@ -184,6 +190,11 @@ void usbd_scsi_init(USBD_MSC_BOT_HandleTypeDef  *hmsc)
 {
 	hmsc->scsi_sense_tail = 0U;
 	hmsc->scsi_sense_head = 0U;
+#if !ENABLE_MMC
+	//Use hard coded sizes if we don't have an MMC chip
+	g_hmmc1.MmcCard.BlockNbr = 2 << 27;
+	g_hmmc1.MmcCard.BlockSize = 512;
+#endif
 	u32 nr_blocks  = g_hmmc1.MmcCard.BlockNbr - (EMMC_STORAGE_FIRST_BLOCK * (HC_BLOCK_SZ/EMMC_SUB_BLOCK_SZ));
 	hmsc->scsi_region_size_blocks = (STORAGE_REGION_SIZE)/g_hmmc1.MmcCard.BlockSize;
 	hmsc->num_scsi_volumes = 2;
@@ -273,13 +284,12 @@ static int8_t SCSI_TestUnitReady(USBD_HandleTypeDef  *pdev, uint8_t lun, uint8_t
 {
 	USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*) pdev->pClassData[INTERFACE_MSC];
 
-	/* case 9 : Hi > D0 */
 	if (hmsc->cbw.dDataLength != 0U) {
 		SCSI_SenseCode(pdev, hmsc->cbw.bLUN, ILLEGAL_REQUEST, INVALID_CDB, 0);
 		return -1;
 	}
 
-	if(SCSI_IsReady(hmsc, lun) != 0) {
+	if (SCSI_IsReady(hmsc, lun) != 0) {
 		SCSI_SenseCode(pdev, lun, NOT_READY, MEDIUM_NOT_PRESENT, 0);
 		hmsc->bot_data_length = 0U;
 		hmsc->bot_state = USBD_BOT_NO_DATA;
@@ -685,6 +695,7 @@ void emmc_user_storage_start()
 	if (hmsc->bot_state == USBD_BOT_DATA_IN) {
 		int lun = hmsc->cbw.bLUN;
 
+#if ENABLE_MMC
 		//TODO: Need timeout and error checking here
 		do {
 			cardState = HAL_MMC_GetCardState(&g_hmmc1);
@@ -703,9 +714,14 @@ void emmc_user_storage_start()
 			}
 			emmc_user_read_storage_rx_complete(&g_hmmc1);
 		}
+#else
+		g_hmmc1.ErrorCode = 0;
+		emmc_user_read_storage_rx_complete(&g_hmmc1);
+#endif
 	} else if (hmsc->bot_state == USBD_BOT_DATA_OUT) {
 		int lun = hmsc->cbw.bLUN;
 
+#if ENABLE_MMC
 		//TODO: Need timeout and error checking here
 		do {
 			cardState = HAL_MMC_GetCardState(&g_hmmc1);
@@ -724,6 +740,10 @@ void emmc_user_storage_start()
 			}
 			emmc_user_write_storage_tx_complete(&g_hmmc1);
 		}
+#else
+			g_hmmc1.ErrorCode = 0;
+			emmc_user_write_storage_tx_complete(&g_hmmc1);
+#endif
 	}
 }
 

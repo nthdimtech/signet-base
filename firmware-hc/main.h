@@ -13,6 +13,9 @@
 
 #define ENABLE_MMC_STANDBY 0
 
+#define ENABLE_MMC 1
+#define ENABLE_MEMORY_TEST 0
+
 void led_on();
 void led_off();
 void start_blinking(int period, int duration);
