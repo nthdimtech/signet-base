@@ -1667,10 +1667,10 @@ void startup_cmd_iter(u32 rc)
 	u8 *resp = g_cmd_data.startup.resp;
 
 	if (rc) {
-		command_response = OKAY;
-	} else {
 		enter_state(DS_ERROR);
 		command_response = WRITE_FAILED;
+	} else {
+		command_response = OKAY;
 	}
 
 	memset(g_cmd_data.startup.resp, 0, sizeof(g_cmd_data.startup.resp));
