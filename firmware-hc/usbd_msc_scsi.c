@@ -132,6 +132,18 @@ static int8_t SCSI_IsReady (USBD_MSC_BOT_HandleTypeDef *hmsc, uint8_t lun)
 void usbd_scsi_device_state_change(enum device_state state)
 {
 	USBD_MSC_BOT_HandleTypeDef *hmsc = (USBD_MSC_BOT_HandleTypeDef*) g_pdev->pClassData[INTERFACE_MSC];
+	int is_logged_in;
+	switch (state) {
+	case DS_LOGGED_IN:
+	case DS_FIRMWARE_UPDATE:
+	case DS_BACKING_UP_DEVICE:
+		is_logged_in = 1;
+		break;
+	default:
+		is_logged_in = 0;
+		break;
+	}
+
 	for (int i = 0; i < hmsc->num_scsi_volumes; i++) {
 		struct scsi_volume *v = hmsc->scsi_volume + i;
 		if (!v->flags & HC_VOLUME_FLAG_VALID) {
@@ -139,48 +151,18 @@ void usbd_scsi_device_state_change(enum device_state state)
 			v->writable = 0;
 			continue;
 		}
-		if (v->flags & HC_VOLUME_FLAG_READ_ONLY) {
-			if (v->flags & HC_VOLUME_FLAG_VISIBLE_ON_UNLOCK) {
-				switch (state) {
-				case DS_LOGGED_OUT:
-				case DS_ERASING_PAGES:
-				case DS_WIPING:
-				case DS_INITIALIZING:
-				case DS_UNINITIALIZED:
-				case DS_DISCONNECTED:
-				case DS_RESTORING_DEVICE:
-				case DS_BOOTLOADER:
-					v->writable = 0;
-					break;
-				case DS_LOGGED_IN:
-				case DS_FIRMWARE_UPDATE:
-				case DS_BACKING_UP_DEVICE:
-				default:
-					v->writable = 1;
-					break;
-				}
+		if ((v->flags & HC_VOLUME_FLAG_READ_ONLY) && (v->flags & HC_VOLUME_FLAG_WRITABLE_ON_UNLOCK)) {
+			if (is_logged_in) {
+				v->writable = 1;
+			} else {
+				v->writable = 0;
 			}
 		}
-		if (v->flags & HC_VOLUME_FLAG_HIDDEN) {
-			if (v->flags & HC_VOLUME_FLAG_VISIBLE_ON_UNLOCK) {
-				switch (state) {
-				case DS_LOGGED_OUT:
-				case DS_ERASING_PAGES:
-				case DS_WIPING:
-				case DS_INITIALIZING:
-				case DS_UNINITIALIZED:
-				case DS_DISCONNECTED:
-				case DS_RESTORING_DEVICE:
-				case DS_BOOTLOADER:
-					v->visible = 0;
-					break;
-				case DS_LOGGED_IN:
-				case DS_FIRMWARE_UPDATE:
-				case DS_BACKING_UP_DEVICE:
-				default:
-					v->visible = 1;
-					break;
-				}
+		if ((v->flags & HC_VOLUME_FLAG_HIDDEN) && (v->flags & HC_VOLUME_FLAG_VISIBLE_ON_UNLOCK)) {
+			if (is_logged_in) {
+				v->visible = 1;
+			} else {
+				v->visible = 0;
 			}
 		}
 	}
