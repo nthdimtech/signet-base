@@ -10,7 +10,7 @@ This project uses git submodules, you will either need to use `git clone
 #### Dependencies
 
 The following packages must be installed:
-`build-essential autoconf automake gperf texinfo help2man ncurses-dev bison flex libtool-bin libjson-c-dev libiberty-dev dfu-util`
+`build-essential autoconf automake gperf texinfo help2man ncurses-dev bison flex libtool-bin libjson-c-dev libiberty-dev dfu-util unzip gawk`
 
 This has been tested in various GNU/Linux machines, in other platforms you
 might need more, and possibly differently named, packages.
